@@ -45,39 +45,66 @@ services:
       start_period: 10s
 
   kafka:
-    image: apache/kafka:3.7.0   # możesz też użyć :latest
+    image: apache/kafka:3.7.0
     container_name: kafka
     ports:
-      - "9092:9092"
+      - "9092:9092"               # tylko HOST listener wystawiamy na zewnątrz
     environment:
+      # KRaft (bez Zookeepera)
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+
+      # === LISTENERS ===
+      # Broker nasłuchuje na 3 gniazdach:
+      # - PLAINTEXT_HOST: dla klientów z hosta (IntelliJ) -> localhost:9092
+      # - PLAINTEXT_DOCKER: dla kontenerów w sieci Compose -> kafka:9093
+      # - CONTROLLER: KRaft quorum
+      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
+
+      # To, co broker ogłasza klientom (metadata):
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_DOCKER://kafka:9093
+
+      # Mapowanie nazw listenerów na protokoły
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+      # Komunikacja między brokerami (tu single-node) po „dockerowym” listenerze
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_DOCKER
+
+      # Pozostałe sensowne domyślne
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_NUM_PARTITIONS: 1
 
-  starport-registry:
-    build:
-      context: ../../
-      dockerfile: starport-registry/Dockerfile
-    container_name: starport-registry
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
-      eureka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      zipkin:
-        condition: service_started
       kafka:
         condition: service_started
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8080:8080"
+
+#  starport-registry:
+#    build:
+#      context: ../../
+#      dockerfile: starport-registry/Dockerfile
+#    container_name: starport-registry
+#    depends_on:
+#      eureka:
+#        condition: service_healthy
+#      postgres:
+#        condition: service_healthy
+#      zipkin:
+#        condition: service_started
+#      kafka:
+#        condition: service_started
+#    environment:
+#      SPRING_PROFILES_ACTIVE: docker
+#    ports:
+#      - "8080:8080"

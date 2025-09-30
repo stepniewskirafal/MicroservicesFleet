@@ -245,6 +245,21 @@ Filter chain: Validation → Enrichment → Aggregation → AnomalyDetection →
 - Maintenance Scheduling
 - Security Clearance Check
 
+<code>
+POST http://localhost:8081/api/v1/starports/ABC/reservations
+Content-Type: application/json
+Accept: application/json
+
+{
+"shipId": "SS-Enterprise-01",
+"shipClass": "FREIGHTER",
+"startAt": "2025-11-05T07:00:00Z",
+"endAt":   "2025-11-05T08:30:00Z",
+"requestRoute": false,
+"destinationPortCode": null
+}
+</code>
+
 ### Service B (Hexagonal)
 - Plan Legal Route
 - Re-Plan on Enriched Alert

@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16:///app?TC_TMPFS=/testtmpfs:rw
+    username: test
+    password: test
+  jpa:
+    hibernate.ddl-auto: validate
+  flyway:
+    enabled: true
+# lub skonfigurować poniżej osobny PostgresContainer (bardziej realistycznie)

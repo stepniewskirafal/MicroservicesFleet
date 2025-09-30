@@ -20,8 +20,6 @@
     <modules>
         <module>eureka-server</module>
         <module>starport-registry</module>
-        <!--<module>trade-route-planner</module>-->
-        <!--<module>telemetry-pipeline</module>-->
     </modules>
 
     <properties>
@@ -41,19 +39,4 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.11.0</version>
-                    <configuration>
-                        <source>${java.version}</source>
-                        <target>${java.version}</target>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-    </build>
 </project>
