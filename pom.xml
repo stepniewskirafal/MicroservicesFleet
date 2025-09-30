@@ -1,0 +1,56 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.galactic</groupId>
+    <artifactId>gt-parent</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>GT Parent</name>
+    <description>Parent POM for the Sci-Fi Microservices Fleet</description>
+
+    <modules>
+        <module>eureka-server</module>
+        <module>starport-registry</module>
+        <!--<module>trade-route-planner</module>-->
+        <!--<module>telemetry-pipeline</module>-->
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <spring.boot.version>3.1.4</spring.boot.version>
+        <micrometer.version>3.1.4</micrometer.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>${spring.boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
