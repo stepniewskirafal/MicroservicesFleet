@@ -21,5 +21,4 @@ public abstract class ArchUnitSpecification {
     protected static final String ANNOTATION_SERVICE = "org.springframework.stereotype.Service";
     protected static final String ANNOTATION_REPOSITORY = "org.springframework.stereotype.Repository";
     protected static final String ANNOTATION_AUTOWIRED = "org.springframework.beans.factory.annotation.Autowired";
-
 }
