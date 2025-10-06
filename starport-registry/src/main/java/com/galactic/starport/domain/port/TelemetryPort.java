@@ -1,6 +1,6 @@
 package com.galactic.starport.domain.port;
 
-import com.galactic.starport.application.event.IncidentRecorded;
+import com.galactic.starport.domain.event.IncidentRecorded;
 import com.galactic.starport.domain.enums.ShipClass;
 import com.galactic.starport.domain.model.Reservation;
 import java.math.BigDecimal;

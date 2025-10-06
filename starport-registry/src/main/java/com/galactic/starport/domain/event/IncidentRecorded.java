@@ -1,4 +1,4 @@
-package com.galactic.starport.application.event;
+package com.galactic.starport.domain.event;
 
 import java.time.Instant;
 import java.util.UUID;

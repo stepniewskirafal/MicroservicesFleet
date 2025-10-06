@@ -1,8 +1,8 @@
 package com.galactic.starport.infrastructure;
 
-import com.galactic.starport.application.event.IncidentRecorded;
-import com.galactic.starport.application.event.StarportReservationCreated;
-import com.galactic.starport.application.event.TariffCalculated;
+import com.galactic.starport.domain.event.IncidentRecorded;
+import com.galactic.starport.domain.event.ReservationCreated;
+import com.galactic.starport.domain.event.TariffCalculated;
 import com.galactic.starport.domain.port.TelemetryPort;
 import com.galactic.starport.domain.enums.ShipClass;
 import com.galactic.starport.domain.model.Reservation;
@@ -25,7 +25,7 @@ public class CloudStreamTelemetryAdapter implements TelemetryPort {
 
     @Override
     public void reservationCreated(Reservation r) {
-        var evt = new StarportReservationCreated(
+        var evt = new ReservationCreated(
                 UUID.randomUUID().toString(),
                 Instant.now(),
                 r.getDockingBay().getStarport().getCode(),

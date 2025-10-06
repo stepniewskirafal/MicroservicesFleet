@@ -30,9 +30,9 @@ public class ReservationService {
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
         var range = new TimeRange(command.startAt(), command.endAt());
 
-        final Starport sp;
+        final Starport starport;
         try {
-            sp = starportGateway
+            starport = starportGateway
                     .findByCode(command.starportCode())
                     .orElseThrow(
                             () -> new StarportNotFoundException("Starport %s not found".formatted(command.starportCode())));
@@ -43,9 +43,9 @@ public class ReservationService {
         final DockingBay freeBay;
         try {
             freeBay = starportGateway
-                    .findFirstFreeBay(sp.getCode(), command.shipClass(), range.getStartAt(), range.getEndAt())
+                    .findFirstFreeBay(starport.getCode(), command.shipClass(), range.getStartAt(), range.getEndAt())
                     .orElseThrow(
-                            () -> new NoDockingBaysAvailableException(sp.getCode(), range.getStartAt(), range.getEndAt()));
+                            () -> new NoDockingBaysAvailableException(starport.getCode(), range.getStartAt(), range.getEndAt()));
         } catch (DataAccessException dae) {
             throw new RepositoryUnavailableException("Database error while searching free bay", dae);
         }
