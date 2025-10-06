@@ -3,7 +3,7 @@ package com.galactic.starport.infrastructure;
 import com.galactic.starport.application.event.IncidentRecorded;
 import com.galactic.starport.application.event.StarportReservationCreated;
 import com.galactic.starport.application.event.TariffCalculated;
-import com.galactic.starport.application.port.TelemetryPort;
+import com.galactic.starport.domain.port.TelemetryPort;
 import com.galactic.starport.domain.enums.ShipClass;
 import com.galactic.starport.domain.model.Reservation;
 import com.galactic.starport.infrastructure.config.TopicsProperties;
@@ -36,7 +36,6 @@ public class CloudStreamTelemetryAdapter implements TelemetryPort {
                 r.getStartAt(),
                 r.getEndAt(),
                 r.getFeeAmount());
-
         // bridge.send(topicsProperties.reservations() , evt);
     }
 

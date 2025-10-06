@@ -1,4 +1,4 @@
-package com.galactic.starport.application.port;
+package com.galactic.starport.domain.port;
 
 public interface RoutePlannerPort {
     /** Zwraca routeId albo null. */

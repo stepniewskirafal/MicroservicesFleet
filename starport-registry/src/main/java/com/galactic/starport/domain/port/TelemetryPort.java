@@ -1,4 +1,4 @@
-package com.galactic.starport.application.port;
+package com.galactic.starport.domain.port;
 
 import com.galactic.starport.application.event.IncidentRecorded;
 import com.galactic.starport.domain.enums.ShipClass;

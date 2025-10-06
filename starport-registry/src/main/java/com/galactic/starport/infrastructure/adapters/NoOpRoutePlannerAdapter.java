@@ -1,6 +1,6 @@
 package com.galactic.starport.infrastructure.adapters;
 
-import com.galactic.starport.application.port.RoutePlannerPort;
+import com.galactic.starport.domain.port.RoutePlannerPort;
 import java.util.UUID;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;

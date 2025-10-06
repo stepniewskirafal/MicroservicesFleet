@@ -1,95 +1,67 @@
 package com.galactic.starport.api.error;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
-import java.util.Map;
-import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
+import com.galactic.starport.domain.exception.DockingBayNotFoundException;
+import com.galactic.starport.domain.exception.NoDockingBaysAvailableException;
+import com.galactic.starport.domain.exception.RepositoryUnavailableException;
+import com.galactic.starport.domain.exception.StarportNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@Slf4j
+import java.net.URI;
+import java.time.Instant;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleNotFound(NotFoundException ex, HttpServletRequest req) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        pd.setTitle("Resource not found");
-        pd.setType(URI.create("https://errors.starport/not-found"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
+    @ExceptionHandler(StarportNotFoundException.class)
+    ProblemDetail handle(StarportNotFoundException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setTitle("Starport not found");
+        pd.setType(URI.create("https://docs.starport/errors/starport-not-found"));
+        pd.setProperty("starportCode", ex.starportCode());
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(DockingBayNotFoundException.class)
+    ProblemDetail handle(DockingBayNotFoundException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setTitle("Docking bay not found");
+        pd.setType(URI.create("https://docs.starport/errors/docking-bay-not-found"));
+        pd.setProperty("bayId", ex.bayId().toString());
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
     }
 
     @ExceptionHandler(NoDockingBaysAvailableException.class)
-    public ResponseEntity<ProblemDetail> handleNoBay(NoDockingBaysAvailableException ex, HttpServletRequest req) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        pd.setTitle("No docking bay available");
-        pd.setType(URI.create("https://errors.starport/no-bay"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
+    ProblemDetail handle(NoDockingBaysAvailableException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setTitle("No docking bays available");
+        pd.setType(URI.create("https://docs.starport/errors/no-bays"));
+        pd.setProperty("starportCode", ex.starportCode());
+        pd.setProperty("from", ex.from().toString());
+        pd.setProperty("to", ex.to().toString());
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
     }
 
     @ExceptionHandler(RepositoryUnavailableException.class)
-    public ResponseEntity<ProblemDetail> handleRepo(RepositoryUnavailableException ex, HttpServletRequest req) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    ProblemDetail handle(RepositoryUnavailableException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
         pd.setTitle("Repository unavailable");
-        pd.setType(URI.create("https://errors.starport/repository-unavailable"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(pd);
-    }
-
-    // Gdy nie chcesz własnego wyjątku – możesz też złapać bezpośrednio DataAccessException:
-    @ExceptionHandler(DataAccessException.class)
-    public ResponseEntity<ProblemDetail> handleDataAccess(DataAccessException ex, HttpServletRequest req) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, "Database error");
-        pd.setTitle("Database error");
-        pd.setType(URI.create("https://errors.starport/db"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(pd);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ProblemDetail> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
-        Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
-                .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage, (a, b) -> a));
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setTitle("Validation failed");
-        pd.setType(URI.create("https://errors.starport/validation"));
-        pd.setDetail("Request payload contains invalid data.");
-        pd.setProperty("errors", errors);
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.badRequest().body(pd);
-    }
-
-    @ExceptionHandler({
-        HttpMessageNotReadableException.class,
-        IllegalArgumentException.class,
-        ConstraintViolationException.class
-    })
-    public ResponseEntity<ProblemDetail> handleBadRequest(Exception ex, HttpServletRequest req) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
-        pd.setTitle("Bad request");
-        pd.setType(URI.create("https://errors.starport/bad-request"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.badRequest().body(pd);
+        pd.setType(URI.create("https://docs.starport/errors/repository-unavailable"));
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ProblemDetail> handleAny(Exception ex, HttpServletRequest req) {
-        log.error("Unexpected error", ex);
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
-        pd.setTitle("Internal error");
-        pd.setType(URI.create("https://errors.starport/internal"));
-        pd.setProperty("path", req.getRequestURI());
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
+    ProblemDetail handleGeneric(Exception ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+        pd.setTitle("Internal server error");
+        pd.setType(URI.create("https://docs.starport/errors/internal"));
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
     }
 }
