@@ -1,6 +1,8 @@
 package com.galactic.starport.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.galactic.starport.application.command.ReserveBayCommand;
+import com.galactic.starport.application.event.ReservationEventMapper;
 import com.galactic.starport.application.service.tariff.TariffPolicy;
 import com.galactic.starport.domain.enums.ReservationStatus;
 import com.galactic.starport.domain.exception.NoDockingBaysAvailableException;
@@ -10,21 +12,26 @@ import com.galactic.starport.domain.model.DockingBay;
 import com.galactic.starport.domain.model.Reservation;
 import com.galactic.starport.domain.model.Starport;
 import com.galactic.starport.domain.model.TimeRange;
+import com.galactic.starport.domain.port.OutboxPort;
 import com.galactic.starport.domain.port.StarportGateway;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
 
     private final StarportGateway starportGateway;
+    private final OutboxPort outboxPort;
     private final TariffPolicy tariffPolicy;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
@@ -70,16 +77,27 @@ public class ReservationService {
             throw new RepositoryUnavailableException("Database error while saving reservation", dae);
         }
 
-        /*telemetry.tariffCalculated(
-                UUID.randomUUID().toString(),
-                Instant.now(),
-                saved.getDockingBay().getStarport().getCode(),
-                saved.getId(),
-                saved.getShipClass(),
-                saved.durationHours(),
-                tariffPolicy.calculate(saved.getShipClass(), saved.durationHours());
-        telemetry.reservationCreated(saved);*/
+// 2) Mapowanie → payload aplikacyjny (Application), serializacja do JSON:
+        var payload = ReservationEventMapper.toReservationCreated(saved); // <— poprawiona nazwa i użycie 'saved'
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize event payload", e);
+        }
 
-        return Optional.of(saved);
+// 3) Zapis do OUTBOX (ten sam @Transactional)
+        outboxPort.save(
+                "ReservationCreated",
+                "reservationCreated-out-0",                  // binding z application.yml
+                saved.getDockingBay().getStarport().getId().toString(), // messageKey jako String
+                json,
+                Map.of(
+                        "partitionKey", saved.getDockingBay().getStarport().getId().toString(), // też String
+                        "contentType", "application/json"
+                )
+        );
+
+        return Optional.of(r);
     }
 }

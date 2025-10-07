@@ -1,4 +1,3 @@
--- V2__seed_starports_bays_reservations.sql
 BEGIN;
 
 -- === STARPORTS (UPSERT po code) ===

@@ -1,4 +1,3 @@
--- STARPORT
 CREATE TABLE IF NOT EXISTS starport (
                                         id    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
                                         name  varchar(64) NOT NULL UNIQUE,
