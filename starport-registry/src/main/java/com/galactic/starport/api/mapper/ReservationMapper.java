@@ -4,8 +4,10 @@ import com.galactic.starport.api.dto.ReservationCreateRequest;
 import com.galactic.starport.api.dto.ReservationResponse;
 import com.galactic.starport.application.command.ReserveBayCommand;
 import com.galactic.starport.domain.model.Reservation;
-import java.util.UUID;
-import org.mapstruct.*;
+import org.mapstruct.InjectionStrategy;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
 @Mapper(
         componentModel = "spring",
@@ -13,6 +15,7 @@ import org.mapstruct.*;
         unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface ReservationMapper {
 
+    // --- API -> Command ---
     @Mapping(target = "starportCode", source = "code")
     @Mapping(target = "shipId", source = "req.shipId")
     @Mapping(target = "shipClass", source = "req.shipClass")
@@ -21,16 +24,12 @@ public interface ReservationMapper {
     @Mapping(target = "requestRoute", source = "req.requestRoute")
     ReserveBayCommand toCommand(String code, ReservationCreateRequest req);
 
-    default ReservationResponse toResponse(Reservation r) {
-        if (r == null) return null;
-        return new ReservationResponse(
-                r.getId(),
-                r.getDockingBay().getStarport().getCode(),
-                r.getDockingBay().getId(),
-                r.getStartAt(),
-                r.getEndAt(),
-                r.getFeeAmount(),
-                UUID.randomUUID().toString() // r.getRouteId()
-                );
-    }
+    @Mapping(target = "reservationId", source = "id")
+    @Mapping(target = "starportCode", source = "dockingBay.starport.code")
+    @Mapping(target = "bayNumber", source = "dockingBay.id")
+    @Mapping(target = "startAt", expression = "java(r.getStartAt())")
+    @Mapping(target = "endAt", expression = "java(r.getEndAt())")
+    @Mapping(target = "feeCharged", source = "feeAmount")
+    @Mapping(target = "routeId", expression = "java(java.util.UUID.randomUUID().toString())")
+    ReservationResponse toResponse(Reservation r);
 }

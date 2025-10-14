@@ -2,24 +2,22 @@ package com.galactic.starport.application.event;
 
 import com.galactic.starport.domain.event.ReservationCreated;
 import com.galactic.starport.domain.model.Reservation;
+import org.mapstruct.*;
 
-import java.time.Instant;
-import java.util.UUID;
-
-public class ReservationEventMapper {
-
-    public static ReservationCreated toReservationCreated(Reservation r) {
-        return new ReservationCreated(
-                /* eventId       */ UUID.randomUUID().toString(),
-                /* occurredAt    */ Instant.now(),              // albo r.getCreatedAt() jeśli wolisz czas domenowy
-                /* starportCode  */ r.getDockingBay().getStarport().getCode(),
-                /* reservationId */ r.getId().toString(),
-                /* bayNumber     */ r.getDockingBay().getId().toString(), // jeśli masz osobne "number", użyj go tutaj
-                /* shipId        */ r.getShipId(),
-                /* shipClass     */ r.getShipClass().name(),
-                /* startAt       */ r.getPeriod().getStartAt(),
-                /* endAt         */ r.getPeriod().getEndAt(),
-                /* feeCharged    */ r.getFeeAmount() == null ? null : r.getFeeAmount().toPlainString()
-        );
-    }
+@Mapper(
+        componentModel = "spring",
+        injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+        unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface ReservationEventMapper {
+    @Mapping(target = "eventId", expression = "java(java.util.UUID.randomUUID().toString())")
+    @Mapping(target = "occurredAt", expression = "java(java.time.Instant.now())")
+    @Mapping(target = "starportCode", expression = "java(r.getDockingBay().getStarport().getCode())")
+    @Mapping(target = "reservationId", expression = "java(r.getId().toString())")
+    @Mapping(target = "bayNumber", expression = "java(r.getDockingBay().getId().toString())")
+    @Mapping(target = "shipId", source = "shipId")
+    @Mapping(target = "shipClass", source = "shipClass")
+    @Mapping(target = "startAt", expression = "java(r.getStartAt())")
+    @Mapping(target = "endAt", expression = "java(r.getEndAt())")
+    @Mapping(target = "feeCharged", source = "feeAmount")
+    ReservationCreated toReservationCreated(Reservation r);
 }

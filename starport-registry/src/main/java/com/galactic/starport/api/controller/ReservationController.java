@@ -7,7 +7,6 @@ import com.galactic.starport.application.command.ReserveBayCommand;
 import com.galactic.starport.application.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.mapstruct.factory.Mappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ReservationController implements ReservationApi {
     private final ReservationService service;
-    private ReservationMapper mapper = Mappers.getMapper(ReservationMapper.class);
+    private final ReservationMapper mapper;
 
     @PostMapping("/{code}/reservations")
     public ResponseEntity<ReservationResponse> create(

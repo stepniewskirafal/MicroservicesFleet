@@ -16,13 +16,12 @@ import com.galactic.starport.domain.port.OutboxPort;
 import com.galactic.starport.domain.port.StarportGateway;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +31,7 @@ public class ReservationService {
     private final OutboxPort outboxPort;
     private final TariffPolicy tariffPolicy;
     private final ObjectMapper objectMapper;
+    private final ReservationEventMapper reservationEventMapper;
 
     @Transactional
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
@@ -41,8 +41,8 @@ public class ReservationService {
         try {
             starport = starportGateway
                     .findByCode(command.starportCode())
-                    .orElseThrow(
-                            () -> new StarportNotFoundException("Starport %s not found".formatted(command.starportCode())));
+                    .orElseThrow(() ->
+                            new StarportNotFoundException("Starport %s not found".formatted(command.starportCode())));
         } catch (DataAccessException dae) {
             throw new RepositoryUnavailableException("Database error while loading starport", dae);
         }
@@ -51,8 +51,8 @@ public class ReservationService {
         try {
             freeBay = starportGateway
                     .findFirstFreeBay(starport.getCode(), command.shipClass(), range.getStartAt(), range.getEndAt())
-                    .orElseThrow(
-                            () -> new NoDockingBaysAvailableException(starport.getCode(), range.getStartAt(), range.getEndAt()));
+                    .orElseThrow(() -> new NoDockingBaysAvailableException(
+                            starport.getCode(), range.getStartAt(), range.getEndAt()));
         } catch (DataAccessException dae) {
             throw new RepositoryUnavailableException("Database error while searching free bay", dae);
         }
@@ -77,8 +77,8 @@ public class ReservationService {
             throw new RepositoryUnavailableException("Database error while saving reservation", dae);
         }
 
-// 2) Mapowanie → payload aplikacyjny (Application), serializacja do JSON:
-        var payload = ReservationEventMapper.toReservationCreated(saved); // <— poprawiona nazwa i użycie 'saved'
+        // 2) Mapowanie → payload aplikacyjny (Application), serializacja do JSON:
+        var payload = reservationEventMapper.toReservationCreated(saved); // <— poprawiona nazwa i użycie 'saved'
         String json;
         try {
             json = objectMapper.writeValueAsString(payload);
@@ -86,17 +86,17 @@ public class ReservationService {
             throw new IllegalStateException("Failed to serialize event payload", e);
         }
 
-// 3) Zapis do OUTBOX (ten sam @Transactional)
+        // 3) Zapis do OUTBOX (ten sam @Transactional)
         outboxPort.save(
                 "ReservationCreated",
-                "reservationCreated-out-0",                  // binding z application.yml
+                "reservationCreated-out-0", // binding z application.yml
                 saved.getDockingBay().getStarport().getId().toString(), // messageKey jako String
                 json,
                 Map.of(
-                        "partitionKey", saved.getDockingBay().getStarport().getId().toString(), // też String
-                        "contentType", "application/json"
-                )
-        );
+                        "partitionKey",
+                        saved.getDockingBay().getStarport().getId().toString(), // też String
+                        "contentType",
+                        "application/json"));
 
         return Optional.of(r);
     }
