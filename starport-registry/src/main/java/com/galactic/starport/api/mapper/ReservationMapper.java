@@ -15,13 +15,7 @@ import org.mapstruct.ReportingPolicy;
         unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface ReservationMapper {
 
-    // --- API -> Command ---
     @Mapping(target = "starportCode", source = "code")
-    @Mapping(target = "shipId", source = "req.shipId")
-    @Mapping(target = "shipClass", source = "req.shipClass")
-    @Mapping(target = "startAt", source = "req.startAt")
-    @Mapping(target = "endAt", source = "req.endAt")
-    @Mapping(target = "requestRoute", source = "req.requestRoute")
     ReserveBayCommand toCommand(String code, ReservationCreateRequest req);
 
     @Mapping(target = "reservationId", source = "id")
@@ -30,6 +24,18 @@ public interface ReservationMapper {
     @Mapping(target = "startAt", expression = "java(r.getStartAt())")
     @Mapping(target = "endAt", expression = "java(r.getEndAt())")
     @Mapping(target = "feeCharged", source = "feeAmount")
-    @Mapping(target = "routeId", expression = "java(java.util.UUID.randomUUID().toString())")
+    @Mapping(target = "routeId", expression = "java(selectActiveRoute(r))")
     ReservationResponse toResponse(Reservation r);
+
+    default ReservationResponse.Route selectActiveRoute(Reservation r) {
+        if (r == null || r.getRoutes() == null || r.getRoutes().isEmpty()) {
+            return null;
+        }
+        return r.getRoutes().stream()
+                .filter(com.galactic.starport.domain.model.Route::isActive)
+                .findFirst()
+                .map(activeRoute -> new ReservationResponse.Route(
+                        activeRoute.getId(), activeRoute.getEtaLY(), activeRoute.getRiskScore()))
+                .orElse(null);
+    }
 }

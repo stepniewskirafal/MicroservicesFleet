@@ -2,6 +2,7 @@ package com.galactic.starport.infrastructure.outbox;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.data.domain.PageRequest;
@@ -10,8 +11,6 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -27,14 +26,16 @@ public class OutboxPublisher {
         var batch = repo.fetchBatchPending(PageRequest.of(0, 100));
         for (var e : batch) {
             try {
-                Map<String,Object> headers = e.getHeadersJson() == null
-                        ? Map.of() : mapper.readValue(e.getHeadersJson(), new TypeReference<>() {});
+                Map<String, Object> headers = e.getHeadersJson() == null
+                        ? Map.of()
+                        : mapper.readValue(e.getHeadersJson(), new TypeReference<>() {});
                 Message<String> msg = MessageBuilder.withPayload(e.getPayloadJson())
                         .copyHeaders(headers)
                         .build();
 
                 boolean ok = streamBridge.send(e.getBinding(), msg); // wysyłka na BINDING
-                if (ok) e.markSent(); else e.bumpAttempts();
+                if (ok) e.markSent();
+                else e.bumpAttempts();
             } catch (Exception ex) {
                 e.bumpAttempts();
                 if (e.getAttempts() >= 10) e.markFailed();

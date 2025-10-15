@@ -4,8 +4,9 @@ import com.galactic.starport.domain.enums.ReservationStatus;
 import com.galactic.starport.domain.enums.ShipClass;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -37,7 +38,6 @@ public class Reservation {
     @Column(name = "ship_class", nullable = false, length = 32)
     private ShipClass shipClass;
 
-    /** Kompozycja: mapuje się bezpośrednio na kolumny start_at / end_at */
     @Embedded
     private TimeRange period;
 
@@ -55,12 +55,12 @@ public class Reservation {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    // --- lifecycle hooks ---
+    @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Route> routes = new ArrayList<>();
 
     @PrePersist
     void prePersist() {
         if (period != null) period.validate();
-        // prosta walidacja spójności klasy statku z zatoką
         if (dockingBay != null && shipClass != null && dockingBay.getShipClass() != shipClass) {
             throw new IllegalStateException("Reservation.shipClass must equal DockingBay.shipClass");
         }
@@ -74,8 +74,6 @@ public class Reservation {
         updatedAt = Instant.now();
     }
 
-    // --- helpers ---
-
     public Instant getStartAt() {
         return period != null ? period.getStartAt() : null;
     }
@@ -84,7 +82,16 @@ public class Reservation {
         return period != null ? period.getEndAt() : null;
     }
 
-    public long durationHours() {
-        return Duration.between(getStartAt(), getEndAt()).toHours();
+    public void confirmReservation(Route route, BigDecimal fee) {
+        this.status = ReservationStatus.CONFIRMED;
+        this.feeAmount = fee;
+        if (this.routes == null || this.routes.isEmpty()) {
+            this.routes = new ArrayList<>();
+            routes.add(route);
+        }else {
+            this.routes.add(route);
+        }
+        route.setActive(true);
+        route.setReservation(this);
     }
 }

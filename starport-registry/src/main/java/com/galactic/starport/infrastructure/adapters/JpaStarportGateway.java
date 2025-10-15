@@ -9,6 +9,7 @@ import com.galactic.starport.infrastructure.jpa.ReservationJpaRepository;
 import com.galactic.starport.infrastructure.jpa.StarportJpaRepository;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,11 @@ import org.springframework.stereotype.Component;
 class JpaStarportGateway implements StarportGateway {
     private final StarportJpaRepository starports; // Spring Data
     private final ReservationJpaRepository reservations; // Spring Data
+
+    @Override
+    public Optional<Starport> findById(UUID reservationId) {
+        return starports.findById(reservationId);
+    }
 
     @Override
     public Optional<Starport> findByCode(String code) {

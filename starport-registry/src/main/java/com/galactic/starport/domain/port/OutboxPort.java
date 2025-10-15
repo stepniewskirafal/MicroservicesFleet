@@ -8,9 +8,10 @@ import java.util.Map;
  * (Dzięki temu Domain nie widzi klas z Application.)
  */
 public interface OutboxPort {
-    void save(String eventType,
-              String binding,            // np. "reservationCreated-out-0"
-              String messageKey,         // np. starportId
-              String payloadJson,        // już zserializowany JSON
-              Map<String, Object> headers);
+    void save(
+            String eventType,
+            String binding, // np. "reservationCreated-out-0"
+            String messageKey, // np. starportId
+            String payloadJson, // już zserializowany JSON
+            Map<String, Object> headers);
 }

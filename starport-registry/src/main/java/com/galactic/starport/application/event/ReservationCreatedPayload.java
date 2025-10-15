@@ -7,6 +7,6 @@ public record ReservationCreatedPayload(
         String bayId,
         String shipId,
         String shipClass,
-        String from,     // ISO-8601
-        String to       // ISO-8601
-) {}
+        String from, // ISO-8601
+        String to // ISO-8601
+        ) {}

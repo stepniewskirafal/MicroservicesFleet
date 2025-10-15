@@ -1,7 +1,7 @@
 package com.galactic.starport.domain.enums;
 
 public enum ReservationStatus {
-    PENDING,
+    HOLD,
     CONFIRMED,
     CANCELLED
 }

@@ -9,4 +9,5 @@ public record ReserveBayCommand(
         ShipClass shipClass,
         Instant startAt,
         Instant endAt,
-        boolean requestRoute) {}
+        boolean requestRoute,
+        String originPortId) {}

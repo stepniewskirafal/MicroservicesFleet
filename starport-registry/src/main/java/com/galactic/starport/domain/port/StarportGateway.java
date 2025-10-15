@@ -6,9 +6,12 @@ import com.galactic.starport.domain.model.Reservation;
 import com.galactic.starport.domain.model.Starport;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 // domain.port
 public interface StarportGateway {
+    Optional<Starport> findById(UUID reservationId);
+
     Optional<Starport> findByCode(String code);
 
     Optional<DockingBay> findFirstFreeBay(String starportCode, ShipClass shipClass, Instant startAt, Instant endAt);

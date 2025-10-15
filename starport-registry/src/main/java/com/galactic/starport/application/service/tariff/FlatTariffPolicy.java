@@ -14,6 +14,7 @@ public class FlatTariffPolicy implements TariffPolicy {
                     case SCOUT -> BigDecimal.valueOf(50);
                     case FREIGHTER -> BigDecimal.valueOf(120);
                     case CRUISER -> BigDecimal.valueOf(250);
+                    case UNKNOWN -> BigDecimal.valueOf(1000);
                 };
         return perHour.multiply(BigDecimal.valueOf(hours));
     }

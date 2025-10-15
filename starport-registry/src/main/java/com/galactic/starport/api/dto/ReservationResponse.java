@@ -11,4 +11,7 @@ public record ReservationResponse(
         Instant startAt,
         Instant endAt,
         BigDecimal feeCharged,
-        String routeId) {}
+        Route routeId) {
+
+    public record Route(UUID routeId, Double etaLY, Double riskScore) {}
+}

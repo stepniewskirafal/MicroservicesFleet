@@ -1,103 +1,66 @@
 package com.galactic.starport.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.galactic.starport.application.command.ReserveBayCommand;
-import com.galactic.starport.application.event.ReservationEventMapper;
 import com.galactic.starport.application.service.tariff.TariffPolicy;
-import com.galactic.starport.domain.enums.ReservationStatus;
-import com.galactic.starport.domain.exception.NoDockingBaysAvailableException;
-import com.galactic.starport.domain.exception.RepositoryUnavailableException;
-import com.galactic.starport.domain.exception.StarportNotFoundException;
-import com.galactic.starport.domain.model.DockingBay;
 import com.galactic.starport.domain.model.Reservation;
-import com.galactic.starport.domain.model.Starport;
-import com.galactic.starport.domain.model.TimeRange;
-import com.galactic.starport.domain.port.OutboxPort;
-import com.galactic.starport.domain.port.StarportGateway;
+
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
+
+import com.galactic.starport.domain.model.Route;
+import com.galactic.starport.domain.port.RoutePlannerPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
 
-    private final StarportGateway starportGateway;
-    private final OutboxPort outboxPort;
+    private final ReservationPersistenceService persistenceService;
     private final TariffPolicy tariffPolicy;
-    private final ObjectMapper objectMapper;
-    private final ReservationEventMapper reservationEventMapper;
-
-    @Transactional
+    private final RoutePlannerPort routePlannerClient;
+    /**
+     * Reserve a bay for the given command.
+     * <p>
+     * This method orchestrates the allocation of a docking bay (HOLD), calls an
+     * external route planner (if requested) outside of any database transaction,
+     * computes the final tariff and confirms the reservation. If the external
+     * route planner rejects the route or returns an error, the hold is released
+     * via {@link ReservationPersistenceService#releaseHold(Reservation)} and an empty Optional is returned.
+     */
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
-        var range = new TimeRange(command.startAt(), command.endAt());
+        // first, allocate a HOLD reservation in its own transaction
+        Reservation hold = persistenceService.allocateHold(command);
 
-        final Starport starport;
-        try {
-            starport = starportGateway
-                    .findByCode(command.starportCode())
-                    .orElseThrow(() ->
-                            new StarportNotFoundException("Starport %s not found".formatted(command.starportCode())));
-        } catch (DataAccessException dae) {
-            throw new RepositoryUnavailableException("Database error while loading starport", dae);
+        // duration in hours for tariff calculation
+        long hours = Math.max(1, Duration.between(hold.getPeriod().getStartAt(), hold.getPeriod().getEndAt()).toHours());
+
+        BigDecimal baseFee = tariffPolicy.calculate(command.shipClass(), hours);
+        Route route = null;
+        // If the caller requested route planning, invoke the external service outside of a transaction.
+        if (command.requestRoute()) {
+            try {
+                // Call the route planner to obtain a risk score. This call should be idempotent and
+                // must not be wrapped in a database transaction.
+                route = routePlannerClient.planRoute(
+                        command.originPortId(),
+                        command.starportCode(),
+                        command.shipClass(),
+                        command.startAt());
+                BigDecimal finalFee = baseFee.multiply(BigDecimal.valueOf(1 + route.getRiskScore()/100.0));
+
+
+                return Optional.of(persistenceService.confirmReservation(hold, route, finalFee));
+            } catch (Exception e) {
+                // remote call failed or route rejected – release the hold
+                persistenceService.releaseHold(hold);
+                return Optional.empty();
+            }
         }
 
-        final DockingBay freeBay;
-        try {
-            freeBay = starportGateway
-                    .findFirstFreeBay(starport.getCode(), command.shipClass(), range.getStartAt(), range.getEndAt())
-                    .orElseThrow(() -> new NoDockingBaysAvailableException(
-                            starport.getCode(), range.getStartAt(), range.getEndAt()));
-        } catch (DataAccessException dae) {
-            throw new RepositoryUnavailableException("Database error while searching free bay", dae);
-        }
-
-        long hours = Math.max(
-                1, Duration.between(range.getStartAt(), range.getEndAt()).toHours());
-        BigDecimal fee = tariffPolicy.calculate(command.shipClass(), hours);
-
-        Reservation r = Reservation.builder()
-                .dockingBay(freeBay)
-                .shipId(command.shipId())
-                .shipClass(command.shipClass())
-                .period(range)
-                .status(ReservationStatus.CONFIRMED)
-                .feeAmount(fee)
-                .build();
-
-        final Reservation saved;
-        try {
-            saved = starportGateway.save(r);
-        } catch (DataAccessException dae) {
-            throw new RepositoryUnavailableException("Database error while saving reservation", dae);
-        }
-
-        // 2) Mapowanie → payload aplikacyjny (Application), serializacja do JSON:
-        var payload = reservationEventMapper.toReservationCreated(saved); // <— poprawiona nazwa i użycie 'saved'
-        String json;
-        try {
-            json = objectMapper.writeValueAsString(payload);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to serialize event payload", e);
-        }
-
-        // 3) Zapis do OUTBOX (ten sam @Transactional)
-        outboxPort.save(
-                "ReservationCreated",
-                "reservationCreated-out-0", // binding z application.yml
-                saved.getDockingBay().getStarport().getId().toString(), // messageKey jako String
-                json,
-                Map.of(
-                        "partitionKey",
-                        saved.getDockingBay().getStarport().getId().toString(), // też String
-                        "contentType",
-                        "application/json"));
-
-        return Optional.of(r);
+        // If no route planning is requested, confirm directly
+        return Optional.of(persistenceService.confirmReservation(hold, route, baseFee));
     }
+
 }

@@ -1,6 +1,5 @@
 package com.galactic.starport.domain.exception;
 
-
 import java.util.Objects;
 import java.util.UUID;
 
@@ -12,5 +11,7 @@ public class DockingBayNotFoundException extends RuntimeException {
         this.bayId = Objects.requireNonNull(bayId, "bayId");
     }
 
-    public UUID bayId() { return bayId; }
+    public UUID bayId() {
+        return bayId;
+    }
 }

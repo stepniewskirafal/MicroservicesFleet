@@ -10,5 +10,7 @@ public class StarportNotFoundException extends RuntimeException {
         this.starportCode = Objects.requireNonNull(starportCode, "starportCode");
     }
 
-    public String starportCode() { return starportCode; }
+    public String starportCode() {
+        return starportCode;
+    }
 }

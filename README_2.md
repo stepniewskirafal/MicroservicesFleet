@@ -104,8 +104,8 @@ sequenceDiagram
 {
   "shipId": "SS-Enterprise-01",
   "shipClass": "FREIGHTER_MK2",
-  "from": "2025-10-14T14:00:00Z",
-  "to":   "2025-10-14T18:00:00Z",
+  "startAt": "2025-10-14T14:00:00Z",
+  "endAt":   "2025-10-14T18:00:00Z",
   "requestRoute": true,
   "originPortId": "SP-77-NARSHADDA"
 }
@@ -117,14 +117,11 @@ sequenceDiagram
 {
   "reservationId": "RSV-8842",
   "starportId": "SP-02-TATOOINE-MOS",
-  "dockingBayId": "BAY-14",
-  "from": "2025-10-14T14:00:00Z",
-  "to": "2025-10-14T18:00:00Z",
-  "tariff": {
-    "currency": "CR",
-    "amount": 120.50
-  },
-  "route": { "routeId": "ROUTE-9F21", "etaHours": 18.7, "riskScore": 0.4 }
+  "dockingBayId": "b7a761c9-5093-44d9-9fd2-48d6541aaa7c",
+  "startAt": "2025-10-14T14:00:00Z",
+  "endAt": "2025-10-14T18:00:00Z",
+  "amount": 120.50,
+  "route": { "routeId": "ROUTE-9F21", "etaLY": 18.7, "riskScore": 0.4 }
 }
 ```
 
@@ -308,8 +305,8 @@ Parametry (`portRate`, `baySizeMultiplier`, `riskAlpha`, `maxRiskDiscountPct`) w
 stateDiagram-v2
     [*] --> HOLD
     HOLD --> CONFIRMED: route OK + tariff
-    HOLD --> REJECTED: route NOK / timeout / planner down
-    REJECTED --> [*]
+    HOLD --> CANCELLED: route NOK / timeout / planner down
+    CANCELLED --> [*]
     CONFIRMED --> [*]
 ```
 
