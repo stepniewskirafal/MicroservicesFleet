@@ -18,8 +18,14 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none #validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+        use_sql_comments: true
+        hibernate.id.optimizer.pooled.preferred: pooled-lo
 
   cloud:
     discovery:
@@ -89,3 +95,8 @@ app:
 
 outbox:
   poll-interval-ms: 1000
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.type.descriptor.sql.BasicBinder: trace

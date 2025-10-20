@@ -90,21 +90,21 @@ services:
       kafka:
         condition: service_started
 
-  starport-registry:
-    build:
-      context: ../../
-      dockerfile: starport-registry/Dockerfile
-    container_name: starport-registry
-    depends_on:
-      eureka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      zipkin:
-        condition: service_started
-      kafka:
-        condition: service_started
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8080:8080"
+#  starport-registry:
+#    build:
+#      context: ../../
+#      dockerfile: starport-registry/Dockerfile
+#    container_name: starport-registry
+#    depends_on:
+#      eureka:
+#        condition: service_healthy
+#      postgres:
+#        condition: service_healthy
+#      zipkin:
+#        condition: service_started
+#      kafka:
+#        condition: service_started
+#    environment:
+#      SPRING_PROFILES_ACTIVE: docker
+#    ports:
+#      - "8080:8080"
