@@ -1,0 +1,34 @@
+package com.galactic.starport.controller;
+
+import com.galactic.starport.service.ReservationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/starports")
+@Tag(name = "API: galactic starport")
+public class ReservationController {
+    private final ReservationService service;
+    private final ReservationWebMapper mapper;
+
+    @Operation(summary = "Create a new reservation")
+    @PostMapping(
+            path = "/{code}/reservations",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ReservationResponse> create(
+            @PathVariable String code, @Valid @RequestBody ReservationCreateRequest req) {
+        var cmd = mapper.toCommand(code, req);
+
+        return service.reserveBay(cmd)
+                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response))
+                .orElseThrow(() -> new RuntimeException("Failed to create reservation"));
+    }
+}

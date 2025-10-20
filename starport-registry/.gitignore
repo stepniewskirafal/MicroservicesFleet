@@ -3,6 +3,8 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+!**/README_2.md
+!**/README_3.md
 
 ### STS ###
 .apt_generated
