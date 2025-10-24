@@ -1,5 +1,6 @@
 package com.galactic.starport.controller;
 
+import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.ReserveBayCommand;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,19 @@ class ReservationWebMapper {
                 .endAt(req.endAt())
                 .requestRoute(req.requestRoute())
                 .originPortId(req.originPortId())
+                .build();
+    }
+
+    ReservationResponse toResponse(String starportCode, Reservation r) {
+        return ReservationResponse.builder()
+                .reservationId(r.getId())
+                .starportCode(starportCode)
+                .bayNumber(r.getDockingBayId())
+                .startAt(r.getStartAt())
+                .endAt(r.getEndAt())
+                .feeCharged(r.getFeeCharged())
+                // Route is not yet implemented on domain; keep null / extend when available
+                .route(null)
                 .build();
     }
 }

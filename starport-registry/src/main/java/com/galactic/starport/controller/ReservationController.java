@@ -28,7 +28,7 @@ public class ReservationController {
         var cmd = mapper.toCommand(code, req);
 
         return service.reserveBay(cmd)
-                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response))
-                .orElseThrow(() -> new RuntimeException("Failed to create reservation"));
+                .map(domain -> ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(code, domain)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());
     }
 }

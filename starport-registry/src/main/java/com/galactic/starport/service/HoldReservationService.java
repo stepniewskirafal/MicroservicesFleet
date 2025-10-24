@@ -1,6 +1,5 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.controller.ReservationResponse;
 import com.galactic.starport.repository.*;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -15,16 +14,16 @@ public class HoldReservationService {
     private final DockingBayRepository dockingBayRepository;
 
     @Transactional
-    public Optional<ReservationResponse> allocateHold(ReserveBayCommand command) {
+    public Optional<Reservation> allocateHold(ReserveBayCommand command) {
         validateStarportExists(command.starportCode());
 
-        final DockingBayEntity dockingBayEntity = dockingBayRepository
+        final DockingBayEntity freeBay = dockingBayRepository
                 .findFreeBay(command.starportCode(), command.shipClass().name(), command.startAt(), command.endAt())
                 .orElseThrow(() -> new NoDockingBaysAvailableException(
                         command.starportCode(), command.startAt(), command.endAt()));
 
-        Reservation reservationHold = Reservation.builder()
-                .dockingBayId(dockingBayEntity.getId())
+        var reservationHold = Reservation.builder()
+                .dockingBayId(freeBay.getId())
                 .customerId(command.customerId())
                 .shipId(command.shipId())
                 .shipClass(Reservation.ShipClass.valueOf(command.shipClass().name()))
@@ -32,16 +31,10 @@ public class HoldReservationService {
                 .endAt(command.endAt())
                 .status(Reservation.ReservationStatus.HOLD)
                 .build();
-        final ReservationEntity savedReservation = reservationRepository.save(new ReservationEntity(reservationHold));
 
-        return Optional.of(ReservationResponse.builder()
-                .reservationId(savedReservation.getId())
-                .starportCode(command.starportCode())
-                .bayNumber(savedReservation.getDockingBayId())
-                .startAt(savedReservation.getStartAt())
-                .endAt(savedReservation.getEndAt())
-                .feeCharged(savedReservation.getFeeCharged())
-                .build());
+        final ReservationEntity saved = reservationRepository.save(new ReservationEntity(reservationHold));
+
+        return Optional.of(toDomain(saved));
     }
 
     private void validateStarportExists(String starportCode) {
@@ -50,5 +43,19 @@ public class HoldReservationService {
         if (!starportExists) {
             throw new StarportNotFoundException("Starport %s not found".formatted(starportCode));
         }
+    }
+
+    private Reservation toDomain(ReservationEntity entity) {
+        return Reservation.builder()
+                .id(entity.getId())
+                .dockingBayId(entity.getDockingBayId())
+                .customerId(entity.getCustomerId())
+                .shipId(entity.getShipId())
+                .shipClass(Reservation.ShipClass.valueOf(entity.getShipClass().name()))
+                .startAt(entity.getStartAt())
+                .endAt(entity.getEndAt())
+                .feeCharged(entity.getFeeCharged())
+                .status(Reservation.ReservationStatus.valueOf(entity.getStatus().name()))
+                .build();
     }
 }

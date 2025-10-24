@@ -60,14 +60,14 @@ public class ReservationEntity {
         this.status = ReservationStatus.valueOf(reservation.getStatus().name());
     }
 
-    enum ShipClass {
+    public enum ShipClass {
         SCOUT,
         FREIGHTER,
         CRUISER,
         UNKNOWN
     }
 
-    enum ReservationStatus {
+    public enum ReservationStatus {
         HOLD,
         CONFIRMED,
         CANCELLED
