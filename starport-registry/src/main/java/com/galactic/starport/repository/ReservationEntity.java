@@ -60,6 +60,11 @@ public class ReservationEntity {
         this.status = ReservationStatus.valueOf(reservation.getStatus().name());
     }
 
+    public void cancelRevervation() {
+        this.status = ReservationStatus.CANCELLED;
+        this.updatedAt = Instant.now();
+    }
+
     public enum ShipClass {
         SCOUT,
         FREIGHTER,

@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS docking_bay (
 -- Customer: who owns ships
 CREATE TABLE IF NOT EXISTS customer (
                                         id            BIGINT PRIMARY KEY DEFAULT nextval('customer_seq'),
-                                        client_code   TEXT,              -- external/customer-facing ID if needed
+                                        customer_code TEXT,              -- external/customer-facing ID if needed
                                         name          TEXT,
                                         created_at    TIMESTAMPTZ DEFAULT now(),
                                         updated_at    TIMESTAMPTZ
@@ -89,12 +89,3 @@ CREATE TABLE IF NOT EXISTS route (
                                      updated_at         TIMESTAMPTZ
 );
 
-
--- INSERT INTO starport (code, name) VALUES ('ABC', 'Alpha Base Central');
--- INSERT INTO docking_bay (starport_id, bay_label, ship_class, status) VALUES (1, 'A-01', 'SCOUT', 'AVAILABLE');
--- INSERT INTO customer (client_code, name) VALUES ('CUST-001', 'Weyland-Yutani');
--- INSERT INTO ship (customer_id, ship_id, ship_name, ship_class) VALUES (1, 'SS-Enterprise-01', 'Enterprise', 'SCOUT');
--- INSERT INTO reservation (docking_bay_id, customer_id, ship_id, ship_class, start_at, end_at, feeCharged)
---   VALUES (1, 1, 1, 'SS-Enterprise-01', 'SCOUT', '2025-12-05T02:00:00Z', '2025-12-05T03:00:00Z', 120.50);
--- INSERT INTO route (reservation_id, destination_code, eta_ly, risk_score)
---   VALUES (1, 'ALPHA-BASE', 18.70, 0.40);

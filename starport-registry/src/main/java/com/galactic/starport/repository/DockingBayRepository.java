@@ -21,8 +21,7 @@ public interface DockingBayRepository extends JpaRepository<DockingBayEntity, Lo
                        SELECT 1
                        FROM reservation r
                        WHERE docking_bay.id = r.docking_bay_id
-                         AND r.status IN ('HOLD', 'CONFIRMED')
-                         OR ( r.start_at < :endAt
+                         AND ( r.start_at < :endAt
                          AND r.end_at   > :startAt ))
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1

@@ -18,6 +18,15 @@ public class Reservation {
     private BigDecimal feeCharged;
     private ReservationStatus status;
 
+    public void confirmReservation(Route route, BigDecimal fee) {
+        status = ReservationStatus.CONFIRMED;
+        feeCharged = fee;
+    }
+
+    public void setFeeCharged(BigDecimal feeCharged) {
+        this.feeCharged = feeCharged;
+    }
+
     public enum ShipClass {
         SCOUT,
         FREIGHTER,

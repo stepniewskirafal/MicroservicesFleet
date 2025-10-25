@@ -1,7 +1,6 @@
 package com.galactic.starport.service;
 
 import com.galactic.starport.repository.*;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,12 +11,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class HoldReservationService {
     private final ReservationRepository reservationRepository;
+    private final CustomerRepository customerRepository;
 
     @Transactional
-    public Optional<Reservation> allocateHold(ReserveBayCommand command, DockingBayEntity freeDockingBay) {
+    public Reservation allocateHold(ReserveBayCommand command, DockingBayEntity freeDockingBay) {
+        final CustomerEntity customerEntity =
+                customerRepository.findByCustomerCode(command.customerCode()).get();
         var reservationHold = Reservation.builder()
                 .dockingBayId(freeDockingBay.getId())
-                .customerId(command.customerId())
+                .customerId(customerEntity.getId())
                 .shipId(command.shipId())
                 .shipClass(Reservation.ShipClass.valueOf(command.shipClass().name()))
                 .startAt(command.startAt())
@@ -27,7 +29,7 @@ public class HoldReservationService {
         final ReservationEntity saved = reservationRepository.save(new ReservationEntity(reservationHold));
         log.info("Saved reservation with id {} in HOLD status.", saved.getId());
 
-        return Optional.of(toDomain(saved));
+        return toDomain(saved);
     }
 
     private Reservation toDomain(ReservationEntity entity) {

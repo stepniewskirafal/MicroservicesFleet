@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 
 record ReservationCreateRequest(
-        @NotNull(message = "Customer ID must not be empty") Long customerId,
+        @NotBlank(message = "Customer ID must not be empty") String customerCode,
         @NotBlank(message = "Ship identifier must not be blank") String shipId,
         @NotNull(message = "Ship class must not be blank") ShipClass shipClass,
         @NotNull(message = "Start time must not be null") @Future(message = "Start time must be in the future")

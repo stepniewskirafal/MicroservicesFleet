@@ -6,7 +6,7 @@ import lombok.Builder;
 @Builder
 public record ReserveBayCommand(
         String starportCode,
-        Long customerId,
+        String customerCode,
         String shipId,
         ShipClass shipClass,
         Instant startAt,
