@@ -2,6 +2,7 @@ package com.galactic.starport.repository;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,5 +34,5 @@ public class StarportEntity {
     private Instant updatedAt;
 
     @OneToMany(mappedBy = "starport", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<DockingBayEntity> dockingBays;
+    private List<DockingBayEntity> dockingBays = new ArrayList<>();
 }

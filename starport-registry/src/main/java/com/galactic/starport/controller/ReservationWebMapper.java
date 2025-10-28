@@ -1,9 +1,15 @@
 package com.galactic.starport.controller;
 
+import com.galactic.starport.repository.RouteEntity;
 import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import org.springframework.stereotype.Component;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 @Component
 class ReservationWebMapper {
@@ -21,25 +27,29 @@ class ReservationWebMapper {
                 .build();
     }
 
-    ReservationResponse toResponse(String starportCode, Reservation r) {
+    ReservationResponse toResponse(String starportCode, Reservation reservation) {
+
+        final ReservationResponse.Route activeRoute = Stream.ofNullable(reservation.getRoutes())
+                .flatMap(Collection::stream)
+                .filter(Route::isActive)
+                .findFirst()
+                .map(route -> ReservationResponse.Route.builder()
+                        .routeCode(route.getRouteCode())
+                        .startStarportCode(route.getStartStarportCode())
+                        .destinationStarportCode(route.getDestinationStarportCode())
+                        .etaLightYears(route.getEtaLightYears())
+                        .riskScore(route.getRiskScore())
+                        .build())
+                .orElse(null);
+
         return ReservationResponse.builder()
-                .reservationId(r.getId())
+                .reservationId(reservation.getId())
                 .starportCode(starportCode)
-                .bayNumber(r.getDockingBay().getBayLabel())
-                .startAt(r.getStartAt())
-                .endAt(r.getEndAt())
-                .feeCharged(r.getFeeCharged())
-                .route(r.getRoutes().stream()
-                        .filter(Route::isActive)
-                        .findFirst()
-                        .map(route -> ReservationResponse.Route.builder()
-                                .routeCode(route.getRouteCode())
-                                .startStarportCode(route.getStartStarportCode())
-                                .destinationStarportCode(route.getDestinationStarportCode())
-                                .etaLightYears(route.getEtaLightYears())
-                                .riskScore(route.getRiskScore())
-                                .build())
-                        .orElse(null))
+                .bayNumber(reservation.getDockingBay().getBayLabel())
+                .startAt(reservation.getStartAt())
+                .endAt(reservation.getEndAt())
+                .feeCharged(reservation.getFeeCharged())
+                .route(activeRoute)
                 .build();
     }
 }

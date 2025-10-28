@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 public class DockingBayEntity {
-
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "docking_bay_id_seq_gen")
     @SequenceGenerator(name = "docking_bay_id_seq_gen", sequenceName = "docking_bay_id_seq", allocationSize = 10)
