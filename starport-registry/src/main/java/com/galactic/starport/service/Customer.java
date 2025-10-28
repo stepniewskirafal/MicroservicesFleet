@@ -2,18 +2,19 @@ package com.galactic.starport.service;
 
 import java.time.Instant;
 import java.util.List;
-
-import com.galactic.starport.repository.ShipEntity;
 import lombok.Builder;
 import lombok.Getter;
 
-@Builder
+@Builder(toBuilder = true)
 @Getter
 public class Customer {
     private Long id;
     private String customerCode;
     private String name;
-    private List<ShipEntity> ships;
+
+    @Builder.Default
+    private List<Ship> ships = List.of();
+
     private Instant createdAt;
     private Instant updatedAt;
 }

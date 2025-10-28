@@ -102,13 +102,13 @@ abstract class BaseAcceptanceSpec extends Specification {
 
     Map makePayload(Map overrides = [:]) {
         Map base = [
-                customerId         : "12345",
-                shipId             : "SS-Enterprise-01",
+                customerCode       : "CUST-001",
+                shipCode           : "SS-Enterprise-01",
                 shipClass          : "SCOUT",
                 startAt            : "2025-12-05T04:00:00Z",
                 endAt              : "2025-12-05T05:00:00Z",
                 requestRoute       : true,
-                destinationPortCode: "ALPHA-BASE"
+                originPortId       : "ALPHA-BASE"
         ]
         base + overrides
     }
