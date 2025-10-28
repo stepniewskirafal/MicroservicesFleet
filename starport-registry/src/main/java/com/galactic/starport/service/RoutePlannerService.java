@@ -4,6 +4,7 @@ import com.galactic.starport.repository.ReservationEntity;
 import com.galactic.starport.repository.ReservationRepository;
 import com.galactic.starport.repository.StarportEntity;
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,29 +15,30 @@ public class RoutePlannerService {
 
     private final ReservationRepository reservationRepository;
 
-    public Reservation addRoute(ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
-        Route route = null;
-        if (command.requestRoute()) {
-            try {
-                route = planRoute(command);
-                BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
-                // potwierdzamy rezerwację z trasą
-                Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
-                reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
-                return confirmed;
-            } catch (Exception ex) {
-                // planowanie trasy nie powiodło się – zwalniamy HOLD
-                releaseHold(newReservation);
-                return null;
-            }
-        } else {
-            return null;
+    public Optional<Reservation> addRoute(
+            ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
+        if (!command.requestRoute()) {
+            return Optional.of(newReservation);
+        }
+
+        try {
+            Route route = planRoute(command);
+            BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
+            // potwierdzamy rezerwację z trasą
+            Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
+            reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
+            return Optional.of(confirmed);
+        } catch (Exception ex) {
+            // planowanie trasy nie powiodło się – zwalniamy HOLD
+            releaseHold(newReservation);
+            return Optional.empty();
         }
     }
 
     public Route planRoute(ReserveBayCommand command) {
         return Route.builder()
-                .routeCode("ROUTE-" + command.startStarportCode()+"-"+command.destinationStarportCode()+"-"+ ThreadLocalRandom.current().nextInt(100000, 999999))
+                .routeCode("ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
+                        + ThreadLocalRandom.current().nextInt(100000, 999999))
                 .startStarportCode(command.startStarportCode())
                 .destinationStarportCode(command.destinationStarportCode())
                 .etaLightYears(1.0 + ThreadLocalRandom.current().nextDouble() / 100.0)

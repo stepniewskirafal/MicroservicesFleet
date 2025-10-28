@@ -22,7 +22,7 @@ public class ReservationEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "reservation_id_seq_gen")
-    @SequenceGenerator(  name = "reservation_id_seq_gen",   sequenceName = "reservation_id_seq", allocationSize = 10  )
+    @SequenceGenerator(name = "reservation_id_seq_gen", sequenceName = "reservation_id_seq", allocationSize = 10)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

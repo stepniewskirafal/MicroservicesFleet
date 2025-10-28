@@ -22,11 +22,12 @@ public class HoldReservationService {
                 customerRepository.findByCustomerCode(command.customerCode()).get();
         ShipEntity shipEntity =
                 shipRepository.findByShipCode(command.shipCode()).get();
-
+        Customer customer = customerEntity.toDomain();
+        Ship ship = shipEntity.toDomain(customer);
         var reservationHold = Reservation.builder()
                 .dockingBay(freeDockingBay.toDomain())
-                .customer(customerEntity.toDomain())
-                .ship(shipEntity.toDomain(customerEntity))
+                .customer(customer)
+                .ship(ship)
                 .startAt(command.startAt())
                 .endAt(command.endAt())
                 .status(Reservation.ReservationStatus.HOLD)
@@ -35,15 +36,16 @@ public class HoldReservationService {
                 reservationRepository.save(new ReservationEntity(reservationHold, starportEntity));
         log.info("Saved reservation with id {} in HOLD status.", savedReservationEntity.getId());
 
-        return toDomain(savedReservationEntity, customerEntity);
+        return toDomain(savedReservationEntity);
     }
 
-    private Reservation toDomain(ReservationEntity entity, CustomerEntity customerEntity) {
+    private Reservation toDomain(ReservationEntity entity) {
+        Customer customer = entity.getCustomer().toDomain();
         return Reservation.builder()
                 .id(entity.getId())
                 .dockingBay(entity.getDockingBay().toDomain())
-                .customer(entity.getCustomer().toDomain())
-                .ship(entity.getShip().toDomain(customerEntity))
+                .customer(customer)
+                .ship(entity.getShip().toDomain(customer))
                 .startAt(entity.getStartAt())
                 .endAt(entity.getEndAt())
                 .feeCharged(entity.getFeeCharged())

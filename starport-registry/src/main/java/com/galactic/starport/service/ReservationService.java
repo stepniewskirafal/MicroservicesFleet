@@ -28,10 +28,11 @@ public class ReservationService {
                 persistenceService.allocateHold(command, getFreeDockingBay(command), starportEntity);
         newReservation.setFeeCharged(feeCalculatorService.calculateFee(newReservation));
 
-        newReservation = routePlannerService.addRoute(command, newReservation, starportEntity);
+        Optional<Reservation> reservationWithRoute =
+                routePlannerService.addRoute(command, newReservation, starportEntity);
         // newReservation = routePlannerService.confirmReservation(command, newReservation);
 
-        return Optional.of(newReservation);
+        return reservationWithRoute;
     }
 
     private DockingBayEntity getFreeDockingBay(ReserveBayCommand command) {
