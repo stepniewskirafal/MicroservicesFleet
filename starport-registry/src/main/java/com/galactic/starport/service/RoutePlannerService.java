@@ -1,8 +1,9 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.repository.ReservationEntity;
-import com.galactic.starport.repository.ReservationRepository;
-import com.galactic.starport.repository.StarportEntity;
+import com.galactic.starport.domain.Reservation;
+import com.galactic.starport.domain.ReserveBayCommand;
+import com.galactic.starport.domain.Route;
+import com.galactic.starport.repository.ReservationPersistenceAdapter;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
@@ -13,32 +14,30 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RoutePlannerService {
 
-    private final ReservationRepository reservationRepository;
+    private final ReservationPersistenceAdapter reservationPersistenceAdapter;
 
-    public Optional<Reservation> addRoute(
-            ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
+    public Optional<Reservation> addRoute(ReserveBayCommand command, Reservation reservation) {
         if (!command.requestRoute()) {
-            return Optional.of(newReservation);
+            return Optional.of(reservation);
         }
 
         try {
             Route route = planRoute(command);
-            BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
-            // potwierdzamy rezerwację z trasą
-            Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
-            reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
-            return Optional.of(confirmed);
+            BigDecimal finalFee = reservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
+            Reservation confirmed = confirmFeeAndRoute(reservation, route, finalFee);
+            Reservation saved = reservationPersistenceAdapter.save(confirmed);
+            return Optional.of(saved);
         } catch (Exception ex) {
-            // planowanie trasy nie powiodło się – zwalniamy HOLD
-            releaseHold(newReservation);
+            releaseHold(reservation);
             return Optional.empty();
         }
     }
 
     public Route planRoute(ReserveBayCommand command) {
         return Route.builder()
-                .routeCode("ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
-                        + ThreadLocalRandom.current().nextInt(100000, 999999))
+                .routeCode(
+                        "ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
+                                + ThreadLocalRandom.current().nextInt(100000, 999999))
                 .startStarportCode(command.startStarportCode())
                 .destinationStarportCode(command.destinationStarportCode())
                 .etaLightYears(1.0 + ThreadLocalRandom.current().nextDouble() / 100.0)
@@ -47,15 +46,12 @@ public class RoutePlannerService {
                 .build();
     }
 
-    public Reservation confirmFeeAndRoute(Reservation newReservation, Route route, BigDecimal finalFee) {
-        newReservation.confirmReservation(route, finalFee);
-        return newReservation;
+    public Reservation confirmFeeAndRoute(Reservation reservation, Route route, BigDecimal finalFee) {
+        reservation.confirmReservation(route, finalFee);
+        return reservation;
     }
 
-    private void releaseHold(Reservation newReservation) {
-        reservationRepository.findById(newReservation.getId()).ifPresent(entity -> {
-            entity.cancelRevervation();
-            reservationRepository.save(entity);
-        });
+    private void releaseHold(Reservation reservation) {
+        reservationPersistenceAdapter.cancelReservation(reservation.getId());
     }
 }

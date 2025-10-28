@@ -1,13 +1,16 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.Route;
 import jakarta.persistence.*;
 import java.time.Instant;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "route")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
+@Getter
+@Setter
 public class RouteEntity {
 
     @Id
@@ -39,16 +42,6 @@ public class RouteEntity {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
-
-    public RouteEntity(Route route, ReservationEntity reservation) {
-        this.id = route.getId();
-        this.reservation = reservation;
-        this.routeCode = route.getRouteCode();
-        this.startStarportCode = route.getStartStarportCode();
-        this.destinationStarportCode = route.getDestinationStarportCode();
-        this.etaLightYears = route.getEtaLightYears();
-        this.riskScore = route.getRiskScore();
-    }
 
     @PrePersist
     void prePersist() {

@@ -1,14 +1,15 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.DockingBay;
 import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "docking_bay")
 @Getter
+@Setter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 public class DockingBayEntity {
 
@@ -36,26 +37,6 @@ public class DockingBayEntity {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
-
-    public DockingBayEntity(StarportEntity starport, DockingBay dockingBay) {
-        this.id = dockingBay.getId();
-        this.starport = starport;
-        this.bayLabel = dockingBay.getBayLabel();
-        this.shipClass = ShipClass.valueOf(dockingBay.getShipClass().name());
-        this.status = dockingBay.getStatus();
-    }
-
-    public DockingBay toDomain() {
-        return DockingBay.builder()
-                .id(this.id)
-                .starportId(this.starport.getId())
-                .bayLabel(this.bayLabel)
-                .shipClass(DockingBay.ShipClass.valueOf(this.shipClass.name()))
-                .status(this.status)
-                .createdAt(this.createdAt)
-                .updatedAt(this.updatedAt)
-                .build();
-    }
 
     enum ShipClass {
         SCOUT,

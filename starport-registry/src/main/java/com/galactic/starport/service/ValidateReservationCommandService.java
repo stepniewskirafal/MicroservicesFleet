@@ -1,5 +1,6 @@
 package com.galactic.starport.service;
 
+import com.galactic.starport.domain.ReserveBayCommand;
 import com.galactic.starport.repository.StarportRepository;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;

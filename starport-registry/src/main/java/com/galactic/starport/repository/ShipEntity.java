@@ -1,14 +1,16 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.Customer;
-import com.galactic.starport.service.Ship;
 import jakarta.persistence.*;
 import java.time.Instant;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "ship")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
+@Getter
+@Setter
 public class ShipEntity {
 
     @Id
@@ -32,24 +34,6 @@ public class ShipEntity {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
-
-    public ShipEntity(Ship ship, CustomerEntity customer) {
-        this.id = ship.getId();
-        this.customer = customer;
-        this.shipCode = ship.getShipCode();
-        this.shipClass = ShipClass.valueOf(ship.getShipClass().name());
-    }
-
-    public Ship toDomain(Customer customer) {
-        return Ship.builder()
-                .id(this.id)
-                .customer(customer)
-                .shipCode(this.shipCode)
-                .shipClass(Ship.ShipClass.valueOf(this.shipClass.name()))
-                .createdAt(this.createdAt)
-                .updatedAt(this.updatedAt)
-                .build();
-    }
 
     public enum ShipClass {
         SCOUT,

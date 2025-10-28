@@ -1,4 +1,4 @@
-package com.galactic.starport.service;
+package com.galactic.starport.domain;
 
 import java.time.Instant;
 import lombok.Builder;

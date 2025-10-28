@@ -1,9 +1,10 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.repository.DockingBayEntity;
+import com.galactic.starport.domain.DockingBay;
+import com.galactic.starport.domain.Reservation;
+import com.galactic.starport.domain.ReserveBayCommand;
 import com.galactic.starport.repository.DockingBayRepository;
-import com.galactic.starport.repository.StarportEntity;
-import com.galactic.starport.repository.StarportRepository;
+import com.galactic.starport.repository.ReservationPersistenceAdapter;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,31 +19,28 @@ public class ReservationService {
     private final FeeCalculatorService feeCalculatorService;
     private final DockingBayRepository dockingBayRepository;
     private final RoutePlannerService routePlannerService;
-    private final StarportRepository starportRepository;
+    private final ReservationPersistenceAdapter reservationPersistenceAdapter;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
         validateReservationCommandService.validate(command);
-        StarportEntity starportEntity =
-                starportRepository.findByCode(command.startStarportCode()).get();
-        Reservation newReservation =
-                persistenceService.allocateHold(command, getFreeDockingBay(command), starportEntity);
+        DockingBay dockingBay = getFreeDockingBay(command);
+        Reservation newReservation = persistenceService.allocateHold(command, dockingBay);
         newReservation.setFeeCharged(feeCalculatorService.calculateFee(newReservation));
+        Reservation savedReservation = reservationPersistenceAdapter.save(newReservation);
 
-        Optional<Reservation> reservationWithRoute =
-                routePlannerService.addRoute(command, newReservation, starportEntity);
-        // newReservation = routePlannerService.confirmReservation(command, newReservation);
-
+        Optional<Reservation> reservationWithRoute = routePlannerService.addRoute(command, savedReservation);
         return reservationWithRoute;
     }
 
-    private DockingBayEntity getFreeDockingBay(ReserveBayCommand command) {
+    private DockingBay getFreeDockingBay(ReserveBayCommand command) {
         return dockingBayRepository
-                .findFreeBay(
+                .findAvailableBay(
                         command.destinationStarportCode(),
                         command.shipClass().name(),
                         command.startAt(),
                         command.endAt())
-                .orElseThrow(() -> new NoDockingBaysAvailableException(
-                        command.destinationStarportCode(), command.startAt(), command.endAt()));
+                .orElseThrow(() ->
+                        new NoDockingBaysAvailableException(
+                                command.destinationStarportCode(), command.startAt(), command.endAt()));
     }
 }

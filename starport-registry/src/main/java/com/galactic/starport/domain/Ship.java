@@ -1,4 +1,4 @@
-package com.galactic.starport.service;
+package com.galactic.starport.domain;
 
 import java.time.Instant;
 import lombok.AllArgsConstructor;
@@ -7,16 +7,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Builder
-@Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class DockingBay {
-
+@Getter
+public class Ship {
     private Long id;
-    private Long starportId;
-    private String bayLabel;
+    private Customer customer;
+    private String shipCode;
+    private String shipName;
     private ShipClass shipClass;
-    private String status;
     private Instant createdAt;
     private Instant updatedAt;
 

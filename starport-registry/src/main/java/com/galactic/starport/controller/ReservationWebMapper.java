@@ -1,8 +1,8 @@
 package com.galactic.starport.controller;
 
-import com.galactic.starport.service.Reservation;
-import com.galactic.starport.service.ReserveBayCommand;
-import com.galactic.starport.service.Route;
+import com.galactic.starport.domain.Reservation;
+import com.galactic.starport.domain.ReserveBayCommand;
+import com.galactic.starport.domain.Route;
 import org.springframework.stereotype.Component;
 
 @Component

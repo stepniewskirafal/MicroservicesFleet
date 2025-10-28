@@ -1,23 +1,19 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.Customer;
-import com.galactic.starport.service.DockingBay;
-import com.galactic.starport.service.Reservation;
-import com.galactic.starport.service.Ship;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "reservation")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @Getter
+@Setter
 public class ReservationEntity {
 
     @Id
@@ -58,49 +54,6 @@ public class ReservationEntity {
 
     @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<RouteEntity> routes = new ArrayList<>();
-
-    public ReservationEntity(Reservation reservation, StarportEntity starportEntity) {
-        this.id = reservation.getId();
-        setDockingBay(reservation.getDockingBay(), starportEntity);
-        setCustomer(reservation.getCustomer());
-        setShip(reservation.getShip());
-        this.startAt = reservation.getStartAt();
-        this.endAt = reservation.getEndAt();
-        this.feeCharged = reservation.getFeeCharged();
-        this.status = ReservationStatus.valueOf(reservation.getStatus().name());
-        addRoute(reservation);
-    }
-
-    private void setShip(Ship ship) {
-        if (ship == null) {
-            this.ship = null;
-        } else if (this.ship == null) {
-            this.ship = new ShipEntity(ship, this.customer);
-        }
-    }
-
-    private void setCustomer(Customer customer) {
-        if (customer == null) {
-            this.customer = null;
-        } else if (this.customer == null) {
-            this.customer = new CustomerEntity(customer);
-        }
-    }
-
-    private void setDockingBay(DockingBay dockingBay, StarportEntity starportEntity) {
-        if (dockingBay == null) {
-            this.dockingBay = null;
-        } else if (this.dockingBay == null) {
-            this.dockingBay = new DockingBayEntity(starportEntity, dockingBay);
-        }
-    }
-
-    private void addRoute(Reservation reservation) {
-        Stream.ofNullable(reservation.getRoutes())
-                .flatMap(Collection::stream)
-                .map(route -> new RouteEntity(route, this))
-                .forEach(this.routes::add);
-    }
 
     public void cancelRevervation() {
         this.status = ReservationStatus.CANCELLED;

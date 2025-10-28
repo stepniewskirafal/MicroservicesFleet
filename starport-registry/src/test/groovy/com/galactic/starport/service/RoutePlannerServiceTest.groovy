@@ -1,17 +1,18 @@
 package com.galactic.starport.service
 
 import com.galactic.starport.BaseAcceptanceSpec
-import com.galactic.starport.repository.ReservationEntity
-import com.galactic.starport.repository.ReservationRepository
-import com.galactic.starport.repository.StarportEntity
+import com.galactic.starport.domain.Reservation
+import com.galactic.starport.domain.ReserveBayCommand
+import com.galactic.starport.domain.Route
+import com.galactic.starport.repository.ReservationPersistenceAdapter
 import spock.lang.Subject
 
 class RoutePlannerServiceTest extends BaseAcceptanceSpec {
 
-    ReservationRepository reservationRepository = Mock()
+    ReservationPersistenceAdapter reservationPersistenceAdapter = Mock()
 
     @Subject
-    RoutePlannerService service = Spy(new RoutePlannerService(reservationRepository))
+    RoutePlannerService service = Spy(new RoutePlannerService(reservationPersistenceAdapter))
 
     def "returns original reservation when route is not requested"() {
         given:
@@ -27,13 +28,13 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
                 .build()
 
         when:
-        def result = service.addRoute(command, reservation, Mock(StarportEntity))
+        def result = service.addRoute(command, reservation)
 
         then:
         result.isPresent()
         result.get().is(reservation)
         0 * service.planRoute(_)
-        0 * reservationRepository.save(_)
+        0 * reservationPersistenceAdapter.save(_)
     }
 
     def "confirms reservation and persists when route is planned successfully"() {
@@ -59,9 +60,10 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
 
         and:
         1 * service.planRoute(command) >> route
+        1 * reservationPersistenceAdapter.save(_ as Reservation) >> { Reservation confirmed -> confirmed }
 
         when:
-        def result = service.addRoute(command, reservation, Mock(StarportEntity))
+        def result = service.addRoute(command, reservation)
 
         then:
         result.isPresent()
@@ -69,7 +71,6 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
         confirmed.status == Reservation.ReservationStatus.CONFIRMED
         confirmed.feeCharged.compareTo(BigDecimal.valueOf(20.0d)) == 0
         confirmed.routes == [route]
-        1 * reservationRepository.save(_ as ReservationEntity)
     }
 
     def "releases hold when route planning fails"() {
@@ -84,18 +85,15 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
                 .destinationStarportCode("DEST")
                 .requestRoute(true)
                 .build()
-        def persistedHold = new ReservationEntity(reservation, null)
 
         and:
-        reservationRepository.findById(42L) >> Optional.of(persistedHold)
         1 * service.planRoute(command) >> { throw new IllegalStateException("boom") }
+        1 * reservationPersistenceAdapter.cancelReservation(42L)
 
         when:
-        def result = service.addRoute(command, reservation, Mock(StarportEntity))
+        def result = service.addRoute(command, reservation)
 
         then:
         !result.isPresent()
-        persistedHold.status == ReservationEntity.ReservationStatus.CANCELLED
-        1 * reservationRepository.save(persistedHold)
     }
 }

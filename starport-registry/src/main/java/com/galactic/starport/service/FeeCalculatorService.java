@@ -1,5 +1,6 @@
 package com.galactic.starport.service;
 
+import com.galactic.starport.domain.Reservation;
 import java.math.BigDecimal;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;

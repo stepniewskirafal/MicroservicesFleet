@@ -1,5 +1,7 @@
 package com.galactic.starport.repository;
 
+import com.galactic.starport.domain.DockingBay;
+import com.galactic.starport.repository.mapper.DockingBayMapper;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,4 +34,9 @@ public interface DockingBayRepository extends JpaRepository<DockingBayEntity, Lo
             @Param("shipClass") String shipClass,
             @Param("startAt") Instant startAt,
             @Param("endAt") Instant endAt);
+
+    default Optional<DockingBay> findAvailableBay(
+            String starportCode, String shipClass, Instant startAt, Instant endAt) {
+        return findFreeBay(starportCode, shipClass, startAt, endAt).map(DockingBayMapper::toDomain);
+    }
 }

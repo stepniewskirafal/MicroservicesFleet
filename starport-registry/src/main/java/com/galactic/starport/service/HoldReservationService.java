@@ -1,6 +1,11 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.repository.*;
+import com.galactic.starport.domain.Customer;
+import com.galactic.starport.domain.DockingBay;
+import com.galactic.starport.domain.Reservation;
+import com.galactic.starport.domain.ReserveBayCommand;
+import com.galactic.starport.domain.Ship;
+import com.galactic.starport.repository.ReservationPersistenceAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,46 +15,25 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class HoldReservationService {
-    private final ReservationRepository reservationRepository;
-    private final ShipRepository shipRepository;
-
-    private final CustomerRepository customerRepository;
+    private final ReservationPersistenceAdapter reservationPersistenceAdapter;
 
     @Transactional
-    public Reservation allocateHold(
-            ReserveBayCommand command, DockingBayEntity freeDockingBay, StarportEntity starportEntity) {
-        CustomerEntity customerEntity =
-                customerRepository.findByCustomerCode(command.customerCode()).get();
-        ShipEntity shipEntity =
-                shipRepository.findByShipCode(command.shipCode()).get();
-        Customer customer = customerEntity.toDomain();
-        Ship ship = shipEntity.toDomain(customer);
-        var reservationHold = Reservation.builder()
-                .dockingBay(freeDockingBay.toDomain())
+    public Reservation allocateHold(ReserveBayCommand command, DockingBay dockingBay) {
+        Customer customer = reservationPersistenceAdapter.loadCustomerByCode(command.customerCode());
+        Ship ship = reservationPersistenceAdapter.loadShipByCode(command.shipCode(), customer);
+
+        Reservation reservationHold = Reservation.builder()
+                .dockingBay(dockingBay)
                 .customer(customer)
                 .ship(ship)
                 .startAt(command.startAt())
                 .endAt(command.endAt())
                 .status(Reservation.ReservationStatus.HOLD)
                 .build();
-        final ReservationEntity savedReservationEntity =
-                reservationRepository.save(new ReservationEntity(reservationHold, starportEntity));
-        log.info("Saved reservation with id {} in HOLD status.", savedReservationEntity.getId());
 
-        return toDomain(savedReservationEntity);
-    }
+        Reservation savedReservation = reservationPersistenceAdapter.save(reservationHold);
+        log.info("Saved reservation with id {} in HOLD status.", savedReservation.getId());
 
-    private Reservation toDomain(ReservationEntity entity) {
-        Customer customer = entity.getCustomer().toDomain();
-        return Reservation.builder()
-                .id(entity.getId())
-                .dockingBay(entity.getDockingBay().toDomain())
-                .customer(customer)
-                .ship(entity.getShip().toDomain(customer))
-                .startAt(entity.getStartAt())
-                .endAt(entity.getEndAt())
-                .feeCharged(entity.getFeeCharged())
-                .status(Reservation.ReservationStatus.valueOf(entity.getStatus().name()))
-                .build();
+        return savedReservation;
     }
 }
