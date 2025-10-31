@@ -1,15 +1,11 @@
 package com.galactic.starport.controller;
 
-import com.galactic.starport.repository.RouteEntity;
 import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
-import org.springframework.stereotype.Component;
-
 import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
+import org.springframework.stereotype.Component;
 
 @Component
 class ReservationWebMapper {

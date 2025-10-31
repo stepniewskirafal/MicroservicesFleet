@@ -7,7 +7,7 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 
-@Builder
+@Builder(toBuilder = true)
 @Getter
 public class Reservation {
     private Long id;

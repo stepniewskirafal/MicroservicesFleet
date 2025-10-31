@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class HoldReservationService {
     private final ReservationRepository reservationRepository;
     private final ShipRepository shipRepository;
-
     private final CustomerRepository customerRepository;
 
     @Transactional

@@ -4,20 +4,30 @@ import com.galactic.starport.repository.ReservationEntity;
 import com.galactic.starport.repository.ReservationRepository;
 import com.galactic.starport.repository.StarportEntity;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class RoutePlannerService {
 
     private final ReservationRepository reservationRepository;
+    private final OutboxWriter outbox;
 
+    @Value("${app.bindings.reservations:reservations-out}")
+    private String reservationsBinding;
+
+    @Transactional
     public Optional<Reservation> addRoute(
             ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
         if (!command.requestRoute()) {
+            appendReservationEvent("ReservationConfirmed", newReservation, null);
             return Optional.of(newReservation);
         }
 
@@ -27,6 +37,7 @@ public class RoutePlannerService {
             // potwierdzamy rezerwację z trasą
             Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
             reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
+            appendReservationEvent("ReservationConfirmed", confirmed, route);
             return Optional.of(confirmed);
         } catch (Exception ex) {
             // planowanie trasy nie powiodło się – zwalniamy HOLD
@@ -57,5 +68,24 @@ public class RoutePlannerService {
             entity.cancelRevervation();
             reservationRepository.save(entity);
         });
+    }
+
+    private void appendReservationEvent(String eventType, Reservation reservation, Route routeOrNull) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("reservationId", reservation.getId());
+        payload.put("fee", reservation.getFeeCharged());
+        if (routeOrNull != null) {
+            payload.put("routeCode", routeOrNull.getRouteCode());
+            payload.put("riskScore", routeOrNull.getRiskScore());
+        }
+
+        Map<String, Object> headers = Map.of("contentType", "application/json");
+
+        outbox.append(
+                reservationsBinding,
+                eventType,
+                String.valueOf(reservation.getId()), // message key
+                payload,
+                headers);
     }
 }

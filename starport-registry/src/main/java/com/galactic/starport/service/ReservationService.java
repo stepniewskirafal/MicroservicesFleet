@@ -30,7 +30,6 @@ public class ReservationService {
 
         Optional<Reservation> reservationWithRoute =
                 routePlannerService.addRoute(command, newReservation, starportEntity);
-        // newReservation = routePlannerService.confirmReservation(command, newReservation);
 
         return reservationWithRoute;
     }
