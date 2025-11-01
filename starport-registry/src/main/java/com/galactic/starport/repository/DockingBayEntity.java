@@ -62,4 +62,15 @@ public class DockingBayEntity {
         CRUISER,
         UNKNOWN
     }
+
+    @PrePersist
+    void prePersist() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
 }

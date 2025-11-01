@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.galactic.starport.repository.StarportEntity;
 import lombok.Builder;
 import lombok.Getter;
 

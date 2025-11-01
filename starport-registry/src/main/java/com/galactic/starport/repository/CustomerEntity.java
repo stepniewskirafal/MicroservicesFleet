@@ -8,6 +8,8 @@ import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 @Entity
 @Table(name = "customer")
@@ -27,6 +29,7 @@ public class CustomerEntity {
     private String name;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SELECT)
     private List<ShipEntity> ships = new ArrayList<>();
 
     @Column(name = "created_at")
@@ -50,22 +53,23 @@ public class CustomerEntity {
     }
 
     public Customer toModel() {
-        Customer customer = Customer.builder()
+        return Customer.builder()
                 .id(this.id)
                 .customerCode(this.customerCode)
                 .name(this.name)
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
                 .build();
+    }
 
-        if (this.ships == null || this.ships.isEmpty()) {
-            return customer;
-        }
+    @PrePersist
+    void prePersist() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
 
-        var domainShips = this.ships.stream()
-                .map(ShipEntity::toModel)
-                .toList();
-
-        return customer.toBuilder().ships(domainShips).build();
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
     }
 }

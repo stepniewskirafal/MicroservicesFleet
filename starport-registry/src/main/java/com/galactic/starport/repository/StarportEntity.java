@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 @Entity
 @Table(name = "starport")
@@ -35,6 +37,7 @@ public class StarportEntity {
     private Instant updatedAt;
 
     @OneToMany(mappedBy = "starport", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SELECT)
     private List<DockingBayEntity> dockingBays = new ArrayList<>();
 
     public Starport toModel() {
@@ -43,7 +46,17 @@ public class StarportEntity {
                 .code(this.code)
                 .name(this.name)
                 .description(this.description)
-                .dockingBays(this.dockingBays.stream().map(DockingBayEntity::toModel).toList())
                 .build();
+    }
+
+    @PrePersist
+    void prePersist() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
     }
 }

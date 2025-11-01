@@ -28,7 +28,10 @@ public class HoldReservationService {
 
         DockingBayEntity bay = dockingBayRepository
                 .findFreeBay(
-                        command.startStarportCode(), command.shipClass().name(), command.startAt(), command.endAt())
+                        command.destinationStarportCode(),
+                        command.shipClass().name(),
+                        command.startAt(),
+                        command.endAt())
                 .orElseThrow(() -> new NoDockingBaysAvailableException(
                         command.destinationStarportCode(),
                         command.shipClass().name(),

@@ -1,6 +1,5 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.Customer;
 import com.galactic.starport.service.Ship;
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -58,5 +57,16 @@ public class ShipEntity {
         FREIGHTER,
         CRUISER,
         UNKNOWN
+    }
+
+    @PrePersist
+    void prePersist() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
     }
 }

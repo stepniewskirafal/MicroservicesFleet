@@ -22,13 +22,9 @@ public class ReservationService {
                 .findByCode(command.destinationStarportCode())
                 .orElseThrow(() -> new StarportNotFoundException(command.destinationStarportCode()));
         validateReservationCommandService.validate(command);
-        Reservation newReservation =
-                persistenceService.allocateHold(command, starport);
+        Reservation newReservation = persistenceService.allocateHold(command, starport);
         newReservation.setFeeCharged(feeCalculatorService.calculateFee(newReservation));
 
-        Optional<Reservation> reservationWithRoute =
-                routePlannerService.addRoute(command, newReservation, starport);
-
-        return reservationWithRoute;
+        return routePlannerService.addRoute(command, newReservation, starport);
     }
 }
