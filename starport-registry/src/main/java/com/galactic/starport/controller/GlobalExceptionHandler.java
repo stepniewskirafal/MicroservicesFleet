@@ -1,6 +1,8 @@
 package com.galactic.starport.controller;
 
+import com.galactic.starport.service.CustomerNotFoundException;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
+import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.WrongReservationTimeException;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +31,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(WrongReservationTimeException.class)
     ResponseEntity<Map<String, String>> handle(WrongReservationTimeException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(ERROR_DETAILS, ex.getMessage()));
+    }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    ResponseEntity<Map<String, String>> handle(CustomerNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_DETAILS, ex.getMessage()));
+    }
+
+    @ExceptionHandler(ShipNotFoundException.class)
+    ResponseEntity<Map<String, String>> handle(ShipNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_DETAILS, ex.getMessage()));
     }
 
     @ExceptionHandler(RuntimeException.class)

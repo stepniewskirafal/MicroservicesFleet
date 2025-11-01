@@ -49,7 +49,7 @@ public class CustomerEntity {
         }
     }
 
-    public Customer toDomain() {
+    public Customer toModel() {
         Customer customer = Customer.builder()
                 .id(this.id)
                 .customerCode(this.customerCode)
@@ -63,7 +63,7 @@ public class CustomerEntity {
         }
 
         var domainShips = this.ships.stream()
-                .map(shipEntity -> shipEntity.toDomain(customer))
+                .map(ShipEntity::toModel)
                 .toList();
 
         return customer.toBuilder().ships(domainShips).build();

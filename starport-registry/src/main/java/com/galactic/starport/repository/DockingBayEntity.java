@@ -44,7 +44,7 @@ public class DockingBayEntity {
         this.status = dockingBay.getStatus();
     }
 
-    public DockingBay toDomain() {
+    public DockingBay toModel() {
         return DockingBay.builder()
                 .id(this.id)
                 .starportId(this.starport.getId())

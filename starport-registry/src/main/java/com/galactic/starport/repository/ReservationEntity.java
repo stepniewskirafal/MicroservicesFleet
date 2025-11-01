@@ -1,9 +1,6 @@
 package com.galactic.starport.repository;
 
-import com.galactic.starport.service.Customer;
-import com.galactic.starport.service.DockingBay;
-import com.galactic.starport.service.Reservation;
-import com.galactic.starport.service.Ship;
+import com.galactic.starport.service.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +21,10 @@ public class ReservationEntity {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "reservation_id_seq_gen")
     @SequenceGenerator(name = "reservation_id_seq_gen", sequenceName = "reservation_id_seq", allocationSize = 10)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "starport_id", nullable = false)
+    private StarportEntity starportEntity;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "docking_bay_id", nullable = false)
@@ -69,6 +70,21 @@ public class ReservationEntity {
         this.feeCharged = reservation.getFeeCharged();
         this.status = ReservationStatus.valueOf(reservation.getStatus().name());
         addRoute(reservation);
+    }
+
+    public ReservationEntity(
+            StarportEntity starport,
+            DockingBayEntity bay,
+            CustomerEntity customer,
+            ShipEntity ship,
+            ReserveBayCommand command) {
+        this.starportEntity = starport;
+        this.dockingBay = bay;
+        this.customer = customer;
+        this.ship = ship;
+        this.startAt = command.startAt();
+        this.endAt = command.endAt();
+        this.status = ReservationStatus.HOLD;
     }
 
     private void setShip(Ship ship) {

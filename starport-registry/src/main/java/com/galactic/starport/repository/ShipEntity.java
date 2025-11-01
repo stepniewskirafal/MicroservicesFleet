@@ -4,11 +4,13 @@ import com.galactic.starport.service.Customer;
 import com.galactic.starport.service.Ship;
 import jakarta.persistence.*;
 import java.time.Instant;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "ship")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
+@Getter
 public class ShipEntity {
 
     @Id
@@ -40,10 +42,10 @@ public class ShipEntity {
         this.shipClass = ShipClass.valueOf(ship.getShipClass().name());
     }
 
-    public Ship toDomain(Customer customer) {
+    public Ship toModel() {
         return Ship.builder()
                 .id(this.id)
-                .customer(customer)
+                .customer(customer.toModel())
                 .shipCode(this.shipCode)
                 .shipClass(Ship.ShipClass.valueOf(this.shipClass.name()))
                 .createdAt(this.createdAt)

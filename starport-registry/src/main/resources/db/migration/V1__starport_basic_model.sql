@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS ship (
 -- Reservation: booking a bay for a ship & customer
 CREATE TABLE IF NOT EXISTS reservation (
                                            id              BIGINT PRIMARY KEY DEFAULT nextval('reservation_id_seq'),
+                                           starport_id     BIGINT,          -- references starport.id (no FK)
                                            docking_bay_id  BIGINT,          -- references docking_bay.id (no FK)
                                            customer_id     BIGINT,          -- redundancy for fast lookups (no FK)
                                            ship_id         BIGINT,          -- references ship.id (no FK)

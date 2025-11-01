@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.galactic.starport.repository.StarportEntity;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,6 +13,7 @@ import lombok.Getter;
 @Getter
 public class Reservation {
     private Long id;
+    private Starport starport;
     private DockingBay dockingBay;
     private Customer customer;
     private Ship ship;

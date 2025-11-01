@@ -1,7 +1,5 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.repository.DockingBayEntity;
-import com.galactic.starport.repository.DockingBayRepository;
 import com.galactic.starport.repository.StarportEntity;
 import com.galactic.starport.repository.StarportRepository;
 import java.util.Optional;
@@ -16,32 +14,21 @@ public class ReservationService {
     private final HoldReservationService persistenceService;
     private final ValidateReservationCommandService validateReservationCommandService;
     private final FeeCalculatorService feeCalculatorService;
-    private final DockingBayRepository dockingBayRepository;
     private final RoutePlannerService routePlannerService;
     private final StarportRepository starportRepository;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
+        StarportEntity starport = starportRepository
+                .findByCode(command.destinationStarportCode())
+                .orElseThrow(() -> new StarportNotFoundException(command.destinationStarportCode()));
         validateReservationCommandService.validate(command);
-        StarportEntity starportEntity =
-                starportRepository.findByCode(command.startStarportCode()).get();
         Reservation newReservation =
-                persistenceService.allocateHold(command, getFreeDockingBay(command), starportEntity);
+                persistenceService.allocateHold(command, starport);
         newReservation.setFeeCharged(feeCalculatorService.calculateFee(newReservation));
 
         Optional<Reservation> reservationWithRoute =
-                routePlannerService.addRoute(command, newReservation, starportEntity);
+                routePlannerService.addRoute(command, newReservation, starport);
 
         return reservationWithRoute;
-    }
-
-    private DockingBayEntity getFreeDockingBay(ReserveBayCommand command) {
-        return dockingBayRepository
-                .findFreeBay(
-                        command.destinationStarportCode(),
-                        command.shipClass().name(),
-                        command.startAt(),
-                        command.endAt())
-                .orElseThrow(() -> new NoDockingBaysAvailableException(
-                        command.destinationStarportCode(), command.startAt(), command.endAt()));
     }
 }

@@ -1,5 +1,6 @@
 package com.galactic.starport.repository;
 
+import com.galactic.starport.service.Starport;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,4 +36,14 @@ public class StarportEntity {
 
     @OneToMany(mappedBy = "starport", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<DockingBayEntity> dockingBays = new ArrayList<>();
+
+    public Starport toModel() {
+        return Starport.builder()
+                .id(this.id)
+                .code(this.code)
+                .name(this.name)
+                .description(this.description)
+                .dockingBays(this.dockingBays.stream().map(DockingBayEntity::toModel).toList())
+                .build();
+    }
 }
