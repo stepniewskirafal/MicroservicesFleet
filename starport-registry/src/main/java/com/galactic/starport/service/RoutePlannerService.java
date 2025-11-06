@@ -3,6 +3,10 @@ package com.galactic.starport.service;
 import com.galactic.starport.repository.ReservationEntity;
 import com.galactic.starport.repository.ReservationRepository;
 import com.galactic.starport.repository.StarportEntity;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +23,36 @@ public class RoutePlannerService {
 
     private final ReservationRepository reservationRepository;
     private final OutboxWriter outbox;
+    private final MeterRegistry meterRegistry;
+
+    private Timer routeConfirmationTimer;
+    private Counter routeConfirmationSuccessCounter;
+    private Counter routeConfirmationErrorCounter;
+    private Timer routePlanningTimer;
+    private Counter routePlanningSuccessCounter;
+    private Counter routePlanningErrorCounter;
+
+    @PostConstruct
+    void initMetrics() {
+        routeConfirmationTimer = Timer.builder("reservations.route.confirmation.duration")
+                .description("Time spent confirming reservations and routes")
+                .register(meterRegistry);
+        routeConfirmationSuccessCounter = Counter.builder("reservations.route.confirmation.success")
+                .description("Number of successful reservation confirmations")
+                .register(meterRegistry);
+        routeConfirmationErrorCounter = Counter.builder("reservations.route.confirmation.errors")
+                .description("Number of reservation confirmations that failed")
+                .register(meterRegistry);
+        routePlanningTimer = Timer.builder("reservations.route.planning.duration")
+                .description("Time spent planning reservation routes")
+                .register(meterRegistry);
+        routePlanningSuccessCounter = Counter.builder("reservations.route.planning.success")
+                .description("Number of successfully planned reservation routes")
+                .register(meterRegistry);
+        routePlanningErrorCounter = Counter.builder("reservations.route.planning.errors")
+                .description("Number of reservation route planning attempts that failed")
+                .register(meterRegistry);
+    }
 
     @Value("${app.bindings.reservations:reservations-out}")
     private String reservationsBinding;
@@ -26,42 +60,61 @@ public class RoutePlannerService {
     @Transactional
     public Optional<Reservation> addRoute(
             ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
-        if (!command.requestRoute()) {
+        Timer.Sample confirmationSample = Timer.start(meterRegistry);
+        try {
+            if (!command.requestRoute()) {
+                try {
+                    Reservation confirmed = confirmFee(newReservation);
+                    appendReservationEvent("ReservationConfirmed", confirmed, null);
+                    reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
+                    routeConfirmationSuccessCounter.increment();
+                    return Optional.of(confirmed);
+                } catch (Exception ex) {
+                    routeConfirmationErrorCounter.increment();
+                    releaseHold(newReservation);
+                    return Optional.empty();
+                }
+            }
+
             try {
-                Reservation confirmed = confirmFee(newReservation);
-                appendReservationEvent("ReservationConfirmed", confirmed, null);
+                Route route = planRoute(command);
+                BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
+                Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
                 reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
+                appendReservationEvent("ReservationConfirmed", confirmed, route);
+                routeConfirmationSuccessCounter.increment();
                 return Optional.of(confirmed);
             } catch (Exception ex) {
+                routeConfirmationErrorCounter.increment();
+                // planowanie trasy nie powiodło się – zwalniamy HOLD
                 releaseHold(newReservation);
                 return Optional.empty();
             }
-        }
-
-        try {
-            Route route = planRoute(command);
-            BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
-            Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
-            reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
-            appendReservationEvent("ReservationConfirmed", confirmed, route);
-            return Optional.of(confirmed);
-        } catch (Exception ex) {
-            // planowanie trasy nie powiodło się – zwalniamy HOLD
-            releaseHold(newReservation);
-            return Optional.empty();
+        } finally {
+            confirmationSample.stop(routeConfirmationTimer);
         }
     }
 
     public Route planRoute(ReserveBayCommand command) {
-        return Route.builder()
-                .routeCode("ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
-                        + ThreadLocalRandom.current().nextInt(100000, 999999))
-                .startStarportCode(command.startStarportCode())
-                .destinationStarportCode(command.destinationStarportCode())
-                .etaLightYears(1.0 + ThreadLocalRandom.current().nextDouble() / 100.0)
-                .riskScore(ThreadLocalRandom.current().nextDouble())
-                .isActive(true)
-                .build();
+        Timer.Sample planningSample = Timer.start(meterRegistry);
+        try {
+            Route route = Route.builder()
+                    .routeCode("ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
+                            + ThreadLocalRandom.current().nextInt(100000, 999999))
+                    .startStarportCode(command.startStarportCode())
+                    .destinationStarportCode(command.destinationStarportCode())
+                    .etaLightYears(1.0 + ThreadLocalRandom.current().nextDouble() / 100.0)
+                    .riskScore(ThreadLocalRandom.current().nextDouble())
+                    .isActive(true)
+                    .build();
+            routePlanningSuccessCounter.increment();
+            return route;
+        } catch (RuntimeException ex) {
+            routePlanningErrorCounter.increment();
+            throw ex;
+        } finally {
+            planningSample.stop(routePlanningTimer);
+        }
     }
 
     public Reservation confirmFee(Reservation newReservation) {
