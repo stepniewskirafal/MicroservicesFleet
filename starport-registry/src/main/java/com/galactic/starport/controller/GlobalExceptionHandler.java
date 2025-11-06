@@ -17,18 +17,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors()
-                .forEach(err -> errors.put(err.getField(), err.getDefaultMessage()));
+        ex.getBindingResult().getFieldErrors().forEach(err -> errors.put(err.getField(), err.getDefaultMessage()));
         return ResponseEntity.unprocessableEntity().body(errors); // 422
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
         ex.getMostSpecificCause();
-        return ResponseEntity.badRequest().body(Map.of(
-                "error", "Malformed JSON",
-                ERROR_DETAILS, ex.getMostSpecificCause().getMessage()
-        ));
+        return ResponseEntity.badRequest()
+                .body(Map.of(
+                        "error",
+                        "Malformed JSON",
+                        ERROR_DETAILS,
+                        ex.getMostSpecificCause().getMessage()));
     }
 
     @ExceptionHandler(NoDockingBaysAvailableException.class)

@@ -74,10 +74,27 @@ eureka:
     prefer-ip-address: true
 
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        starport.reservation.reserve.time: true
+        starport.reservation.fee.time: true
+        starport.external.route.time: true
+      minimum-expected-value:
+        starport.reservation.reserve.time: 5ms
+        starport.reservation.fee.time: 1ms
+        starport.external.route.time: 5ms
+      maximum-expected-value:
+        starport.reservation.reserve.time: 10s
+        starport.reservation.fee.time: 2s
+        starport.external.route.time: 5s
+      slo:
+        starport.reservation.reserve.time: 50ms,100ms,250ms,500ms,1s,2s,5s
+        starport.external.route.time: 20ms,50ms,100ms,200ms,500ms,1s,2s
   endpoints:
     web:
       exposure:
-        include: [ "health", "info", "prometheus" ]
+        include: health,metrics,prometheus
   tracing:
     sampling:
       probability: 1.0
@@ -97,7 +114,7 @@ app:
       routeChanges: routeChanged-out-0
 
 outbox:
-  poll-interval-ms: 1000
+  poll-interval-ms: 30000
   batch-size: 50
   max-attempts: 10
 

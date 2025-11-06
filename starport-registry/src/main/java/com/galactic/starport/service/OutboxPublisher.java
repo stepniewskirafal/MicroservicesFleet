@@ -28,7 +28,7 @@ public class OutboxPublisher {
     @Value("${outbox.max-attempts:10}")
     int maxAttempts;
 
-    @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:10000}")
+    @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:300000}")
     @Transactional
     public void pollAndPublish() {
         List<OutboxEventEntity> batch = repo.lockBatchPending(batchSize);
