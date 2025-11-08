@@ -1,14 +1,13 @@
 package com.galactic.starport.service
 
-
 import com.galactic.starport.repository.StarportEntity
 import com.galactic.starport.repository.StarportRepository
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
 import spock.lang.Specification
 
-import java.math.BigDecimal
 import java.time.Instant
-import java.util.Optional
 
 class ReservationServiceMetricsSpec extends Specification {
 
@@ -17,18 +16,24 @@ class ReservationServiceMetricsSpec extends Specification {
     private FeeCalculatorService feeCalculatorService = Mock()
     private RoutePlannerService routePlannerService = Mock()
     private StarportRepository starportRepository = Mock()
+
     private SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry()
+    private ObservationRegistry observationRegistry
     private ReservationService reservationService
 
     def setup() {
+        observationRegistry = ObservationRegistry.create()
+        observationRegistry.observationConfig()
+                .observationHandler(new DefaultMeterObservationHandler(meterRegistry))
+
         reservationService = new ReservationService(
                 holdReservationService,
                 validateReservationCommandService,
                 feeCalculatorService,
                 routePlannerService,
                 starportRepository,
-                meterRegistry)
-        reservationService.initMetrics()
+                observationRegistry
+        )
     }
 
     def "records success and timing when reservation completes"() {
@@ -55,16 +60,21 @@ class ReservationServiceMetricsSpec extends Specification {
 
         starportRepository.findByCode(command.destinationStarportCode()) >> Optional.of(starport)
         holdReservationService.allocateHold(command, starport) >> reservation
-        feeCalculatorService.calculateFee(reservation) >> BigDecimal.TEN
+        feeCalculatorService.calculateFee(reservation) >> 10G
         routePlannerService.addRoute(command, reservation, starport) >> Optional.of(reservation)
 
         when:
         reservationService.reserveBay(command)
 
         then:
-        meterRegistry.get("reservations.reserve.success").counter().count() == 1.0d
-        meterRegistry.get("reservations.reserve.duration").timer().count() == 1
-        meterRegistry.get("reservations.reserve.errors").counter().count() == 0.0d
+        // obecny timer sukcesu
+        meterRegistry.get("reservations.reserve").tag("status", "success").timer().count() == 1
+        // brak timera błędu – używamy find(...)
+        meterRegistry.find("reservations.reserve").tag("status", "error").timer() == null
+        // (opcjonalnie) sprawdź tag error=none przy sukcesie
+        meterRegistry.get("reservations.reserve")
+                .tags("status", "success", "error", "none")
+                .timer().count() == 1
     }
 
     def "records error when reservation fails"() {
@@ -87,8 +97,13 @@ class ReservationServiceMetricsSpec extends Specification {
 
         then:
         thrown(StarportNotFoundException)
-        meterRegistry.get("reservations.reserve.errors").counter().count() == 1.0d
-        meterRegistry.get("reservations.reserve.success").counter().count() == 0.0d
-        meterRegistry.get("reservations.reserve.duration").timer().count() == 1
+        // obecny timer błędu
+        meterRegistry.get("reservations.reserve").tag("status", "error").timer().count() == 1
+        // brak timera sukcesu – używamy find(...)
+        meterRegistry.find("reservations.reserve").tag("status", "success").timer() == null
+        // (opcjonalnie) klasa wyjątku w tagu error
+        meterRegistry.get("reservations.reserve")
+                .tags("status", "error", "error", "StarportNotFoundException")
+                .timer().count() == 1
     }
 }

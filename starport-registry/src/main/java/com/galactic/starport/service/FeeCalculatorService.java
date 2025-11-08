@@ -2,7 +2,8 @@ package com.galactic.starport.service;
 
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -16,14 +17,11 @@ import org.springframework.stereotype.Service;
 class FeeCalculatorService {
     private final MeterRegistry meterRegistry;
 
-    private Timer feeCalculationTimer;
+    private final ObservationRegistry observationRegistry;
     private DistributionSummary calculatedFeeSummary;
 
     @PostConstruct
     void initMetrics() {
-        feeCalculationTimer = Timer.builder("reservations.fees.calculation.duration")
-                .description("Time spent calculating reservation fees")
-                .register(meterRegistry);
         calculatedFeeSummary = DistributionSummary.builder("reservations.fees.calculated.amount")
                 .description("Distribution of calculated reservation fees")
                 .baseUnit("credits")
@@ -31,8 +29,8 @@ class FeeCalculatorService {
     }
 
     public BigDecimal calculateFee(Reservation newReservation) {
-        Timer.Sample sample = Timer.start(meterRegistry);
-        try {
+        Observation observation = Observation.start("reservations.fees.calculation", observationRegistry);
+        try (Observation.Scope scope = observation.openScope()) {
             long hours = Math.max(
                     1,
                     Duration.between(newReservation.getStartAt(), newReservation.getEndAt())
@@ -46,9 +44,16 @@ class FeeCalculatorService {
                     };
             BigDecimal calculatedFee = perHour.multiply(BigDecimal.valueOf(hours));
             calculatedFeeSummary.record(calculatedFee.doubleValue());
+            // mark the observation as successful
+            observation.lowCardinalityKeyValue("status", "success");
             return calculatedFee;
+        } catch (RuntimeException ex) {
+            observation.error(ex);
+            observation.lowCardinalityKeyValue("status", "error");
+            throw ex;
         } finally {
-            sample.stop(feeCalculationTimer);
+            // stopping the observation will emit the measured duration and tags
+            observation.stop();
         }
     }
 }

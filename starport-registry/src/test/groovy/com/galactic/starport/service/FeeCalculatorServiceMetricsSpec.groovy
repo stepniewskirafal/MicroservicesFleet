@@ -1,6 +1,8 @@
 package com.galactic.starport.service
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
 import spock.lang.Specification
 
 import java.time.Instant
@@ -8,10 +10,13 @@ import java.time.Instant
 class FeeCalculatorServiceMetricsSpec extends Specification {
 
     private SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry()
+    private ObservationRegistry observationRegistry
     private FeeCalculatorService feeCalculatorService
 
     def setup() {
-        feeCalculatorService = new FeeCalculatorService(meterRegistry)
+        observationRegistry = ObservationRegistry.create()
+        observationRegistry.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry))
+        feeCalculatorService = new FeeCalculatorService(meterRegistry, observationRegistry)
         feeCalculatorService.initMetrics()
     }
 
@@ -28,7 +33,7 @@ class FeeCalculatorServiceMetricsSpec extends Specification {
 
         then:
         fee == BigDecimal.valueOf(100)
-        meterRegistry.get("reservations.fees.calculation.duration").timer().count() == 1
+        meterRegistry.get("reservations.fees.calculation").tag("status", "success").timer().count() == 1
         meterRegistry.get("reservations.fees.calculated.amount").summary().count() == 1
         meterRegistry.get("reservations.fees.calculated.amount").summary().totalAmount() == 100.0d
     }

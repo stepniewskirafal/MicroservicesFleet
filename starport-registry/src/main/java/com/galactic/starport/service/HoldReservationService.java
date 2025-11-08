@@ -1,9 +1,8 @@
 package com.galactic.starport.service;
 
 import com.galactic.starport.repository.*;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,32 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class HoldReservationService {
     private final CustomerRepository customerRepository;
     private final ShipRepository shipRepository;
-    private final StarportRepository starportRepository;
     private final DockingBayRepository dockingBayRepository;
     private final ReservationRepository reservationRepository;
-    private final MeterRegistry meterRegistry;
 
-    private Timer holdAllocationTimer;
-    private Counter holdAllocationSuccessCounter;
-    private Counter holdAllocationErrorCounter;
-
-    @PostConstruct
-    void initMetrics() {
-        holdAllocationTimer = Timer.builder("reservations.hold.allocate.duration")
-                .description("Time spent allocating reservation holds")
-                .register(meterRegistry);
-        holdAllocationSuccessCounter = Counter.builder("reservations.hold.allocate.success")
-                .description("Number of holds allocated successfully")
-                .register(meterRegistry);
-        holdAllocationErrorCounter = Counter.builder("reservations.hold.allocate.errors")
-                .description("Number of hold allocations ending with an error")
-                .register(meterRegistry);
-    }
+    private final ObservationRegistry observationRegistry;
 
     @Transactional
     public Reservation allocateHold(ReserveBayCommand command, StarportEntity starport) {
-        Timer.Sample sample = Timer.start(meterRegistry);
-        try {
+        Observation observation = Observation.start("reservations.hold.allocate", observationRegistry);
+        boolean success = false;
+        try (Observation.Scope scope = observation.openScope()) {
             CustomerEntity customer = customerRepository
                     .findByCustomerCode(command.customerCode())
                     .orElseThrow(() -> new CustomerNotFoundException(command.customerCode()));
@@ -75,9 +58,8 @@ public class HoldReservationService {
                     command.startAt(),
                     command.endAt());
 
-            holdAllocationSuccessCounter.increment();
-
-            return Reservation.builder()
+            // Construct the return model on success
+            Reservation result = Reservation.builder()
                     .id(saved.getId())
                     .starport(starport.toModel())
                     .dockingBay(bay.toModel())
@@ -87,11 +69,16 @@ public class HoldReservationService {
                     .endAt(saved.getEndAt())
                     .status(Reservation.ReservationStatus.valueOf(saved.getStatus().name()))
                     .build();
+            success = true;
+            return result;
         } catch (RuntimeException ex) {
-            holdAllocationErrorCounter.increment();
+            // attach error information to the observation and rethrow
+            observation.error(ex);
             throw ex;
         } finally {
-            sample.stop(holdAllocationTimer);
+            // tag the status based on the outcome
+            observation.lowCardinalityKeyValue("status", success ? "success" : "error");
+            observation.stop();
         }
     }
 }

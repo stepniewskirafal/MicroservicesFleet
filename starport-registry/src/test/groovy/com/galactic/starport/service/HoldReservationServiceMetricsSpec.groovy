@@ -11,6 +11,8 @@ import com.galactic.starport.repository.ShipRepository
 import com.galactic.starport.repository.StarportEntity
 import com.galactic.starport.repository.StarportRepository
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
 import spock.lang.Specification
 
 import java.time.Instant
@@ -23,16 +25,21 @@ class HoldReservationServiceMetricsSpec extends Specification {
     private DockingBayRepository dockingBayRepository = Mock()
     private ReservationRepository reservationRepository = Mock()
     private SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry()
+    private ObservationRegistry observationRegistry
     private HoldReservationService holdReservationService
 
     def setup() {
+        // Create an ObservationRegistry and register a handler that writes metrics
+        observationRegistry = ObservationRegistry.create()
+        observationRegistry.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry))
+        // Instantiate the service with the observation registry instead of a MeterRegistry
         holdReservationService = new HoldReservationService(
                 customerRepository,
                 shipRepository,
                 starportRepository,
                 dockingBayRepository,
                 reservationRepository,
-                meterRegistry)
+                observationRegistry)
         holdReservationService.initMetrics()
     }
 
@@ -83,9 +90,8 @@ class HoldReservationServiceMetricsSpec extends Specification {
         holdReservationService.allocateHold(command, starport)
 
         then:
-        meterRegistry.get("reservations.hold.allocate.success").counter().count() == 1.0d
-        meterRegistry.get("reservations.hold.allocate.duration").timer().count() == 1
-        meterRegistry.get("reservations.hold.allocate.errors").counter().count() == 0.0d
+        meterRegistry.get("reservations.hold.allocate").tag("status", "success").timer().count() == 1
+        meterRegistry.get("reservations.hold.allocate").tag("status", "error").timer().count() == 0
     }
 
     def "records errors when hold allocation fails"() {
@@ -106,8 +112,7 @@ class HoldReservationServiceMetricsSpec extends Specification {
 
         then:
         thrown(CustomerNotFoundException)
-        meterRegistry.get("reservations.hold.allocate.errors").counter().count() == 1.0d
-        meterRegistry.get("reservations.hold.allocate.success").counter().count() == 0.0d
-        meterRegistry.get("reservations.hold.allocate.duration").timer().count() == 1
+        meterRegistry.get("reservations.hold.allocate").tag("status", "error").timer().count() == 1
+        meterRegistry.get("reservations.hold.allocate").tag("status", "success").timer().count() == 0
     }
 }
