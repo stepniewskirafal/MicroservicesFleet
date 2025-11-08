@@ -10,6 +10,7 @@ import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
@@ -28,6 +29,7 @@ class FeeCalculatorService {
                 .register(meterRegistry);
     }
 
+    @Transactional
     public BigDecimal calculateFee(Reservation newReservation) {
         Observation observation = Observation.start("reservations.fees.calculation", observationRegistry);
         try (Observation.Scope scope = observation.openScope()) {
