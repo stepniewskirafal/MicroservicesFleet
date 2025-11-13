@@ -22,9 +22,11 @@ public class ReservationService {
     private final ObservationRegistry observationRegistry;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
-        // Jedna obserwacja opasująca cały proces rezerwacji
-        Observation observation = Observation.start("reservations.reserve", observationRegistry);
-        boolean success = false;
+        Observation observation = Observation.createNotStarted("reservations.reserve", observationRegistry)
+                .lowCardinalityKeyValue("starport", command.destinationStarportCode())
+                //.observe()
+
+                .start();
 
         try (Observation.Scope scope = observation.openScope()) {
             StarportEntity starport = starportRepository
@@ -37,19 +39,15 @@ public class ReservationService {
             newReservation.setFeeCharged(feeCalculatorService.calculateFee(newReservation));
 
             Optional<Reservation> result = routePlannerService.addRoute(command, newReservation, starport);
-            success = result.isPresent();
+
+            observation.lowCardinalityKeyValue("status", result.isPresent() ? "success" : "no-route")
+                    .lowCardinalityKeyValue("error", "none");
+
             return result;
         } catch (RuntimeException ex) {
-            // zarejestruj błąd i oznacz tagami
             observation.error(ex);
-            observation.lowCardinalityKeyValue("status", "error")
-                    .lowCardinalityKeyValue("error", ex.getClass().getSimpleName());
             throw ex;
         } finally {
-            if (success) {
-                observation.lowCardinalityKeyValue("status", "success")
-                        .lowCardinalityKeyValue("error", "none");
-            }
             observation.stop();
         }
     }

@@ -7,18 +7,17 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -73,9 +72,8 @@ public class RoutePlannerService {
     }
 
     @Transactional
-    public Optional<Reservation> addRoute(ReserveBayCommand command,
-                                          Reservation newReservation,
-                                          StarportEntity starportEntity) {
+    public Optional<Reservation> addRoute(
+            ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
         // START -> przed try/catch
         Timer.Sample confirmSample = Timer.start(meterRegistry);
         try {
@@ -112,7 +110,6 @@ public class RoutePlannerService {
         }
     }
 
-
     public Route planRoute(ReserveBayCommand command) {
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
@@ -139,6 +136,7 @@ public class RoutePlannerService {
         newReservation.confirmReservationWithoutRoute();
         return newReservation;
     }
+
     public Reservation confirmFeeAndRoute(Reservation newReservation, Route route, BigDecimal finalFee) {
         newReservation.confirmReservationWithRoute(route, finalFee);
         return newReservation;

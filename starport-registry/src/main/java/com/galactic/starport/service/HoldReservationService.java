@@ -3,7 +3,6 @@ package com.galactic.starport.service;
 import com.galactic.starport.repository.*;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -67,7 +66,8 @@ public class HoldReservationService {
                     .ship(ship.toModel())
                     .startAt(saved.getStartAt())
                     .endAt(saved.getEndAt())
-                    .status(Reservation.ReservationStatus.valueOf(saved.getStatus().name()))
+                    .status(Reservation.ReservationStatus.valueOf(
+                            saved.getStatus().name()))
                     .build();
             success = true;
             return result;
