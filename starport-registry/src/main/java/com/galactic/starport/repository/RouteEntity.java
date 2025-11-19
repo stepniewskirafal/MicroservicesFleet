@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "route")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
-public class RouteEntity {
+class RouteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "route_id_seq_gen")

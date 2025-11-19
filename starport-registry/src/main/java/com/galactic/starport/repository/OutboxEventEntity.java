@@ -26,7 +26,7 @@ public class OutboxEventEntity {
     private String binding;
 
     @Column(name = "message_key", nullable = false)
-    private String messageKey; // Kafka message key / idempotency key
+    private String messageKey;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload_json", columnDefinition = "jsonb", nullable = false)

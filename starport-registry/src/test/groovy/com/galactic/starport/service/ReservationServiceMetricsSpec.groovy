@@ -11,8 +11,8 @@ import java.time.Instant
 
 class ReservationServiceMetricsSpec extends Specification {
 
-    private HoldReservationService holdReservationService = Mock()
-    private ValidateReservationCommandService validateReservationCommandService = Mock()
+    private CreateHoldReservationService holdReservationService = Mock()
+    private ReserveBayValidationComposite validateReservationCommandService = Mock()
     private FeeCalculatorService feeCalculatorService = Mock()
     private RoutePlannerService routePlannerService = Mock()
     private StarportRepository starportRepository = Mock()
@@ -61,7 +61,7 @@ class ReservationServiceMetricsSpec extends Specification {
         starportRepository.findByCode(command.destinationStarportCode()) >> Optional.of(starport)
         holdReservationService.allocateHold(command, starport) >> reservation
         feeCalculatorService.calculateFee(reservation) >> 10G
-        routePlannerService.addRoute(command, reservation, starport) >> Optional.of(reservation)
+        routePlannerService.calculateRoute(command, reservation, starport) >> Optional.of(reservation)
 
         when:
         reservationService.reserveBay(command)

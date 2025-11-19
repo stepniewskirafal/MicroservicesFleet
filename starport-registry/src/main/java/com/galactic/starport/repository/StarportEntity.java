@@ -14,7 +14,7 @@ import org.hibernate.annotations.FetchMode;
 @Table(name = "starport")
 @Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
-public class StarportEntity {
+class StarportEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "starport_id_seq_gen")
     @SequenceGenerator(name = "starport_id_seq_gen", sequenceName = "starport_id_seq", allocationSize = 10)

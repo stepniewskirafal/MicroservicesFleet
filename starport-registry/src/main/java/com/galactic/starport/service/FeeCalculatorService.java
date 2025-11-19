@@ -1,5 +1,6 @@
 package com.galactic.starport.service;
 
+import com.galactic.starport.service.ReserveBayCommand.ShipClass;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -8,47 +9,59 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
 class FeeCalculatorService {
+    private static final String OBS_NAME_FEE_CALCULATION = "reservations.fees.calculate";
+    private static final String METRIC_FEE_AMOUNT = "reservations.fees.calculated.amount";
+    private static final String METRIC_FEE_HOURS = "reservations.fees.calculated.hours";
     private final ObservationRegistry observationRegistry;
-    private final DistributionSummary calculatedFeeSummary;
+    private final DistributionSummary feeAmountSummary;
+    private final DistributionSummary feeHoursSummary;
 
-    FeeCalculatorService(MeterRegistry registry, ObservationRegistry observationRegistry) {
+    FeeCalculatorService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
-        this.calculatedFeeSummary = DistributionSummary.builder("reservations.fees.calculated.amount")
-                .description("Distribution of calculated reservation fees")
-                .baseUnit("credits")
-                .register(registry);
+
+        this.feeAmountSummary = DistributionSummary.builder(METRIC_FEE_AMOUNT)
+                .baseUnit("pln")
+                .description("Calculated reservation fee amount")
+                .register(meterRegistry);
+
+        this.feeHoursSummary = DistributionSummary.builder(METRIC_FEE_HOURS)
+                .baseUnit("hours")
+                .description("Charged hours used to calculate reservation fee")
+                .register(meterRegistry);
     }
 
-    @Transactional
-    public BigDecimal calculateFee(Reservation newReservation) {
-        Observation observation = Observation.start("reservations.fees.calculation", observationRegistry);
-        try (Observation.Scope scope = observation.openScope()) {
-            long hours = Math.max(
-                    1,
-                    Duration.between(newReservation.getStartAt(), newReservation.getEndAt())
-                            .toHours());
-            BigDecimal perHour =
-                    switch (newReservation.getShip().getShipClass()) {
-                        case SCOUT -> BigDecimal.valueOf(50);
-                        case FREIGHTER -> BigDecimal.valueOf(120);
-                        case CRUISER -> BigDecimal.valueOf(250);
-                        case UNKNOWN -> BigDecimal.valueOf(1000);
-                    };
-            BigDecimal fee = perHour.multiply(BigDecimal.valueOf(hours));
-            calculatedFeeSummary.record(fee.doubleValue());
-            observation.lowCardinalityKeyValue("status", "success");
-            return fee;
-        } catch (RuntimeException ex) {
-            observation.error(ex);
-            observation.lowCardinalityKeyValue("status", "error");
-            throw ex;
-        } finally {
-            observation.stop();
+    BigDecimal calculateFee(ReserveBayCommand command) {
+        return Observation.createNotStarted(OBS_NAME_FEE_CALCULATION, observationRegistry)
+                .lowCardinalityKeyValue("starport", command.destinationStarportCode())
+                .lowCardinalityKeyValue("shipClass", command.shipClass().name())
+                .observe(() -> {
+                    long billingHours = calculateBillingHours(command);
+                    BigDecimal fee = calculateFeeAmount(command.shipClass(), billingHours);
+                    feeAmountSummary.record(fee.doubleValue());
+                    feeHoursSummary.record(billingHours);
+                    log.debug(
+                            "Calculated fee: starport={}, shipClass={}, hours={}, fee={}",
+                            command.destinationStarportCode(),
+                            command.shipClass(),
+                            billingHours,
+                            fee);
+                    return fee;
+                });
+    }
+
+    private long calculateBillingHours(ReserveBayCommand command) {
+        long hours = Duration.between(command.startAt(), command.endAt()).toHours();
+        if (hours < 0) {
+            throw new InvalidReservationTimeException(command.startAt(), command.endAt());
         }
+        return Math.max(1, hours);
+    }
+
+    private BigDecimal calculateFeeAmount(ShipClass shipClass, long hours) {
+        return shipClass.hourlyRate().multiply(BigDecimal.valueOf(hours));
     }
 }

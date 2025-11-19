@@ -10,12 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
-public class OutboxWriter {
+class OutboxWriter {
     private final OutboxEventJpaRepository repo;
 
-    /**
-     * MANDATORY pilnuje, by zdarzenie powstało w tej samej transakcji co zmiana stanu domeny.
-     */
     @Transactional(propagation = Propagation.MANDATORY)
     public void append(
             String binding,

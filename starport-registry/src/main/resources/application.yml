@@ -80,6 +80,11 @@ management:
         starport.reservation.reserve.time: true
         starport.reservation.fee.time: true
         starport.external.route.time: true
+        reservations.fees.calculated.amount: true
+        reservations.fees.calculated.hours: true
+      percentiles:
+        reservations.fees.calculated.amount: 0.5,0.9,0.99
+        reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
         starport.reservation.reserve.time: 5ms
         starport.reservation.fee.time: 1ms

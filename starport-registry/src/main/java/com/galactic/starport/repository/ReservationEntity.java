@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "reservation")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @Getter
-public class ReservationEntity {
+class ReservationEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "reservation_id_seq_gen")

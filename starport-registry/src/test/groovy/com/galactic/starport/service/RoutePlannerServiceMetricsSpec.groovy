@@ -7,9 +7,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import spock.lang.Specification
 
-import java.math.BigDecimal
 import java.time.Instant
-import java.util.Optional
 
 class RoutePlannerServiceMetricsSpec extends Specification {
 
@@ -66,7 +64,7 @@ class RoutePlannerServiceMetricsSpec extends Specification {
         outboxWriter.append(*_) >> { /* ok */ }
 
         when:
-        def result = routePlannerService.addRoute(command, reservation, starportEntity)
+        def result = routePlannerService.calculateRoute(command, reservation, starportEntity)
 
         then:
         result.isPresent()
@@ -87,7 +85,7 @@ class RoutePlannerServiceMetricsSpec extends Specification {
         def command = ReserveBayCommand.builder()
                 .startStarportCode("START")
                 .destinationStarportCode("DEST")
-                .requestRoute(false) // bez planowania – od razu confirm + save
+                .requestRoute(false)
                 .build()
 
         def reservation = Reservation.builder()
@@ -102,7 +100,7 @@ class RoutePlannerServiceMetricsSpec extends Specification {
         def persisted = Mock(ReservationEntity)
 
         when:
-        def result = routePlannerService.addRoute(command, reservation, new StarportEntity())
+        def result = routePlannerService.calculateRoute(command, reservation, new StarportEntity())
 
         then:
         !result.isPresent()
