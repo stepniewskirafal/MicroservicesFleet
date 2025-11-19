@@ -37,8 +37,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(ERROR_DETAILS, ex.getMessage()));
     }
 
-    @ExceptionHandler(WrongReservationTimeException.class)
-    ResponseEntity<Map<String, String>> handle(WrongReservationTimeException ex) {
+    @ExceptionHandler(InvalidReservationTimeException.class)
+    ResponseEntity<Map<String, String>> handle(InvalidReservationTimeException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(ERROR_DETAILS, ex.getMessage()));
     }
 

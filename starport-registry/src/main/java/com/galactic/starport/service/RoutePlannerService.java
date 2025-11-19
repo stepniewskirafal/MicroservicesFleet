@@ -1,170 +1,112 @@
 package com.galactic.starport.service;
 
-import com.galactic.starport.repository.ReservationEntity;
-import com.galactic.starport.repository.ReservationRepository;
-import com.galactic.starport.repository.StarportEntity;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
-import jakarta.annotation.PostConstruct;
-import java.math.BigDecimal;
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
-public class RoutePlannerService {
+class RoutePlannerService {
 
-    private final ReservationRepository reservationRepository;
-    private final OutboxWriter outboxWriter;
-    private final MeterRegistry meterRegistry;
+    private static final String OBS_ROUTE_PLAN = "reservations.route.plan";
+    private static final String OBS_ROUTE_RISK = "reservations.route.risk.calculate";
+    private static final String OBS_ROUTE_ETA = "reservations.route.eta.calculate";
 
-    @Value("${app.bindings.reservations.name:reservations-out}")
-    String reservationsBinding;
+    private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
+    private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
 
-    // --- METRICS ---
-    private Timer routePlanningTimer;
-    private Counter routePlanningSuccessCounter;
-    private Counter routePlanningErrorCounter;
+    private final ObservationRegistry observationRegistry;
+    private final Counter routePlanSuccessCounter;
+    private final Counter routePlanErrorCounter;
 
-    private Timer routeConfirmationTimer;
-    private Counter routeConfirmationSuccessCounter;
-    private Counter routeConfirmationErrorCounter;
+    RoutePlannerService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
+        this.observationRegistry = observationRegistry;
 
-    @PostConstruct
-    public void initMetrics() {
-        routePlanningTimer = Timer.builder("reservations.route.planning.duration")
-                .description("Time to plan a route for a reservation")
-                .publishPercentileHistogram()
-                .maximumExpectedValue(Duration.ofSeconds(5))
+        this.routePlanSuccessCounter = Counter.builder(METRIC_ROUTE_PLAN_SUCCESS)
+                .description("Number of successfully planned routes")
                 .register(meterRegistry);
 
-        routePlanningSuccessCounter = Counter.builder("reservations.route.planning.success")
-                .description("Successful route planning count")
-                .register(meterRegistry);
-
-        routePlanningErrorCounter = Counter.builder("reservations.route.planning.errors")
-                .description("Failed route planning count")
-                .register(meterRegistry);
-
-        routeConfirmationTimer = Timer.builder("reservations.route.confirmation.duration")
-                .description("Time to confirm fee and persist reservation")
-                .publishPercentileHistogram()
-                .maximumExpectedValue(Duration.ofSeconds(5))
-                .register(meterRegistry);
-
-        routeConfirmationSuccessCounter = Counter.builder("reservations.route.confirmation.success")
-                .description("Successful reservation confirmation count")
-                .register(meterRegistry);
-
-        routeConfirmationErrorCounter = Counter.builder("reservations.route.confirmation.errors")
-                .description("Failed reservation confirmation count")
+        this.routePlanErrorCounter = Counter.builder(METRIC_ROUTE_PLAN_ERROR)
+                .description("Number of failed route planning attempts")
                 .register(meterRegistry);
     }
 
-    @Transactional
-    public Optional<Reservation> addRoute(
-            ReserveBayCommand command, Reservation newReservation, StarportEntity starportEntity) {
-        // START -> przed try/catch
-        Timer.Sample confirmSample = Timer.start(meterRegistry);
-        try {
-            if (!command.requestRoute()) {
-                try {
-                    Reservation confirmed = confirmFee(newReservation);
-                    appendReservationEvent("ReservationConfirmed", confirmed, null);
-                    reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
-                    routeConfirmationSuccessCounter.increment();
-                    return Optional.of(confirmed);
-                } catch (Exception ex) {
-                    routeConfirmationErrorCounter.increment();
-                    releaseHold(newReservation);
-                    return Optional.empty();
-                }
-            }
-
-            try {
-                Route route = planRoute(command);
-                BigDecimal finalFee = newReservation.getFeeCharged().multiply(BigDecimal.valueOf(route.getRiskScore()));
-                Reservation confirmed = confirmFeeAndRoute(newReservation, route, finalFee);
-                reservationRepository.save(new ReservationEntity(confirmed, starportEntity));
-                appendReservationEvent("ReservationConfirmed", confirmed, route);
-                routeConfirmationSuccessCounter.increment();
-                return Optional.of(confirmed);
-            } catch (Exception ex) {
-                routeConfirmationErrorCounter.increment();
-                // planowanie trasy nie powiodło się – zwalniamy HOLD
-                releaseHold(newReservation);
-                return Optional.empty();
-            }
-        } finally {
-            confirmSample.stop(routeConfirmationTimer);
+    Optional<Route> calculateRoute(ReserveBayCommand command) {
+        if (!command.requestRoute()) {
+            return Optional.empty();
         }
+        return Optional.of(calculate(command));
     }
 
-    public Route planRoute(ReserveBayCommand command) {
-        Timer.Sample sample = Timer.start(meterRegistry);
-        try {
-            Route route = Route.builder()
-                    .routeCode("ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
-                            + ThreadLocalRandom.current().nextInt(100000, 999999))
-                    .startStarportCode(command.startStarportCode())
-                    .destinationStarportCode(command.destinationStarportCode())
-                    .etaLightYears(1.0 + ThreadLocalRandom.current().nextDouble() / 100.0)
-                    .riskScore(ThreadLocalRandom.current().nextDouble())
-                    .isActive(true)
-                    .build();
-            routePlanningSuccessCounter.increment();
-            return route;
-        } catch (RuntimeException ex) {
-            routePlanningErrorCounter.increment();
-            throw ex;
-        } finally {
-            sample.stop(routePlanningTimer);
-        }
+    private Route calculate(ReserveBayCommand command) {
+        return Observation.createNotStarted(OBS_ROUTE_PLAN, observationRegistry)
+                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
+                .observe(() -> {
+                    try {
+                        Route route = doPlanRoute(command);
+                        routePlanSuccessCounter.increment();
+                        return route;
+                    } catch (RuntimeException e) {
+                        routePlanErrorCounter.increment();
+                        log.error(
+                                "Route planning failed for reservation from {} to {}",
+                                command.startStarportCode(),
+                                command.destinationStarportCode(),
+                                e);
+                        throw e;
+                    }
+                });
     }
 
-    public Reservation confirmFee(Reservation newReservation) {
-        newReservation.confirmReservationWithoutRoute();
-        return newReservation;
+    private Route doPlanRoute(ReserveBayCommand command) {
+        double riskScore = calculateRiskScore(command);
+        double etaLightYears = calculateEtaLightYears(command, riskScore);
+
+        return Route.builder()
+                .routeCode(getRouteCode(command))
+                .startStarportCode(command.startStarportCode())
+                .destinationStarportCode(command.destinationStarportCode())
+                .etaLightYears(etaLightYears)
+                .riskScore(riskScore)
+                .isActive(true)
+                .build();
     }
 
-    public Reservation confirmFeeAndRoute(Reservation newReservation, Route route, BigDecimal finalFee) {
-        newReservation.confirmReservationWithRoute(route, finalFee);
-        return newReservation;
+    private double calculateRiskScore(ReserveBayCommand command) {
+        return Observation.createNotStarted(OBS_ROUTE_RISK, observationRegistry)
+                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
+                .observe(() -> {
+                    // Future: external risk scoring service call
+                    return ThreadLocalRandom.current().nextDouble();
+                });
     }
 
-    private void releaseHold(Reservation newReservation) {
+    private double calculateEtaLightYears(ReserveBayCommand command, double riskScore) {
+        return Observation.createNotStarted(OBS_ROUTE_ETA, observationRegistry)
+                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
+                .observe(() -> {
+                    // Future: external ETA service call
+                    return 1.0 + riskScore / 100.0;
+                });
+    }
+
+    private static String getRouteCode(ReserveBayCommand command) {
+        return "ROUTE-" + command.startStarportCode() + "-" + command.destinationStarportCode() + "-"
+                + ThreadLocalRandom.current().nextInt(100000, 999999);
+    }
+}
+
+    /*    private void releaseHold(Reservation newReservation) {
         reservationRepository.findById(newReservation.getId()).ifPresent(entity -> {
             entity.cancelRevervation();
             reservationRepository.save(entity);
         });
-    }
-
-    private void appendReservationEvent(String eventType, Reservation reservation, Route routeOrNull) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("reservationId", reservation.getId());
-        payload.put("fee", reservation.getFeeCharged());
-        if (routeOrNull != null) {
-            payload.put("routeCode", routeOrNull.getRouteCode());
-            payload.put("riskScore", routeOrNull.getRiskScore());
-        }
-
-        Map<String, Object> headers = Map.of("contentType", "application/json");
-
-        outboxWriter.append(
-                reservationsBinding,
-                eventType,
-                String.valueOf(reservation.getId()), // message key
-                payload,
-                headers);
-    }
-}
+    }*/

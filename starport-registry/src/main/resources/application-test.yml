@@ -7,4 +7,3 @@ spring:
     hibernate.ddl-auto: validate
   flyway:
     enabled: true
-# lub skonfigurować poniżej osobny PostgresContainer (bardziej realistycznie)

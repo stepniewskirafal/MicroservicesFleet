@@ -7,10 +7,10 @@ spring:
 
 eureka:
   client:
-    register-with-eureka: false  # sam siebie nie rejestruje
-    fetch-registry: false        # nie pobiera rejestru
+    register-with-eureka: false
+    fetch-registry: false
   server:
-    enable-self-preservation: false   # na dev wygodniej wy??czy?
+    enable-self-preservation: false
     eviction-interval-timer-in-ms: 5000
 
 management:

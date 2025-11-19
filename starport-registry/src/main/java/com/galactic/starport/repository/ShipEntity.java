@@ -10,8 +10,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "ship")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @Getter
-public class ShipEntity {
-
+class ShipEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "ship_id_seq_gen")
     @SequenceGenerator(name = "ship_id_seq_gen", sequenceName = "ship_id_seq", allocationSize = 10)

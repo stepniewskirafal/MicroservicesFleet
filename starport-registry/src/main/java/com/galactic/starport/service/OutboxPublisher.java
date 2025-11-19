@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class OutboxPublisher {
+class OutboxPublisher {
     private final OutboxEventJpaRepository repo;
     private final StreamBridge streamBridge;
 
@@ -40,7 +40,6 @@ public class OutboxPublisher {
                 Map<String, Object> headers = e.getHeadersJson();
 
                 Message<?> msg = MessageBuilder.withPayload(payload)
-                        // Header jest ignorowany, jeśli binder to nie Kafka – zostawiamy dla idempotencji
                         .setHeader(KafkaHeaders.KEY, e.getMessageKey())
                         .copyHeaders(headers == null ? Map.of() : headers)
                         .build();
@@ -55,7 +54,6 @@ public class OutboxPublisher {
                 handleFailure(e, ex);
             }
         }
-        // brak saveAll – @Transactional + dirty checking załatwi update statusów/attempts
     }
 
     private void handleFailure(OutboxEventEntity e, Exception ex) {
