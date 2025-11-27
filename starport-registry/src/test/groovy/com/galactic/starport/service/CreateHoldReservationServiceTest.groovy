@@ -11,20 +11,25 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
     @Autowired
     StarportPersistenceFacade starportPersistenceFacade
 
-    private static final String DEST = "DEF"
-
-    def setup() {
-        purgeAndReset()
-        seedDefaultReservationFixture(DEST, [destinationName: "Alpha Base Central"])
-    }
-
     def "should allocate reservation"() {
         given:
+        def originCode = "ALPHA-BASE-ALLOCATE"
+        def destinationCode = "DEF-ALLOCATE"
+        def customerCode = "CUST-ALLOCATE"
+        def shipCode = "SS-Enterprise-ALLOCATE"
+
+        seedDefaultReservationFixture(destinationCode, [
+                originCode      : originCode,
+                customerCode    : customerCode,
+                shipCode        : shipCode,
+                destinationName : "Alpha Base Central"
+        ])
+
         def cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(DEST)
-                .startStarportCode("ALPHA-BASE")
-                .customerCode("CUST-001")
-                .shipCode("SS-Enterprise-01")
+                .destinationStarportCode(destinationCode)
+                .startStarportCode(originCode)
+                .customerCode(customerCode)
+                .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2000-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2000-01-01T01:00:00Z"))
@@ -38,11 +43,23 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
 
     def "allocateHold – rzuca StarportNotFoundException gdy starport nie istnieje"() {
         given:
+        def originCode = "ALPHA-BASE-STARPORT-NF"
+        def existingDestinationCode = "DEF-STARPORT-NF-EXISTS"
+        def missingDestinationCode = "DEF-STARPORT-NF-MISSING"
+        def customerCode = "CUST-STARPORT-NF"
+        def shipCode = "SS-Enterprise-STARPORT-NF"
+
+        seedDefaultReservationFixture(existingDestinationCode, [
+                originCode  : originCode,
+                customerCode: customerCode,
+                shipCode    : shipCode
+        ])
+
         def cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(DEST+"-NOEXIST")
-                .startStarportCode("ALPHA-BASE")
-                .customerCode("CUST-001")
-                .shipCode("SS-Enterprise-01")
+                .destinationStarportCode(missingDestinationCode)
+                .startStarportCode(originCode)
+                .customerCode(customerCode)
+                .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2000-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2000-01-01T01:00:00Z"))
@@ -56,11 +73,23 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
 
     def "allocateHold – rzuca CustomerNotFoundException gdy customer nie istnieje"() {
         given:
+        def originCode = "ALPHA-BASE-CUSTOMER-NF"
+        def destinationCode = "DEF-CUSTOMER-NF"
+        def existingCustomerCode = "CUST-CUSTOMER-NF-EXISTS"
+        def missingCustomerCode = "CUST-CUSTOMER-NF-MISSING"
+        def shipCode = "SS-Enterprise-CUSTOMER-NF"
+
+        seedDefaultReservationFixture(destinationCode, [
+                originCode  : originCode,
+                customerCode: existingCustomerCode,
+                shipCode    : shipCode
+        ])
+
         def cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(DEST)
-                .startStarportCode("ALPHA-BASE")
-                .customerCode("CUST-001"+"-NOEXIST")
-                .shipCode("SS-Enterprise-01")
+                .destinationStarportCode(destinationCode)
+                .startStarportCode(originCode)
+                .customerCode(missingCustomerCode)
+                .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2000-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2000-01-01T01:00:00Z"))
@@ -74,11 +103,23 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
 
     def "allocateHold – rzuca ShipNotFoundException gdy ship nie istnieje"() {
         given:
+        def originCode = "ALPHA-BASE-SHIP-NF"
+        def destinationCode = "DEF-SHIP-NF"
+        def customerCode = "CUST-SHIP-NF"
+        def existingShipCode = "SS-Enterprise-SHIP-NF-EXISTS"
+        def missingShipCode = "SS-Enterprise-SHIP-NF-MISSING"
+
+        seedDefaultReservationFixture(destinationCode, [
+                originCode  : originCode,
+                customerCode: customerCode,
+                shipCode    : existingShipCode
+        ])
+
         def cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(DEST)
-                .startStarportCode("ALPHA-BASE")
-                .customerCode("CUST-001")
-                .shipCode("SS-Enterprise-01"+"-NOEXIST")
+                .destinationStarportCode(destinationCode)
+                .startStarportCode(originCode)
+                .customerCode(customerCode)
+                .shipCode(missingShipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2000-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2000-01-01T01:00:00Z"))
@@ -92,11 +133,22 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
 
     def "allocateHold – rzuca NoDockingBaysAvailableException gdy nie ma dostępnego miejsca na podaną godzinę"() {
         given:
+        def originCode = "ALPHA-BASE-NO-BAY"
+        def destinationCode = "DEF-NO-BAY"
+        def customerCode = "CUST-NO-BAY"
+        def shipCode = "SS-Enterprise-NO-BAY"
+
+        seedDefaultReservationFixture(destinationCode, [
+                originCode  : originCode,
+                customerCode: customerCode,
+                shipCode    : shipCode
+        ])
+
         def cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(DEST)
-                .startStarportCode("ALPHA-BASE")
-                .customerCode("CUST-001")
-                .shipCode("SS-Enterprise-01")
+                .destinationStarportCode(destinationCode)
+                .startStarportCode(originCode)
+                .customerCode(customerCode)
+                .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2000-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2000-01-01T01:00:00Z"))
