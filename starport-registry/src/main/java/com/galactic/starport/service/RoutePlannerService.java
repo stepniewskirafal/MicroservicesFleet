@@ -13,10 +13,9 @@ import org.springframework.stereotype.Service;
 @Slf4j
 class RoutePlannerService {
 
-    private static final String OBS_ROUTE_PLAN = "reservations.route.plan";
+    private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String OBS_ROUTE_RISK = "reservations.route.risk.calculate";
     private static final String OBS_ROUTE_ETA = "reservations.route.eta.calculate";
-
     private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
     private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
 
@@ -44,7 +43,7 @@ class RoutePlannerService {
     }
 
     private Route calculate(ReserveBayCommand command) {
-        return Observation.createNotStarted(OBS_ROUTE_PLAN, observationRegistry)
+        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("startStarport", command.startStarportCode())
                 .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
                 .observe(() -> {

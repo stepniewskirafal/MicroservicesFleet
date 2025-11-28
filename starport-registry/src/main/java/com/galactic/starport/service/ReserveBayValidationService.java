@@ -16,9 +16,10 @@ import org.springframework.validation.Validator;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-class ReserveBayValidationComposite implements Validator {
+class ReserveBayValidationService implements Validator {
     private final List<ReserveBayCommandValidationRule> validationRules;
     private final ObservationRegistry observationRegistry;
+    private static final String OBSERVATION_NAME = "validation.reserve-bay";
 
     @Override
     public boolean supports(Class<?> clazz) {
@@ -28,7 +29,7 @@ class ReserveBayValidationComposite implements Validator {
     @Override
     public void validate(Object target, Errors errors) {
         ReserveBayCommand command = (ReserveBayCommand) target;
-        Observation parent = Observation.createNotStarted("validation.reserve-bay", observationRegistry)
+        Observation parent = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("routeRequested", String.valueOf(command.requestRoute()));
         parent.observe(() -> {
             for (ReserveBayCommandValidationRule rule : validationRules) {
@@ -60,6 +61,6 @@ class ReserveBayValidationComposite implements Validator {
         if (codes.contains(DestinationStarportValidationRule.ERROR_CODE)) {
             throw new StarportNotFoundException(command.destinationStarportCode());
         }
-        throw new IllegalStateException("Unsupported validation error(s): " + codes);
+        throw new InvalidReservationException("Unsupported validation error(s): " + String.join(", ", codes));
     }
 }

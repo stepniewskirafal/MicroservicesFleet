@@ -12,18 +12,4 @@ public interface StarportPersistenceFacade {
     boolean reservationExistsById(Long reservationId);
 
     Long confirmReservation(Long reservationId, BigDecimal calculatedFee, Optional<Route> route);
-
-    /*  Optional<Starport> starportfindByCode(String code);
-
-    Optional<Customer> customerFindByCustomerCode(String customerCode);
-
-    Optional<DockingBay> dockingBayFindFreeBay(
-            String starportCode,
-            String shipClass,
-            Instant startAt,
-            Instant endAt);
-
-    Optional<Ship> shipFindByShipCode(String shipCode);
-
-    Optional<Ship> shipRequireByShipCode(String shipCode);*/
 }

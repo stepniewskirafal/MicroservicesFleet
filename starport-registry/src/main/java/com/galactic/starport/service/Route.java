@@ -7,7 +7,6 @@ import lombok.Getter;
 @Builder
 public class Route {
     private Long id;
-    private Reservation reservation;
     private String routeCode;
     private String startStarportCode;
     private String destinationStarportCode;

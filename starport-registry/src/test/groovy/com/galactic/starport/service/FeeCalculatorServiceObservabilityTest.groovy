@@ -10,7 +10,7 @@ import java.time.Instant
 import static io.micrometer.observation.tck.TestObservationRegistryAssert.assertThat as assertObservation
 import static io.micrometer.core.tck.MeterRegistryAssert.assertThat as assertMeterRegistry
 
-class FeeCalculatorServiceMicrometerTest extends Specification {
+class FeeCalculatorServiceObservabilityTest extends Specification {
 
     private static final String DEST = "DEF"
 
@@ -20,7 +20,7 @@ class FeeCalculatorServiceMicrometerTest extends Specification {
 
     def "calculateFee emits observation with expected low-cardinality tags"() {
         given:
-        def start = Instant.parse("2000-01-01T00:00:00Z")
+        def start = Instant.parse("2003-01-01T00:00:00Z")
         def cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(DEST)
                 .startStarportCode("ALPHA-BASE")
@@ -50,7 +50,7 @@ class FeeCalculatorServiceMicrometerTest extends Specification {
 
     def "calculateFee records fee and hours distribution summaries"() {
         given:
-        def start = Instant.parse("2000-01-01T00:00:00Z")
+        def start = Instant.parse("2003-01-01T00:00:00Z")
         def hours = 2L
         def cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(DEST)

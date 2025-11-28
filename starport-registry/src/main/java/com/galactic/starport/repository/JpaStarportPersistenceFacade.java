@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @RequiredArgsConstructor
-class StarportPersistenceFacadeImpl implements StarportPersistenceFacade {
+class JpaStarportPersistenceFacade implements StarportPersistenceFacade {
     private final CustomerRepository customerRepository;
     private final StarportRepository starportRepository;
     private final DockingBayRepository dockingBayRepository;
@@ -59,48 +59,4 @@ class StarportPersistenceFacadeImpl implements StarportPersistenceFacade {
     public boolean starportExistsByCode(String code) {
         return starportRepository.existsByCode(code);
     }
-
-    /*@Override
-    public Optional<Customer> customerFindByCustomerCode(String customerCode) {
-        return customerRepository
-                .findByCustomerCode(customerCode)
-                .map(CustomerMapper::toCustomer);
-    }
-
-
-    @Override
-    public Optional<Starport> starportfindByCode(String code) {
-        return starportRepository
-                .findByCode(code)
-                .map(StarportMapper::toStarport);
-    }
-
-    @Override
-    Optional<DockingBay> dockingBayFindFreeBay(
-            String starportCode,
-            String shipClass,
-            Instant startAt,
-            Instant endAt){
-        return dockingBayRepository.findFreeBay(
-                starportCode,
-                shipClass,
-                startAt,
-                endAt)
-                .map(DockingBayMapper::toDockingBay);
-    }
-
-    @Override
-    public Optional<Ship> shipFindByShipCode(String shipCode) {
-        return shipRepository
-                .findByShipCode(shipCode)
-                .map(ShipMapper::toShip);
-    }
-
-    @Override
-    public Optional<Ship> shipRequireByShipCode(String shipCode) {
-        return shipRepository
-                .findByShipCode(shipCode)
-                .map(ShipMapper::toShip);
-    }*/
-
 }

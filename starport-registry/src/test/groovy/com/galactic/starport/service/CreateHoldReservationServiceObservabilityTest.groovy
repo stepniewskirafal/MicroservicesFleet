@@ -6,17 +6,17 @@ import spock.lang.Specification
 
 import java.time.Instant
 
-import static io.micrometer.observation.tck.TestObservationRegistryAssert.assertThat
+import static io.micrometer.observation.tck.TestObservationRegistryAssert.assertThat as assertObservation
 
-class CreateHoldReservationServiceMicrometerTest extends Specification {
+class CreateHoldReservationServiceObservabilityTest extends Specification {
 
     private static final String DEST = "DEF"
 
-    def registry = TestObservationRegistry.create()
+    def observationRegistry = TestObservationRegistry.create()
     def persistenceFacade = Mock(StarportPersistenceFacade)
     def service = new CreateHoldReservationService(
             persistenceFacade,
-            registry
+            observationRegistry
     )
 
     def "allocateHold creates observation and delegates to persistenceFacade"() {
@@ -27,19 +27,19 @@ class CreateHoldReservationServiceMicrometerTest extends Specification {
                 .customerCode("CUST-001")
                 .shipCode("SS-Enterprise-01")
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2001-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2001-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
 
         when:
-        service.allocateHold(cmd)
+        service.createHoldReservation(cmd)
 
         then: "serwis deleguje do fasady i zwraca jej wynik"
         1 * persistenceFacade.createHoldReservation(cmd)
 
         and: "obserwacja została zarejestrowana z poprawnymi tagami"
-        assertThat(registry)
+        assertObservation(observationRegistry)
                 .hasObservationWithNameEqualTo("reservations.hold.allocate")
                 .that()
                 .hasBeenStarted()

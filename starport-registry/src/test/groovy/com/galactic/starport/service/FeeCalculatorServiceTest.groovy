@@ -14,7 +14,7 @@ class FeeCalculatorServiceTest extends BaseAcceptanceSpec {
 
     def "calculateFee computes correct fee for different ship classes"() {
         given:
-        def start = Instant.parse("2000-01-01T00:00:00Z")
+        def start = Instant.parse("2004-01-01T00:00:00Z")
         def cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(DEST)
                 .startStarportCode("ALPHA-BASE")
@@ -46,8 +46,8 @@ class FeeCalculatorServiceTest extends BaseAcceptanceSpec {
                 .customerCode("CUST-001")
                 .shipCode("SS-Enterprise-01")
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T01:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T00:00:00Z"))
+                .startAt(Instant.parse("2004-01-01T01:00:00Z"))
+                .endAt(Instant.parse("2004-01-01T00:00:00Z"))
                 .requestRoute(true)
                 .build()
 

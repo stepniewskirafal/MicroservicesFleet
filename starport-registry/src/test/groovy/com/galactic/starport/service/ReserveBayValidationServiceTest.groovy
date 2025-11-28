@@ -5,10 +5,10 @@ import org.springframework.beans.factory.annotation.Autowired
 
 import java.time.Instant
 
-class ReserveBayValidationCompositeTest extends BaseAcceptanceSpec {
+class ReserveBayValidationServiceTest extends BaseAcceptanceSpec {
 
     @Autowired
-    ReserveBayValidationComposite validator
+    ReserveBayValidationService validator
 
     def "valid command passes when all preconditions are met"() {
         given:
@@ -30,8 +30,8 @@ class ReserveBayValidationCompositeTest extends BaseAcceptanceSpec {
                 .customerCode(customerCode)
                 .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2006-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2006-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
 

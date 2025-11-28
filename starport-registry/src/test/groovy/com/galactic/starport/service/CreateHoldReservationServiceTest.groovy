@@ -31,12 +31,12 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
                 .customerCode(customerCode)
                 .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2002-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
         when:
-        def reservationID = createHoldReservationService.allocateHold(cmd)
+        def reservationID = createHoldReservationService.createHoldReservation(cmd)
         then:
         starportPersistenceFacade.reservationExistsById(reservationID)
     }
@@ -61,12 +61,12 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
                 .customerCode(customerCode)
                 .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2002-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
         when:
-        createHoldReservationService.allocateHold(cmd)
+        createHoldReservationService.createHoldReservation(cmd)
         then:
         thrown(StarportNotFoundException)
     }
@@ -91,12 +91,12 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
                 .customerCode(missingCustomerCode)
                 .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2002-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
         when:
-        createHoldReservationService.allocateHold(cmd)
+        createHoldReservationService.createHoldReservation(cmd)
         then:
         thrown(CustomerNotFoundException)
     }
@@ -121,12 +121,12 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
                 .customerCode(customerCode)
                 .shipCode(missingShipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2002-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
         when:
-        createHoldReservationService.allocateHold(cmd)
+        createHoldReservationService.createHoldReservation(cmd)
         then:
         thrown(ShipNotFoundException)
     }
@@ -150,13 +150,13 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceSpec {
                 .customerCode(customerCode)
                 .shipCode(shipCode)
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
-                .startAt(Instant.parse("2000-01-01T00:00:00Z"))
-                .endAt(Instant.parse("2000-01-01T01:00:00Z"))
+                .startAt(Instant.parse("2002-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build()
         when:
-        createHoldReservationService.allocateHold(cmd)
-        createHoldReservationService.allocateHold(cmd)
+        createHoldReservationService.createHoldReservation(cmd)
+        createHoldReservationService.createHoldReservation(cmd)
         then:
         thrown(NoDockingBaysAvailableException)
     }

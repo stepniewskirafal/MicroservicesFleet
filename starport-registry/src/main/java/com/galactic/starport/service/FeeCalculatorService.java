@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 class FeeCalculatorService {
-    private static final String OBS_NAME_FEE_CALCULATION = "reservations.fees.calculate";
+    private static final String OBSERVATION_NAME = "reservations.fees.calculate";
     private static final String METRIC_FEE_AMOUNT = "reservations.fees.calculated.amount";
     private static final String METRIC_FEE_HOURS = "reservations.fees.calculated.hours";
     private final ObservationRegistry observationRegistry;
@@ -35,7 +35,7 @@ class FeeCalculatorService {
     }
 
     BigDecimal calculateFee(ReserveBayCommand command) {
-        return Observation.createNotStarted(OBS_NAME_FEE_CALCULATION, observationRegistry)
+        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("starport", command.destinationStarportCode())
                 .lowCardinalityKeyValue("shipClass", command.shipClass().name())
                 .observe(() -> {
