@@ -11,5 +11,5 @@ public interface StarportPersistenceFacade {
 
     boolean reservationExistsById(Long reservationId);
 
-    Long confirmReservation(Long reservationId, BigDecimal calculatedFee, Optional<Route> route);
+    Optional<Reservation> confirmReservation(Long reservationId, BigDecimal calculatedFee, Route route);
 }

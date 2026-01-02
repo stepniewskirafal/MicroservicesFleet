@@ -1,4 +1,4 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.outbox;
 
 import com.galactic.starport.repository.OutboxEventEntity;
 import com.galactic.starport.repository.OutboxEventJpaRepository;

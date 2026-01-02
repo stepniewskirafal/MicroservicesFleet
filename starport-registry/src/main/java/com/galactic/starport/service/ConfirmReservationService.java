@@ -1,6 +1,8 @@
 package com.galactic.starport.service;
 
 import com.galactic.starport.repository.StarportPersistenceFacade;
+import com.galactic.starport.service.outbox.OutboxFacade;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,15 +12,24 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 class ConfirmReservationService {
-
-    private final OutboxAppender outboxAppender;
+    private final OutboxFacade outboxFacade;
     private final StarportPersistenceFacade persistenceFacade;
 
     @Transactional
-    public void confirmReservation(ReservationCalculation result) {
-        Long confirmed =
-                persistenceFacade.confirmReservation(result.reservationId(), result.calculatedFee(), result.route());
-        // outboxAppender.appendReservationEvent("ReservationConfirmed", confirmed, route);
-        log.info("Confirming reservation with ID: {}", result.reservationId());
+    public Reservation confirmReservation(ReservationCalculation reservationCalculation) {
+        Optional<Reservation> confirmedReservation = persistenceFacade.confirmReservation(
+                reservationCalculation.reservationId(),
+                reservationCalculation.calculatedFee(),
+                reservationCalculation.route());
+        return confirmedReservation
+                .map(reservation -> {
+                    log.info("Reservation with ID: {} confirmed successfully.", reservationCalculation.reservationId());
+                    outboxFacade.publishReservationConfirmedEvent(reservation);
+                    return reservation;
+                })
+                .orElseThrow(() -> {
+                    log.error("Failed to confirm reservation with ID: {}.", reservationCalculation.reservationId());
+                    return new ReservationConfirmationException(reservationCalculation.reservationId());
+                });
     }
 }

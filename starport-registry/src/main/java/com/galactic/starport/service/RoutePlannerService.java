@@ -4,7 +4,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
-import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,11 +34,11 @@ class RoutePlannerService {
                 .register(meterRegistry);
     }
 
-    Optional<Route> calculateRoute(ReserveBayCommand command) {
+    Route calculateRoute(ReserveBayCommand command) {
         if (!command.requestRoute()) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(calculate(command));
+        return calculate(command);
     }
 
     private Route calculate(ReserveBayCommand command) {

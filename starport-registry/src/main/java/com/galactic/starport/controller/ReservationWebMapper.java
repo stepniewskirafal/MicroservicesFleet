@@ -2,9 +2,6 @@ package com.galactic.starport.controller;
 
 import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.ReserveBayCommand;
-import com.galactic.starport.service.Route;
-import java.util.Collection;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,19 +21,13 @@ class ReservationWebMapper {
     }
 
     ReservationResponse toResponse(String starportCode, Reservation reservation) {
-
-        final ReservationResponse.Route activeRoute = Stream.ofNullable(reservation.getRoutes())
-                .flatMap(Collection::stream)
-                .filter(Route::isActive)
-                .findFirst()
-                .map(route -> ReservationResponse.Route.builder()
-                        .routeCode(route.getRouteCode())
-                        .startStarportCode(route.getStartStarportCode())
-                        .destinationStarportCode(route.getDestinationStarportCode())
-                        .etaLightYears(route.getEtaLightYears())
-                        .riskScore(route.getRiskScore())
-                        .build())
-                .orElse(null);
+        final ReservationResponse.Route route = ReservationResponse.Route.builder()
+                .routeCode(reservation.getRoute().getRouteCode())
+                .startStarportCode(reservation.getRoute().getStartStarportCode())
+                .destinationStarportCode(reservation.getRoute().getDestinationStarportCode())
+                .etaLightYears(reservation.getRoute().getEtaLightYears())
+                .riskScore(reservation.getRoute().getRiskScore())
+                .build();
 
         return ReservationResponse.builder()
                 .reservationId(reservation.getId())
@@ -45,7 +36,7 @@ class ReservationWebMapper {
                 .startAt(reservation.getStartAt())
                 .endAt(reservation.getEndAt())
                 .feeCharged(reservation.getFeeCharged())
-                .route(activeRoute)
+                .route(route)
                 .build();
     }
 }

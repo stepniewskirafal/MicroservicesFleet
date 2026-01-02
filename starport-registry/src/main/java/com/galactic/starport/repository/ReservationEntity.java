@@ -4,10 +4,6 @@ import com.galactic.starport.service.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -38,39 +34,22 @@ class ReservationEntity {
     @JoinColumn(name = "ship_id", nullable = false)
     private ShipEntity ship;
 
-    @Column(name = "start_at")
     private Instant startAt;
 
-    @Column(name = "end_at")
     private Instant endAt;
 
-    @Column(name = "fee_charged")
     private BigDecimal feeCharged;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status")
     private ReservationStatus status;
 
-    @Column(name = "created_at")
     private Instant createdAt;
 
-    @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<RouteEntity> routes = new ArrayList<>();
-
-    public ReservationEntity(Reservation reservation, StarportEntity starportEntity) {
-        this.id = reservation.getId();
-        setDockingBay(reservation.getDockingBay(), starportEntity);
-        setCustomer(reservation.getCustomer());
-        setShip(reservation.getShip());
-        this.startAt = reservation.getStartAt();
-        this.endAt = reservation.getEndAt();
-        this.feeCharged = reservation.getFeeCharged();
-        this.status = ReservationStatus.valueOf(reservation.getStatus().name());
-        addRoute(reservation);
-    }
+    @ManyToOne(fetch = FetchType.LAZY, optional = true, cascade = CascadeType.ALL)
+    @JoinColumn(name = "route_id", nullable = true)
+    private RouteEntity route;
 
     public ReservationEntity(
             StarportEntity starport,
@@ -87,39 +66,11 @@ class ReservationEntity {
         this.status = ReservationStatus.HOLD;
     }
 
-    private void setShip(Ship ship) {
-        if (ship == null) {
-            this.ship = null;
-        } else if (this.ship == null) {
-            this.ship = new ShipEntity(ship, this.customer);
-        }
-    }
-
-    private void setCustomer(Customer customer) {
-        if (customer == null) {
-            this.customer = null;
-        } else if (this.customer == null) {
-            this.customer = new CustomerEntity(customer);
-        }
-    }
-
-    private void setDockingBay(DockingBay dockingBay, StarportEntity starportEntity) {
-        if (dockingBay == null) {
-            this.dockingBay = null;
-        } else if (this.dockingBay == null) {
-            this.dockingBay = new DockingBayEntity(starportEntity, dockingBay);
-        }
-    }
-
-    private void addRoute(Reservation reservation) {
-        Stream.ofNullable(reservation.getRoutes())
-                .flatMap(Collection::stream)
-                .map(route -> new RouteEntity(route, this))
-                .forEach(this.routes::add);
-    }
-
-    public void cancelRevervation() {
-        this.status = ReservationStatus.CANCELLED;
+    public void confirmReservation(Long reservationId, BigDecimal calculatedFee, Route route) {
+        this.id = reservationId;
+        this.feeCharged = calculatedFee;
+        this.route = new RouteEntity(route);
+        this.status = ReservationStatus.CONFIRMED;
         this.updatedAt = Instant.now();
     }
 

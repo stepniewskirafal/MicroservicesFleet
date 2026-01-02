@@ -2,8 +2,6 @@ package com.galactic.starport.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,20 +17,7 @@ public class Reservation {
     private Instant endAt;
     private BigDecimal feeCharged;
     private ReservationStatus status;
-    private List<Route> routes;
-
-    public void confirmReservationWithRoute(Route route, BigDecimal fee) {
-        status = ReservationStatus.CONFIRMED;
-        feeCharged = fee;
-        addRoute(route);
-    }
-
-    private void addRoute(Route route) {
-        if (this.routes == null) {
-            this.routes = new ArrayList<>();
-        }
-        this.routes.add(route);
-    }
+    private Route route;
 
     public void setFeeCharged(BigDecimal feeCharged) {
         this.feeCharged = feeCharged;

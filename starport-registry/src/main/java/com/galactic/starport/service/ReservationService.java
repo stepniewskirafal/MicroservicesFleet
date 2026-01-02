@@ -21,22 +21,23 @@ public class ReservationService {
     private final ObservationRegistry observationRegistry;
     private static final String OBSERVATION_NAME = "reservations.reserve";
 
-    public /*Optional<Reservation>*/ void reserveBay(ReserveBayCommand command) {
-        Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
+    public Optional<Reservation> reserveBay(ReserveBayCommand command) {
+        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("starport", command.destinationStarportCode())
                 .lowCardinalityKeyValue("shipClass", command.shipClass().name())
                 .lowCardinalityKeyValue("requestRoute", String.valueOf(command.requestRoute()))
                 .observe(() -> {
                     log.info("Reserving bay for command: {}", command);
                     reservationValidator.validate(command);
-                    confirmReservationService.confirmReservation(getReservationCalculation(command));
+                    return Optional.of(
+                        confirmReservationService.confirmReservation(getReservationCalculation(command)));
                 });
     }
 
     private ReservationCalculation getReservationCalculation(ReserveBayCommand command) {
         Long reservationId = createHoldReservationService.createHoldReservation(command);
         BigDecimal calculatedFee = feeCalculatorService.calculateFee(command);
-        Optional<Route> route = routePlannerService.calculateRoute(command);
+        Route route = routePlannerService.calculateRoute(command);
         return new ReservationCalculation(reservationId, calculatedFee, route);
     }
 }

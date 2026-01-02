@@ -9,12 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @RequiredArgsConstructor
-class JpaStarportPersistenceFacade implements StarportPersistenceFacade {
+class JpaStarportRepositoryFacade implements StarportPersistenceFacade {
     private final CustomerRepository customerRepository;
     private final StarportRepository starportRepository;
     private final DockingBayRepository dockingBayRepository;
     private final ShipRepository shipRepository;
     private final ReservationRepository reservationRepository;
+    private final ReservationMapper reservationMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -23,8 +24,12 @@ class JpaStarportPersistenceFacade implements StarportPersistenceFacade {
     }
 
     @Override
-    public Long confirmReservation(Long reservationId, BigDecimal calculatedFee, Optional<Route> route) {
-        return null;
+    @Transactional
+    public Optional<Reservation> confirmReservation(Long reservationId, BigDecimal calculatedFee, Route route) {
+        return reservationRepository.findById(reservationId).map(entity -> {
+            entity.confirmReservation(reservationId, calculatedFee, route);
+            return reservationMapper.toDomain(entity);
+        });
     }
 
     @Override
