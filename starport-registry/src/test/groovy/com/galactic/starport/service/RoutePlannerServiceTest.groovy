@@ -39,7 +39,7 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
         when:
         def routeOpt = routePlannerService.calculateRoute(cmd)
         then:
-        with(routeOpt.get()) {
+        with(routeOpt) {
             routeCode.contains("ROUTE-${cmd.startStarportCode()}-${cmd.destinationStarportCode()}")
             startStarportCode == cmd.startStarportCode()
             destinationStarportCode == cmd.destinationStarportCode()
@@ -76,7 +76,7 @@ class RoutePlannerServiceTest extends BaseAcceptanceSpec {
         when:
         def routeOpt = routePlannerService.calculateRoute(cmd)
         then:
-        with(routeOpt.get()) {
+        with(routeOpt) {
             routeCode.contains("ROUTE-${cmd.startStarportCode()}-${cmd.destinationStarportCode()}")
             startStarportCode == cmd.startStarportCode()
             destinationStarportCode == cmd.destinationStarportCode()

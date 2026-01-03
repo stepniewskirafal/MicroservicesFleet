@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @RequiredArgsConstructor
-class JpaStarportRepositoryFacade implements StarportPersistenceFacade {
+class JpaStarportRepository implements StarportPersistenceFacade {
     private final CustomerRepository customerRepository;
     private final StarportRepository starportRepository;
     private final DockingBayRepository dockingBayRepository;

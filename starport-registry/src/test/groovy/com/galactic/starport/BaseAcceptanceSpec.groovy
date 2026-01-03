@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.spock.Testcontainers
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
+import java.time.Instant
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -131,13 +132,15 @@ abstract class BaseAcceptanceSpec extends Specification {
                    where s.code = ?''', Integer.class, code)
     }
 
+    def start = Instant.now().plusSeconds(3600)
+    def end   = start.plusSeconds(3600)
     Map makePayload(Map overrides = [:]) {
         Map base = [
                 customerCode       : "CUST-001",
                 shipCode           : "SS-Enterprise-01",
                 shipClass          : "SCOUT",
-                startAt            : "2025-12-05T04:00:00Z",
-                endAt              : "2025-12-05T05:00:00Z",
+                startAt            : start.toString(),
+                endAt              : end.toString(),
                 requestRoute       : true,
                 originPortId       : "ALPHA-BASE"
         ]

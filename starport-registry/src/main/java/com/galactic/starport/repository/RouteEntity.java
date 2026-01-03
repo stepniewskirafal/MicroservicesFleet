@@ -32,19 +32,23 @@ class RouteEntity {
     @Column(name = "risk_score")
     private Double riskScore;
 
+    @Column(name = "reservation_id")
+    private Long reservationId;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    public RouteEntity(Route route) {
+    public RouteEntity(Route route, Long reservationId) {
         this.id = route.getId();
         this.routeCode = route.getRouteCode();
         this.startStarportCode = route.getStartStarportCode();
         this.destinationStarportCode = route.getDestinationStarportCode();
         this.etaLightYears = route.getEtaLightYears();
         this.riskScore = route.getRiskScore();
+        this.reservationId = reservationId;
     }
 
     @PrePersist

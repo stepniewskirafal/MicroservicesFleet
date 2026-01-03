@@ -29,13 +29,14 @@ public class ReservationService {
                 .observe(() -> {
                     log.info("Reserving bay for command: {}", command);
                     reservationValidator.validate(command);
-                    return Optional.of(
-                        confirmReservationService.confirmReservation(getReservationCalculation(command)));
+                    Long reservationId = createHoldReservationService.createHoldReservation(command);
+                    ReservationCalculation reservationCalculation = getReservationCalculation(reservationId, command);
+                    return Optional.of(confirmReservationService.confirmReservation(
+                            reservationCalculation, command.destinationStarportCode()));
                 });
     }
 
-    private ReservationCalculation getReservationCalculation(ReserveBayCommand command) {
-        Long reservationId = createHoldReservationService.createHoldReservation(command);
+    private ReservationCalculation getReservationCalculation(Long reservationId, ReserveBayCommand command) {
         BigDecimal calculatedFee = feeCalculatorService.calculateFee(command);
         Route route = routePlannerService.calculateRoute(command);
         return new ReservationCalculation(reservationId, calculatedFee, route);
