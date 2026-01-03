@@ -67,9 +67,12 @@ class ReservationEntity {
     }
 
     public void confirmReservation(Long reservationId, BigDecimal calculatedFee, Route route) {
-        this.id = reservationId;
         this.feeCharged = calculatedFee;
-        this.route = new RouteEntity(route);
+        if (route != null) {
+            this.route = new RouteEntity(route, reservationId);
+        } else {
+            this.route = null;
+        }
         this.status = ReservationStatus.CONFIRMED;
         this.updatedAt = Instant.now();
     }

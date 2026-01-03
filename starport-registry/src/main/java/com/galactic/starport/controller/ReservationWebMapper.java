@@ -2,6 +2,7 @@ package com.galactic.starport.controller;
 
 import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.ReserveBayCommand;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,13 +22,15 @@ class ReservationWebMapper {
     }
 
     ReservationResponse toResponse(String starportCode, Reservation reservation) {
-        final ReservationResponse.Route route = ReservationResponse.Route.builder()
-                .routeCode(reservation.getRoute().getRouteCode())
-                .startStarportCode(reservation.getRoute().getStartStarportCode())
-                .destinationStarportCode(reservation.getRoute().getDestinationStarportCode())
-                .etaLightYears(reservation.getRoute().getEtaLightYears())
-                .riskScore(reservation.getRoute().getRiskScore())
-                .build();
+        ReservationResponse.Route route = Optional.ofNullable(reservation.getRoute())
+                .map(r -> ReservationResponse.Route.builder()
+                        .routeCode(r.getRouteCode())
+                        .startStarportCode(r.getStartStarportCode())
+                        .destinationStarportCode(r.getDestinationStarportCode())
+                        .etaLightYears(r.getEtaLightYears())
+                        .riskScore(r.getRiskScore())
+                        .build())
+                .orElse(null);
 
         return ReservationResponse.builder()
                 .reservationId(reservation.getId())

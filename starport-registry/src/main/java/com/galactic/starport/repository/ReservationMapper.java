@@ -37,7 +37,7 @@ class ReservationMapper {
         if (customerEntity == null) {
             return null;
         }
-        // Avoid triggering lazy collection loading by default.
+
         return Customer.builder()
                 .id(customerEntity.getId())
                 .customerCode(customerEntity.getCustomerCode())
@@ -84,7 +84,6 @@ class ReservationMapper {
             return null;
         }
 
-        // If you add @Getter to RouteEntity, this compiles as-is.
         return Route.builder()
                 .id(routeEntity.getId())
                 .routeCode(routeEntity.getRouteCode())
@@ -92,7 +91,6 @@ class ReservationMapper {
                 .destinationStarportCode(routeEntity.getDestinationStarportCode())
                 .etaLightYears(routeEntity.getEtaLightYears())
                 .riskScore(routeEntity.getRiskScore())
-                // Sensible default: route is considered active only for confirmed reservations.
                 .isActive(reservationStatus == ReservationEntity.ReservationStatus.CONFIRMED)
                 .build();
     }
