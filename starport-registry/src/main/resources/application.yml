@@ -74,6 +74,18 @@ eureka:
     prefer-ip-address: true
 
 management:
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://tempo:4318/v1/traces
+          # jeśli masz opcję transportu w tej wersji Boota:
+          # transport: HTTP
+    logging:
+      export:
+        otlp:
+          endpoint: http://tempo:4318/v1/logs
+          # transport: HTTP
   metrics:
     distribution:
       percentiles-histogram:
@@ -99,7 +111,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus
+        include: health,info,metrics,prometheus
   tracing:
     sampling:
       probability: 1.0
@@ -110,6 +122,9 @@ management:
     scheduling:
       pool:
         size: 1
+  endpoint:
+    prometheus:
+      enabled: true
 app:
   events:
     topics:
@@ -122,6 +137,7 @@ outbox:
   poll-interval-ms: 30000
   batch-size: 50
   max-attempts: 10
+
 
 
 
