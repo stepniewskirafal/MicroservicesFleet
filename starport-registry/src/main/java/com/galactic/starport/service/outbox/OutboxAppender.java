@@ -26,7 +26,7 @@ class OutboxAppender {
     private final Tracer tracer;
     private final Propagator propagator;
 
-    @Value("${app.bindings.reservations.name:reservations-out}")
+    @Value("${app.events.topics.reservations}")
     String reservationsBinding;
 
     void publishReservationConfirmedEvent(Reservation reservation) {

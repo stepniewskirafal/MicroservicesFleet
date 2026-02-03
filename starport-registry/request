@@ -12,14 +12,6 @@ Content-Type: application/json
   "originPortId": "ALPHA-BASE"
 }
 
-<> 2026-01-21T193202.201.json
-<> 2026-01-21T193133.404.json
-<> 2026-01-21T193057.404.json
-<> 2026-01-20T210455.201.json
-<> 2026-01-20T195333.201.json
-<> 2026-01-20T194042.201.json
-<> 2026-01-20T191158.201.json
-<> 2026-01-20T191050.201.json
 ###
 POST http://localhost:8081/api/v1/starports/ABC/reservations
 Content-Type: application/json
@@ -33,15 +25,6 @@ Content-Type: application/json
   "requestRoute": true,
   "originPortId": "ALPHA-BASE"
 }
-
-<> 2026-01-21T193202-1.201.json
-<> 2026-01-21T193133-1.404.json
-<> 2026-01-21T193058.404.json
-<> 2026-01-20T210455-1.201.json
-<> 2026-01-20T195333-1.201.json
-<> 2026-01-20T194042-1.201.json
-<> 2026-01-20T191158-1.201.json
-<> 2026-01-20T191051.201.json
 
 ###
 POST http://localhost:8081/api/v1/starports/ABC/reservations
@@ -57,15 +40,6 @@ Content-Type: application/json
   "originPortId": "ALPHA-BASE"
 }
 
-<> 2026-01-21T193202-2.201.json
-<> 2026-01-21T193133-2.404.json
-<> 2026-01-21T193058-1.404.json
-<> 2026-01-20T210455-2.201.json
-<> 2026-01-20T195333-2.201.json
-<> 2026-01-20T194042-2.201.json
-<> 2026-01-20T191159.201.json
-<> 2026-01-20T191051-1.201.json
-
 ###
 POST http://localhost:8081/api/v1/starports/ABC/reservations
 Content-Type: application/json
@@ -80,10 +54,6 @@ Content-Type: application/json
   "originPortId": "ALPHA-BASE"
 }
 
-<> 2026-01-21T193202-3.201.json
-<> 2026-01-21T193133-3.404.json
-<> 2026-01-21T193059.404.json
-
 ###
 POST http://localhost:8081/api/v1/starports/ABC/reservations
 Content-Type: application/json
@@ -97,8 +67,3 @@ Content-Type: application/json
   "requestRoute": true,
   "originPortId": "ALPHA-BASE"
 }
-
-<> 2026-01-21T193203.201.json
-<> 2026-01-21T193133-4.404.json
-<> 2026-01-21T193059-1.404.json
-<> 2026-01-20T210522.201.json

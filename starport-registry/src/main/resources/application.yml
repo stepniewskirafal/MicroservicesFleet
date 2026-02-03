@@ -38,9 +38,8 @@ spring:
       bindings:
         reservationCreated-out-0:
           destination: starport.reservations
-          contentType: application/json
           producer:
-            partitionKeyExpression: headers['partitionKey']
+            partitionKeyExpression: headers['kafka_messageKey']
             partitionCount: 3
         tariffCalculated-out-0:
           destination: starport.tariffs
@@ -57,7 +56,9 @@ spring:
           autoCreateTopics: true
           # Nie doda partycji, jeśli istniejący topic ma ich mniej niż oczekuje aplikacja.
           autoAddPartitions: false
-
+          configuration:
+            key.serializer: org.apache.kafka.common.serialization.StringSerializer
+            value.serializer: org.apache.kafka.common.serialization.ByteArraySerializer
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -132,16 +133,16 @@ app:
       reservations: reservationCreated-out-0
       tariffs:      tariffCalculated-out-0
       routeChanges: routeChanged-out-0
-
-outbox:
   poll-interval-ms: 30000
   batch-size: 50
   max-attempts: 10
-
-
 
 
 logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql.BasicBinder: trace
+
+    org.springframework.cloud.stream: DEBUG
+    org.springframework.integration: DEBUG
+    org.springframework.kafka: INFO

@@ -51,7 +51,7 @@ class InboxPublisher {
         this.maxAttempts = maxAttempts;
     }
 
-    @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:300000}")
+    @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:10000}")
     @Transactional
     public void pollAndPublish() {
         Timer.Sample sample = Timer.start(meterRegistry);
