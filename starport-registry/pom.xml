@@ -115,25 +115,13 @@
 			<version>${swagger.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.spockframework</groupId>
-			<artifactId>spock-core</artifactId>
-			<version>2.4-M6-groovy-4.0</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.spockframework</groupId>
-			<artifactId>spock-spring</artifactId>
-			<version>2.4-M6-groovy-4.0</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
 			<version>4.2.0</version>
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Testcontainers: PostgreSQL + JUnit + Spock -->
+		<!-- Testcontainers: PostgreSQL + JUnit -->
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers</artifactId>
@@ -143,7 +131,7 @@
 
 		<dependency>
 			<groupId>org.testcontainers</groupId>
-			<artifactId>spock</artifactId>
+			<artifactId>junit-jupiter</artifactId>
 			<version>${testcontainers.version}</version>
 			<scope>test</scope>
 		</dependency>
@@ -243,30 +231,24 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<groupId>org.codehaus.gmavenplus</groupId>
-				<artifactId>gmavenplus-plugin</artifactId>
-				<version>3.0.2</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>addTestSources</goal>
-							<goal>compile</goal>
-							<goal>compileTests</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<parallel>classes</parallel>
-					<threadCount>3</threadCount>
+					<!-- JUnit 5 parallel execution – konfiguracja przez junit-platform.properties -->
+					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
-					<forkCount>2C</forkCount>
 					<systemPropertyVariables>
 						<spring.profiles.active>test</spring.profiles.active>
 					</systemPropertyVariables>
+					<properties>
+						<configurationParameters>
+							junit.jupiter.execution.parallel.enabled=true
+							junit.jupiter.execution.parallel.mode.default=same_thread
+							junit.jupiter.execution.parallel.mode.classes.default=concurrent
+							junit.jupiter.execution.parallel.config.strategy=dynamic
+							junit.jupiter.execution.parallel.config.dynamic.factor=2
+						</configurationParameters>
+					</properties>
 				</configuration>
 			</plugin>
 		</plugins>
