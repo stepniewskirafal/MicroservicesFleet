@@ -1,5 +1,7 @@
 package com.galactic.starport.service.outbox;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.Builder;
@@ -17,5 +19,6 @@ class ReservationEventPayload {
     private String routeCode;
     private Instant startAt;
     private Instant endAt;
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal feeCharged;
 }
