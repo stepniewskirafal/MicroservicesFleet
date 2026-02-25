@@ -1,0 +1,15 @@
+{
+  "reservationId": 22,
+  "starportCode": "ABC",
+  "bayNumber": "A-01",
+  "startAt": "2035-12-05T05:00:00Z",
+  "endAt": "2035-12-05T05:01:00Z",
+  "feeCharged": 50,
+  "route": {
+    "routeCode": "ROUTE-ALPHA-BASE-ABC-469693",
+    "startStarportCode": "ALPHA-BASE",
+    "destinationStarportCode": "ABC",
+    "etaLightYears": 1.0073383578961557,
+    "riskScore": 0.733835789615561
+  }
+}

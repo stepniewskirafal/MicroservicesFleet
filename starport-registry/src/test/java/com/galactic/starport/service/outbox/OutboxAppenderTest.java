@@ -54,7 +54,7 @@ class OutboxAppenderTest extends BaseAcceptanceTest {
         Map<String, Object> e = latestOutboxEvent();
         assertEquals("ReservationConfirmed", e.get("event_type"));
         assertEquals("PENDING", e.get("status"));
-        assertEquals("reservations-out", e.get("binding"));
+        assertEquals("reservationCreated-out-0", e.get("binding"));
         assertEquals(String.valueOf(reservationId), e.get("message_key"));
 
         // and - Payload zawiera kluczowe dane biznesowe (w tym routeCode)
@@ -101,7 +101,7 @@ class OutboxAppenderTest extends BaseAcceptanceTest {
         Map<String, Object> e = latestOutboxEvent();
         assertEquals("ReservationConfirmed", e.get("event_type"));
         assertEquals("PENDING", e.get("status"));
-        assertEquals("reservations-out", e.get("binding"));
+        assertEquals("reservationCreated-out-0", e.get("binding"));
         assertEquals(String.valueOf(reservationId), e.get("message_key"));
 
         // and - W payload routeCode jest null
