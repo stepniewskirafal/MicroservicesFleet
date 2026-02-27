@@ -1,6 +1,7 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.validation;
 
 import com.galactic.starport.repository.StarportPersistenceFacade;
+import com.galactic.starport.service.ReserveBayCommand;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;

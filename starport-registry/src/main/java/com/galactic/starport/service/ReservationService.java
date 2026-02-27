@@ -1,5 +1,6 @@
 package com.galactic.starport.service;
 
+import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.config.validate.ValidationException;
 import io.micrometer.observation.Observation;
@@ -11,7 +12,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +21,7 @@ public class ReservationService {
 
     private final CreateHoldReservationService createHoldReservationService;
     private final ConfirmReservationService confirmReservationService;
-    private final ReserveBayValidationService reservationValidator;
+    private final ReserveBayValidator reservationValidator;
     private final FeeCalculatorService feeCalculatorService;
     private final RoutePlannerService routePlannerService;
     private final ObservationRegistry observationRegistry;
@@ -57,7 +57,7 @@ public class ReservationService {
     public ReservationService(
             CreateHoldReservationService createHoldReservationService,
             ConfirmReservationService confirmReservationService,
-            ReserveBayValidationService reservationValidator,
+            ReserveBayValidator reservationValidator,
             FeeCalculatorService feeCalculatorService,
             RoutePlannerService routePlannerService,
             ObservationRegistry observationRegistry,
