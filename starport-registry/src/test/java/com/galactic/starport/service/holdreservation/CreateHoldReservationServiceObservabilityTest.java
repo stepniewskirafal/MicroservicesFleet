@@ -1,4 +1,4 @@
-package com.galactic.starport.holdreservation;
+package com.galactic.starport.service.holdreservation;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

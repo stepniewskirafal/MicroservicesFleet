@@ -1,4 +1,4 @@
-package com.galactic.starport.holdreservation;
+package com.galactic.starport.service.holdreservation;
 
 import com.galactic.starport.repository.StarportPersistenceFacade;
 import com.galactic.starport.service.ReserveBayCommand;

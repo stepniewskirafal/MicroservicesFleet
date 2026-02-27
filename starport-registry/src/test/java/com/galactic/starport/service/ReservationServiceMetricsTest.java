@@ -2,7 +2,7 @@ package com.galactic.starport.service;
 
 import static org.mockito.Mockito.mock;
 
-import com.galactic.starport.holdreservation.HoldReservationFacade;
+import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
