@@ -1,10 +1,15 @@
-package com.galactic.starport.service;
+package com.galactic.starport.holdreservation;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.galactic.starport.BaseAcceptanceTest;
 import com.galactic.starport.repository.StarportPersistenceFacade;
+import com.galactic.starport.service.CustomerNotFoundException;
+import com.galactic.starport.service.NoDockingBaysAvailableException;
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.ShipNotFoundException;
+import com.galactic.starport.service.StarportNotFoundException;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -19,7 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
 
     @Autowired
-    CreateHoldReservationService createHoldReservationService;
+    HoldReservationFacade holdReservationFacade;
 
     @Autowired
     StarportPersistenceFacade starportPersistenceFacade;
@@ -52,7 +57,7 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when
-        Long reservationID = createHoldReservationService.createHoldReservation(cmd);
+        Long reservationID = holdReservationFacade.createHoldReservation(cmd);
 
         // then
         assertTrue(starportPersistenceFacade.reservationExistsById(reservationID));
@@ -85,7 +90,7 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
         // when / then
         assertThrows(
                 StarportNotFoundException.class,
-                () -> createHoldReservationService.createHoldReservation(cmd));
+                () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -115,7 +120,7 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
         // when / then
         assertThrows(
                 CustomerNotFoundException.class,
-                () -> createHoldReservationService.createHoldReservation(cmd));
+                () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -144,7 +149,7 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
 
         // when / then
         assertThrows(
-                ShipNotFoundException.class, () -> createHoldReservationService.createHoldReservation(cmd));
+                ShipNotFoundException.class, () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -171,11 +176,11 @@ class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when - pierwsza rezerwacja zajmuje jedyne miejsce
-        createHoldReservationService.createHoldReservation(cmd);
+        holdReservationFacade.createHoldReservation(cmd);
 
         // then - druga rezerwacja rzuca wyjątek (brak dostępnych miejsc)
         assertThrows(
                 NoDockingBaysAvailableException.class,
-                () -> createHoldReservationService.createHoldReservation(cmd));
+                () -> holdReservationFacade.createHoldReservation(cmd));
     }
 }
