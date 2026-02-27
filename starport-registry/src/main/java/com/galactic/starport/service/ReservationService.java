@@ -3,6 +3,7 @@ package com.galactic.starport.service;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import com.galactic.starport.service.validation.ReserveBayValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -12,14 +13,14 @@ public class ReservationService {
 
     private final CreateHoldReservationService createHoldReservationService;
     private final ConfirmReservationService confirmReservationService;
-    private final ReserveBayValidationService reservationValidator;
+    private final ReserveBayValidator reservationValidator;
     private final FeeCalculatorService feeCalculatorService;
     private final RoutePlannerService routePlannerService;
 
     public ReservationService(
             CreateHoldReservationService createHoldReservationService,
             ConfirmReservationService confirmReservationService,
-            ReserveBayValidationService reservationValidator,
+            ReserveBayValidator reservationValidator,
             FeeCalculatorService feeCalculatorService,
             RoutePlannerService routePlannerService) {
 
