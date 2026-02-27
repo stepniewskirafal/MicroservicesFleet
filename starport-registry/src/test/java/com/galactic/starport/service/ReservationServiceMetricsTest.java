@@ -47,9 +47,7 @@ class ReservationServiceMetricsTest {
                 confirmReservationService,
                 validateReservationCommandService,
                 feeCalculatorService,
-                routePlannerService,
-                observationRegistry,
-                meterRegistry);
+                routePlannerService);
     }
 
     /*
