@@ -3,6 +3,7 @@ package com.galactic.starport.service;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,20 +12,20 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ReservationService {
 
-    private final CreateHoldReservationService createHoldReservationService;
+    private final HoldReservationFacade holdReservationFacade;
     private final ConfirmReservationService confirmReservationService;
     private final ReserveBayValidator reservationValidator;
     private final FeeCalculatorService feeCalculatorService;
     private final RoutePlannerService routePlannerService;
 
     public ReservationService(
-            CreateHoldReservationService createHoldReservationService,
+            HoldReservationFacade holdReservationFacade,
             ConfirmReservationService confirmReservationService,
             ReserveBayValidator reservationValidator,
             FeeCalculatorService feeCalculatorService,
             RoutePlannerService routePlannerService) {
 
-        this.createHoldReservationService = createHoldReservationService;
+        this.holdReservationFacade = holdReservationFacade;
         this.confirmReservationService = confirmReservationService;
         this.reservationValidator = reservationValidator;
         this.feeCalculatorService = feeCalculatorService;
@@ -38,7 +39,7 @@ public class ReservationService {
         reservationValidator.validate(command);
 
         // Create a HOLD reservation first
-        Long reservationId = createHoldReservationService.createHoldReservation(command);
+        Long reservationId = holdReservationFacade.createHoldReservation(command);
 
         // Calculate fee and route
         ReservationCalculation calc = getReservationCalculation(reservationId, command);

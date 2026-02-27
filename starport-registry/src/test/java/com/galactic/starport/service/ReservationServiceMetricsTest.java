@@ -2,6 +2,7 @@ package com.galactic.starport.service;
 
 import static org.mockito.Mockito.mock;
 
+import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -19,7 +20,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.CONCURRENT)
 class ReservationServiceMetricsTest {
 
-    private CreateHoldReservationService holdReservationService;
+    private HoldReservationFacade holdReservationFacade;
     private ConfirmReservationService confirmReservationService;
     private ReserveBayValidator validateReservationCommandService;
     private FeeCalculatorService feeCalculatorService;
@@ -31,7 +32,7 @@ class ReservationServiceMetricsTest {
 
     @BeforeEach
     void setUp() {
-        holdReservationService = mock(CreateHoldReservationService.class);
+        holdReservationFacade = mock(HoldReservationFacade.class);
         confirmReservationService = mock(ConfirmReservationService.class);
         validateReservationCommandService = mock(ReserveBayValidator.class);
         feeCalculatorService = mock(FeeCalculatorService.class);
@@ -44,7 +45,7 @@ class ReservationServiceMetricsTest {
                 .observationHandler(new DefaultMeterObservationHandler(meterRegistry));
 
         reservationService = new ReservationService(
-                holdReservationService,
+                holdReservationFacade,
                 confirmReservationService,
                 validateReservationCommandService,
                 feeCalculatorService,
