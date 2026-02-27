@@ -1,9 +1,12 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.validation;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.galactic.starport.BaseAcceptanceTest;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.StarportNotFoundException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -22,7 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class ReserveBayValidationServiceTest extends BaseAcceptanceTest {
 
     @Autowired
-    ReserveBayValidationService validator;
+    ReserveBayValidator validator;
 
     @Test
     void validCommandPassesWhenAllPreconditionsAreMet() {
