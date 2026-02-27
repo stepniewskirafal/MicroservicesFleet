@@ -1,5 +1,6 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.validation;
 
+import com.galactic.starport.service.ReserveBayCommand;
 import org.springframework.validation.Errors;
 import org.springframework.validation.Validator;
 

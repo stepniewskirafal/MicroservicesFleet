@@ -1,5 +1,9 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.validation;
 
+import com.galactic.starport.service.InvalidReservationException;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.StarportNotFoundException;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Arrays;
@@ -16,7 +20,7 @@ import org.springframework.validation.Validator;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-class ReserveBayValidationService implements Validator {
+class ReserveBayValidationService implements ReserveBayValidator, Validator {
     private final List<ReserveBayCommandValidationRule> validationRules;
     private final ObservationRegistry observationRegistry;
     private static final String OBSERVATION_NAME = "validation.reserve-bay";
@@ -42,6 +46,7 @@ class ReserveBayValidationService implements Validator {
         log.info("Reservation command validated. errorsCount={}", errors.getErrorCount());
     }
 
+    @Override
     public void validate(ReserveBayCommand command) {
         BeanPropertyBindingResult errors = new BeanPropertyBindingResult(command, "reserveBayCommand");
         validate(command, errors);

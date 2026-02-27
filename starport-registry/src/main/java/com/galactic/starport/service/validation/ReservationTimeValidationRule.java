@@ -1,5 +1,6 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.validation;
 
+import com.galactic.starport.service.ReserveBayCommand;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
