@@ -127,6 +127,8 @@ management:
     prometheus:
       enabled: true
 app:
+  trade-route-planner:
+    base-url: http://trade-route-planner
   events:
     topics:
       # To są NAZWY BINDINGÓW (do StreamBridge), nie tematy Kafki.

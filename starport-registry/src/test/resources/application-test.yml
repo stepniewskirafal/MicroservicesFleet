@@ -3,3 +3,14 @@ spring:
     hibernate.ddl-auto: validate
   flyway:
     enabled: true
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+app:
+  trade-route-planner:
+    base-url: http://localhost:8089
