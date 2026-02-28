@@ -7,9 +7,11 @@ import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class ReservationService {
@@ -18,18 +20,6 @@ public class ReservationService {
     private final ConfirmReservationFacade confirmReservationFacade;
     private final ReserveBayValidator reservationValidator;
     private final ReservationCalculationFacade reservationCalculationFacade;
-
-    public ReservationService(
-            HoldReservationFacade holdReservationFacade,
-            ConfirmReservationFacade confirmReservationFacade,
-            ReserveBayValidator reservationValidator,
-            ReservationCalculationFacade reservationCalculationFacade) {
-
-        this.holdReservationFacade = holdReservationFacade;
-        this.confirmReservationFacade = confirmReservationFacade;
-        this.reservationValidator = reservationValidator;
-        this.reservationCalculationFacade = reservationCalculationFacade;
-    }
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
         log.info("Reserving bay for command: {}", command);
