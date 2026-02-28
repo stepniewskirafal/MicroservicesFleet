@@ -1,7 +1,7 @@
 package com.galactic.starport.service.routeplanner;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.galactic.starport.BaseAcceptanceTest;
 import com.galactic.starport.service.ReserveBayCommand;
@@ -38,6 +38,8 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
                         "shipCode", shipCode,
                         "destinationName", "Alpha Base Central"));
 
+        // WireMock stub is set by default in BaseAcceptanceTest (returns ROUTE-TEST-1234)
+
         ReserveBayCommand cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(destinationCode)
                 .startStarportCode(originCode)
@@ -54,36 +56,22 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
 
         // then
         assertNotNull(route);
-        assertTrue(route.getRouteCode()
-                .contains("ROUTE-" + cmd.startStarportCode() + "-" + cmd.destinationStarportCode()));
-        assertTrue(route.getStartStarportCode().equals(cmd.startStarportCode()));
-        assertTrue(route.getDestinationStarportCode().equals(cmd.destinationStarportCode()));
+        assertTrue(route.getRouteCode().startsWith("ROUTE-"), "Route code should start with ROUTE-");
+        assertEquals(cmd.startStarportCode(), route.getStartStarportCode());
+        assertEquals(cmd.destinationStarportCode(), route.getDestinationStarportCode());
         assertTrue(route.getEtaLightYears() > 0);
-        assertTrue(route.getRiskScore() >= 0);
+        assertTrue(route.getRiskScore() >= 0 && route.getRiskScore() <= 1.0);
         assertTrue(route.isActive());
     }
 
     @Test
     void shouldReturnNullRouteWhenNotRequested() {
         // given
-        String originCode = "ALPHA-BASE-NO-ROUTE";
-        String destinationCode = "DEF-NO-ROUTE";
-        String customerCode = "CUST-NO-ROUTE";
-        String shipCode = "SS-Enterprise-NO-ROUTE";
-
-        seedDefaultReservationFixture(
-                destinationCode,
-                Map.of(
-                        "originCode", originCode,
-                        "customerCode", customerCode,
-                        "shipCode", shipCode,
-                        "destinationName", "Alpha Base Central"));
-
         ReserveBayCommand cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(destinationCode)
-                .startStarportCode(originCode)
-                .customerCode(customerCode)
-                .shipCode(shipCode)
+                .destinationStarportCode("DEF-NO-ROUTE")
+                .startStarportCode("ALPHA-BASE-NO-ROUTE")
+                .customerCode("CUST-NO-ROUTE")
+                .shipCode("SS-Enterprise-NO-ROUTE")
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2008-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2008-01-01T01:00:00Z"))
@@ -94,6 +82,34 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
         Route route = routePlanner.calculateRoute(cmd);
 
         // then
-        assertTrue(route == null, "Route should be null when requestRoute=false");
+        assertNull(route, "Route should be null when requestRoute=false");
+    }
+
+    @Test
+    void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
+        // given — override default WireMock stub to return 422
+        wireMock.resetAll();
+        wireMock.stubFor(post(urlEqualTo("/routes/plan"))
+                .willReturn(aResponse()
+                        .withStatus(422)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(
+                                """
+                                {"error":"ROUTE_REJECTED","reason":"INSUFFICIENT_RANGE","details":"Fuel too low"}
+                                """)));
+
+        ReserveBayCommand cmd = ReserveBayCommand.builder()
+                .destinationStarportCode("DEST-422")
+                .startStarportCode("ORIGIN-422")
+                .customerCode("CUST-422")
+                .shipCode("SS-422")
+                .shipClass(ReserveBayCommand.ShipClass.SCOUT)
+                .startAt(Instant.parse("2009-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2009-01-01T01:00:00Z"))
+                .requestRoute(true)
+                .build();
+
+        // when / then
+        assertThrows(RouteUnavailableException.class, () -> routePlanner.calculateRoute(cmd));
     }
 }

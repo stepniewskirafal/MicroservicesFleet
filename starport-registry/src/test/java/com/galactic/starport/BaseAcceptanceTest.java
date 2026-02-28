@@ -1,9 +1,13 @@
 package com.galactic.starport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -21,6 +25,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class BaseAcceptanceTest {
 
+    static final WireMockServer wireMock;
+
     @ServiceConnection
     static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("app")
@@ -29,6 +35,31 @@ public abstract class BaseAcceptanceTest {
 
     static {
         pg.start();
+        wireMock = new WireMockServer(WireMockConfiguration.wireMockConfig().port(8089));
+        wireMock.start();
+        stubDefaultRoutePlan();
+    }
+
+    static void stubDefaultRoutePlan() {
+        wireMock.stubFor(WireMock.post(WireMock.urlEqualTo("/routes/plan"))
+                .willReturn(WireMock.aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(
+                                """
+                                {
+                                  "routeId": "ROUTE-TEST-1234",
+                                  "etaHours": 18.7,
+                                  "riskScore": 0.32,
+                                  "correlationId": "test-correlation-id"
+                                }
+                                """)));
+    }
+
+    @AfterEach
+    void resetWireMock() {
+        wireMock.resetAll();
+        stubDefaultRoutePlan();
     }
 
     @LocalServerPort

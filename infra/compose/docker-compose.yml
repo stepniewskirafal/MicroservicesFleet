@@ -108,3 +108,34 @@ services:
 #      SPRING_PROFILES_ACTIVE: docker
 #    ports:
 #      - "8080:8080"
+
+#  trade-route-planner-1:
+#    build:
+#      context: ../../
+#      dockerfile: trade-route-planner/Dockerfile
+#    depends_on:
+#      eureka:
+#        condition: service_healthy
+#      zipkin:
+#        condition: service_started
+#    environment:
+#      EUREKA_URL: http://eureka:8761/eureka
+#      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+#    ports:
+#      - "8082:8082"
+
+#  trade-route-planner-2:
+#    build:
+#      context: ../../
+#      dockerfile: trade-route-planner/Dockerfile
+#    depends_on:
+#      eureka:
+#        condition: service_healthy
+#      zipkin:
+#        condition: service_started
+#    environment:
+#      EUREKA_URL: http://eureka:8761/eureka
+#      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+#      PORT: 8083
+#    ports:
+#      - "8083:8083"
