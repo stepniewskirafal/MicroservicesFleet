@@ -22,7 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
-class ReserveBayValidationServiceTest extends BaseAcceptanceTest {
+class ReserveBayValidationServiceRepositoryTest extends BaseAcceptanceTest {
 
     @Autowired
     ReserveBayValidator validator;

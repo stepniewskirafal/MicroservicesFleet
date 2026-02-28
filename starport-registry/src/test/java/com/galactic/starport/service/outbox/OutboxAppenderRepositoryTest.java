@@ -16,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ_WRITE)
-class OutboxAppenderTest extends BaseAcceptanceTest {
+class OutboxAppenderRepositoryTest extends BaseAcceptanceTest {
 
     private static final String STARPORT = "OUTBOX-DEF";
 
