@@ -1,6 +1,7 @@
 package com.galactic.starport.controller;
 
 import com.galactic.starport.service.*;
+import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -55,6 +56,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ShipNotFoundException.class)
     ResponseEntity<Map<String, String>> handle(ShipNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_DETAILS, ex.getMessage()));
+    }
+
+    @ExceptionHandler(RouteUnavailableException.class)
+    ResponseEntity<Map<String, String>> handle(RouteUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "ROUTE_UNAVAILABLE", ERROR_DETAILS, ex.getMessage()));
     }
 
     @ExceptionHandler(RuntimeException.class)

@@ -1,26 +1,25 @@
-# --- build stage: Maven + JDK ---
+# ─── Build stage ─────────────────────────────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /build
+
+# Copy root POM and all module POMs for dependency caching
+COPY pom.xml ./
+COPY eureka-server/pom.xml ./eureka-server/
+COPY starport-registry/pom.xml ./starport-registry/
+COPY trade-route-planner/pom.xml ./trade-route-planner/
+
+RUN mvn -pl starport-registry -am dependency:go-offline -q
+
+# Copy source and build
+COPY starport-registry/src ./starport-registry/src
+RUN mvn -pl starport-registry -am package -DskipTests -q
+
+# ─── Runtime stage ───────────────────────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
-# (1) najpierw same POM-y -> cache zależności
-COPY pom.xml ./pom.xml
-COPY eureka-server/pom.xml eureka-server/pom.xml
-COPY starport-registry/pom.xml starport-registry/pom.xml
+COPY --from=build /build/starport-registry/target/starport-registry-0.0.1-SNAPSHOT.jar app.jar
 
-# pobierz zależności modułu (cache-friendly)
-RUN mvn -q -DskipTests -pl starport-registry -am dependency:go-offline
+EXPOSE 8081
 
-# (2) dopiero teraz reszta źródeł
-COPY . .
-
-# build tylko modułu starport-registry (+ -am dla zależności)
-RUN mvn -q -DskipTests -pl starport-registry -am package
-
-# --- run stage: lekki JRE ---
-FROM eclipse-temurin:21-jre
-WORKDIR /app
-# pomocniczo curl do debug/healthchecków
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-COPY --from=build /app/starport-registry/target/starport-registry-*.jar /app/app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar","--spring.profiles.active=docker"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
