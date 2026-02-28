@@ -1,10 +1,11 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.routeplanner;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.galactic.starport.BaseAcceptanceTest;
-import com.galactic.starport.repository.StarportPersistenceFacade;
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.Route;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -19,10 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class RoutePlannerServiceTest extends BaseAcceptanceTest {
 
     @Autowired
-    RoutePlannerService routePlannerService;
-
-    @Autowired
-    StarportPersistenceFacade starportPersistenceFacade;
+    RoutePlanner routePlanner;
 
     @Test
     void shouldCalculateRouteWhenRequested() {
@@ -52,7 +50,7 @@ class RoutePlannerServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when
-        Route route = routePlannerService.calculateRoute(cmd);
+        Route route = routePlanner.calculateRoute(cmd);
 
         // then
         assertNotNull(route);
@@ -93,7 +91,7 @@ class RoutePlannerServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when
-        Route route = routePlannerService.calculateRoute(cmd);
+        Route route = routePlanner.calculateRoute(cmd);
 
         // then
         assertTrue(route == null, "Route should be null when requestRoute=false");

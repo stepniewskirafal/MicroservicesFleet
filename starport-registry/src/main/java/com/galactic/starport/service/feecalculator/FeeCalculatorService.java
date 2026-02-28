@@ -1,5 +1,7 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.feecalculator;
 
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.ReserveBayCommand.ShipClass;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -12,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-class FeeCalculatorService {
+class FeeCalculatorService implements FeeCalculator {
     private static final String OBSERVATION_NAME = "reservations.fees.calculate";
     private static final String METRIC_FEE_AMOUNT = "reservations.fees.calculated.amount";
     private static final String METRIC_FEE_HOURS = "reservations.fees.calculated.hours";
@@ -34,7 +36,8 @@ class FeeCalculatorService {
                 .register(meterRegistry);
     }
 
-    BigDecimal calculateFee(ReserveBayCommand command) {
+    @Override
+    public BigDecimal calculateFee(ReserveBayCommand command) {
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("starport", command.destinationStarportCode())
                 .lowCardinalityKeyValue("shipClass", command.shipClass().name())

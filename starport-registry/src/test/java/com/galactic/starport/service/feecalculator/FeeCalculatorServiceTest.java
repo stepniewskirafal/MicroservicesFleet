@@ -1,19 +1,21 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.feecalculator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.galactic.starport.BaseAcceptanceTest;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.ReserveBayCommand;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.junit.jupiter.api.Test;
 
 @Execution(ExecutionMode.CONCURRENT)
 class FeeCalculatorServiceTest extends BaseAcceptanceTest {
@@ -21,7 +23,7 @@ class FeeCalculatorServiceTest extends BaseAcceptanceTest {
     private static final String DEST = "DEF";
 
     @Autowired
-    FeeCalculatorService feeCalculatorService;
+    FeeCalculator feeCalculator;
 
     static Stream<Arguments> shipClassAndExpectedFee() {
         return Stream.of(
@@ -47,7 +49,7 @@ class FeeCalculatorServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when
-        BigDecimal fee = feeCalculatorService.calculateFee(cmd);
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
 
         // then
         assertEquals(expectedFee, fee);
@@ -68,6 +70,6 @@ class FeeCalculatorServiceTest extends BaseAcceptanceTest {
                 .build();
 
         // when / then
-        assertThrows(InvalidReservationTimeException.class, () -> feeCalculatorService.calculateFee(cmd));
+        assertThrows(InvalidReservationTimeException.class, () -> feeCalculator.calculateFee(cmd));
     }
 }

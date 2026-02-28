@@ -1,5 +1,7 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.routeplanner;
 
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.Route;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -10,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-class RoutePlannerService {
+class RoutePlannerService implements RoutePlanner {
 
     private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String OBS_ROUTE_RISK = "reservations.route.risk.calculate";
@@ -34,7 +36,8 @@ class RoutePlannerService {
                 .register(meterRegistry);
     }
 
-    Route calculateRoute(ReserveBayCommand command) {
+    @Override
+    public Route calculateRoute(ReserveBayCommand command) {
         if (!command.requestRoute()) {
             return null;
         }
@@ -101,10 +104,3 @@ class RoutePlannerService {
                 + ThreadLocalRandom.current().nextInt(100000, 999999);
     }
 }
-
-    /*    private void releaseHold(Reservation newReservation) {
-        reservationRepository.findById(newReservation.getId()).ifPresent(entity -> {
-            entity.cancelRevervation();
-            reservationRepository.save(entity);
-        });
-    }*/

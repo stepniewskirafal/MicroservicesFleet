@@ -1,7 +1,8 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.routeplanner;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.galactic.starport.service.ReserveBayCommand;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.tck.TestObservationRegistry;

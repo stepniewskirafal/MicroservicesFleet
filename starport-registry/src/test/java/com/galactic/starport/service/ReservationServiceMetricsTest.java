@@ -3,6 +3,7 @@ package com.galactic.starport.service;
 import static org.mockito.Mockito.mock;
 
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
+import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -23,8 +24,7 @@ class ReservationServiceMetricsTest {
     private HoldReservationFacade holdReservationFacade;
     private ConfirmReservationService confirmReservationService;
     private ReserveBayValidator validateReservationCommandService;
-    private FeeCalculatorService feeCalculatorService;
-    private RoutePlannerService routePlannerService;
+    private ReservationCalculationFacade reservationCalculationFacade;
 
     private SimpleMeterRegistry meterRegistry;
     private ObservationRegistry observationRegistry;
@@ -35,8 +35,7 @@ class ReservationServiceMetricsTest {
         holdReservationFacade = mock(HoldReservationFacade.class);
         confirmReservationService = mock(ConfirmReservationService.class);
         validateReservationCommandService = mock(ReserveBayValidator.class);
-        feeCalculatorService = mock(FeeCalculatorService.class);
-        routePlannerService = mock(RoutePlannerService.class);
+        reservationCalculationFacade = mock(ReservationCalculationFacade.class);
 
         meterRegistry = new SimpleMeterRegistry();
         observationRegistry = ObservationRegistry.create();
@@ -48,8 +47,7 @@ class ReservationServiceMetricsTest {
                 holdReservationFacade,
                 confirmReservationService,
                 validateReservationCommandService,
-                feeCalculatorService,
-                routePlannerService);
+                reservationCalculationFacade);
     }
 
     /*
