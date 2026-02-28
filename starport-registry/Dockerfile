@@ -6,6 +6,7 @@ WORKDIR /app
 COPY pom.xml ./pom.xml
 COPY eureka-server/pom.xml eureka-server/pom.xml
 COPY starport-registry/pom.xml starport-registry/pom.xml
+COPY trade-route-planner/pom.xml trade-route-planner/pom.xml
 
 # pobierz zależności modułu (cache-friendly)
 RUN mvn -q -DskipTests -pl starport-registry -am dependency:go-offline

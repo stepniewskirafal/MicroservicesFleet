@@ -12,6 +12,10 @@ eureka:
   server:
     enable-self-preservation: false
     eviction-interval-timer-in-ms: 5000
+    # Skraca czas, po którym klienci zobaczą nowe instancje w Eureka
+    response-cache-update-interval-ms: 3000
+    # Nie czekaj na synchronizację z innymi węzłami (standalone)
+    wait-time-in-ms-when-sync-empty: 0
 
 management:
   endpoints:
