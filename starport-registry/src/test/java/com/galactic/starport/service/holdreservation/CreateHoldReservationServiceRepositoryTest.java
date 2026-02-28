@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
-class CreateHoldReservationServiceTest extends BaseAcceptanceTest {
+class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
 
     @Autowired
     HoldReservationFacade holdReservationFacade;

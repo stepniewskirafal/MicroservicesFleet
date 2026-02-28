@@ -34,6 +34,9 @@
 		<swagger.version>2.2.38</swagger.version>
 		<testcontainers.version>1.20.1</testcontainers.version>
 		<wiremock.version>3.9.1</wiremock.version>
+		<jqwik.version>1.9.2</jqwik.version>
+		<pitest-maven.version>1.17.4</pitest-maven.version>
+		<pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -163,6 +166,14 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Property-based testing -->
+		<dependency>
+			<groupId>net.jqwik</groupId>
+			<artifactId>jqwik</artifactId>
+			<version>${jqwik.version}</version>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- Tracing -->
 <!--		<dependency>
 			<groupId>io.micrometer</groupId>
@@ -230,11 +241,20 @@
 					</java>
 				</configuration>
 			</plugin>
+			<!-- Unit tests: *Test.java + *Properties.java (excludes integration/E2E/contract/repository) -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<!-- REQUIRED: Parallel test execution -->
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Properties.java</include>
+					</includes>
+					<excludes>
+						<exclude>**/*E2ETest.java</exclude>
+						<exclude>**/*RepositoryTest.java</exclude>
+						<exclude>**/*ContractTest.java</exclude>
+					</excludes>
 					<parallel>classes</parallel>
 					<threadCount>4</threadCount>
 					<perCoreThreadCount>true</perCoreThreadCount>
@@ -252,6 +272,61 @@
 							junit.jupiter.execution.parallel.config.dynamic.factor=2
 						</configurationParameters>
 					</properties>
+				</configuration>
+			</plugin>
+			<!-- Integration tests: *E2ETest.java + *RepositoryTest.java + *ContractTest.java -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*E2ETest.java</include>
+						<include>**/*RepositoryTest.java</include>
+						<include>**/*ContractTest.java</include>
+					</includes>
+					<systemPropertyVariables>
+						<spring.profiles.active>test</spring.profiles.active>
+					</systemPropertyVariables>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Mutation testing: runs against unit tests only -->
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>${pitest-maven.version}</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>${pitest-junit5-plugin.version}</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<targetClasses>
+						<param>com.galactic.starport.*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.galactic.starport.**.*Test</param>
+						<param>com.galactic.starport.**.*Properties</param>
+					</targetTests>
+					<excludedTestClasses>
+						<param>**.*E2ETest</param>
+						<param>**.*RepositoryTest</param>
+						<param>**.*ContractTest</param>
+					</excludedTestClasses>
+					<mutators>
+						<mutator>STRONGER</mutator>
+					</mutators>
+					<mutationThreshold>80</mutationThreshold>
+					<timestampedReports>false</timestampedReports>
 				</configuration>
 			</plugin>
 		</plugins>

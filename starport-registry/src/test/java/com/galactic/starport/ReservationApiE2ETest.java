@@ -24,7 +24,7 @@ import org.springframework.http.ResponseEntity;
  * wewnętrznej implementacji.
  */
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ_WRITE)
-class ReservationApiTest extends BaseAcceptanceTest {
+class ReservationApiE2ETest extends BaseAcceptanceTest {
 
     private static final String STARPORT = "DEF";
 

@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
  */
 @AutoConfigureObservability
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ_WRITE)
-class ReservationLifecycleTest extends BaseAcceptanceTest {
+class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
     private static final String STARPORT = "DEF";
 

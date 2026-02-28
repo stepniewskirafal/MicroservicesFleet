@@ -1,49 +1,66 @@
 package com.galactic.starport.service.routeplanner;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import com.galactic.starport.BaseAcceptanceTest;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Instant;
-import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Execution(ExecutionMode.CONCURRENT)
-@ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
-class RoutePlannerServiceTest extends BaseAcceptanceTest {
+class RoutePlannerServiceTest {
 
-    @Autowired
-    RoutePlanner routePlanner;
+    private RoutePlannerService routePlanner;
+
+    @BeforeEach
+    void setUp() {
+        routePlanner = new RoutePlannerService(new SimpleMeterRegistry(), ObservationRegistry.NOOP);
+    }
 
     @Test
-    void shouldCalculateRouteWhenRequested() {
+    void should_return_route_when_route_requested() {
         // given
-        String originCode = "ALPHA-BASE-ROUTE";
-        String destinationCode = "DEF-ROUTE";
-        String customerCode = "CUST-ROUTE";
-        String shipCode = "SS-Enterprise-ROUTE";
+        ReserveBayCommand cmd = aCommand(true);
 
-        seedDefaultReservationFixture(
-                destinationCode,
-                Map.of(
-                        "originCode", originCode,
-                        "customerCode", customerCode,
-                        "shipCode", shipCode,
-                        "destinationName", "Alpha Base Central"));
+        // when
+        Route route = routePlanner.calculateRoute(cmd);
 
+        // then
+        assertThat(route).isNotNull();
+        assertThat(route.getRouteCode()).contains("ROUTE-ALPHA-BASE-DEF");
+        assertThat(route.getStartStarportCode()).isEqualTo("ALPHA-BASE");
+        assertThat(route.getDestinationStarportCode()).isEqualTo("DEF");
+        assertThat(route.getEtaLightYears()).isPositive();
+        assertThat(route.getRiskScore()).isBetween(0.0, 1.0);
+        assertThat(route.isActive()).isTrue();
+    }
+
+    @Test
+    void should_return_null_when_route_not_requested() {
+        // given
+        ReserveBayCommand cmd = aCommand(false);
+
+        // when
+        Route route = routePlanner.calculateRoute(cmd);
+
+        // then
+        assertThat(route).isNull();
+    }
+
+    @Test
+    void should_include_start_and_destination_in_route_code() {
+        // given
         ReserveBayCommand cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(destinationCode)
-                .startStarportCode(originCode)
-                .customerCode(customerCode)
-                .shipCode(shipCode)
-                .shipClass(ReserveBayCommand.ShipClass.SCOUT)
+                .destinationStarportCode("OMEGA")
+                .startStarportCode("ZETA")
+                .customerCode("CUST-001")
+                .shipCode("SS-001")
+                .shipClass(ReserveBayCommand.ShipClass.CRUISER)
                 .startAt(Instant.parse("2008-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2008-01-01T01:00:00Z"))
                 .requestRoute(true)
@@ -53,47 +70,19 @@ class RoutePlannerServiceTest extends BaseAcceptanceTest {
         Route route = routePlanner.calculateRoute(cmd);
 
         // then
-        assertNotNull(route);
-        assertTrue(route.getRouteCode()
-                .contains("ROUTE-" + cmd.startStarportCode() + "-" + cmd.destinationStarportCode()));
-        assertTrue(route.getStartStarportCode().equals(cmd.startStarportCode()));
-        assertTrue(route.getDestinationStarportCode().equals(cmd.destinationStarportCode()));
-        assertTrue(route.getEtaLightYears() > 0);
-        assertTrue(route.getRiskScore() >= 0);
-        assertTrue(route.isActive());
+        assertThat(route.getRouteCode()).startsWith("ROUTE-ZETA-OMEGA-");
     }
 
-    @Test
-    void shouldReturnNullRouteWhenNotRequested() {
-        // given
-        String originCode = "ALPHA-BASE-NO-ROUTE";
-        String destinationCode = "DEF-NO-ROUTE";
-        String customerCode = "CUST-NO-ROUTE";
-        String shipCode = "SS-Enterprise-NO-ROUTE";
-
-        seedDefaultReservationFixture(
-                destinationCode,
-                Map.of(
-                        "originCode", originCode,
-                        "customerCode", customerCode,
-                        "shipCode", shipCode,
-                        "destinationName", "Alpha Base Central"));
-
-        ReserveBayCommand cmd = ReserveBayCommand.builder()
-                .destinationStarportCode(destinationCode)
-                .startStarportCode(originCode)
-                .customerCode(customerCode)
-                .shipCode(shipCode)
+    private static ReserveBayCommand aCommand(boolean requestRoute) {
+        return ReserveBayCommand.builder()
+                .destinationStarportCode("DEF")
+                .startStarportCode("ALPHA-BASE")
+                .customerCode("CUST-001")
+                .shipCode("SS-001")
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2008-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2008-01-01T01:00:00Z"))
-                .requestRoute(false)
+                .requestRoute(requestRoute)
                 .build();
-
-        // when
-        Route route = routePlanner.calculateRoute(cmd);
-
-        // then
-        assertTrue(route == null, "Route should be null when requestRoute=false");
     }
 }
