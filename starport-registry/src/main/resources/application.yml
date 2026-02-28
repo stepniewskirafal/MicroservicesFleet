@@ -31,6 +31,20 @@ spring:
     discovery:
       enabled: true
 
+    loadbalancer:
+      # Health-check supplier: ping each instance's /actuator/health before routing to it.
+      # Removes instances that return non-2xx from the active pool without waiting for Eureka eviction.
+      health-check:
+        initial-delay: 0s
+        interval: 15s
+        path:
+          default: /actuator/health
+      # LB stats via Micrometer — enable and avoid high-cardinality path tags
+      stats:
+        micrometer:
+          enabled: true
+        include-path: false
+
     stream:
       defaultBinder: kafka
 
@@ -70,11 +84,34 @@ eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    # Push Spring Boot Actuator health status to Eureka so the registry reflects
+    # the real application state (UP/DOWN/OUT_OF_SERVICE), not just heartbeat liveness.
+    healthcheck:
+      enabled: true
   instance:
     instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
     prefer-ip-address: true
+    # Reduce the time Eureka needs to detect a lost instance
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 management:
+  endpoint:
+    health:
+      show-details: always
+      # Expose /actuator/health/liveness and /actuator/health/readiness as separate groups.
+      # readiness: used by load-balancers and Kubernetes readiness probes to decide if the
+      #            instance should receive traffic.
+      # liveness:  used by orchestrators (K8s) to decide if the process should be restarted.
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
   opentelemetry:
     tracing:
       export:
@@ -90,29 +127,30 @@ management:
   metrics:
     distribution:
       percentiles-histogram:
-        starport.reservation.reserve.time: true
-        starport.reservation.fee.time: true
-        starport.external.route.time: true
         reservations.fees.calculated.amount: true
         reservations.fees.calculated.hours: true
+        reservations.hold.allocate: true
+        reservations.route.plan: true
+        reservations.fees.calculate: true
       percentiles:
         reservations.fees.calculated.amount: 0.5,0.9,0.99
         reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
-        starport.reservation.reserve.time: 5ms
-        starport.reservation.fee.time: 1ms
-        starport.external.route.time: 5ms
+        reservations.hold.allocate: 5ms
+        reservations.fees.calculate: 1ms
+        reservations.route.plan: 50ms
       maximum-expected-value:
-        starport.reservation.reserve.time: 10s
-        starport.reservation.fee.time: 2s
-        starport.external.route.time: 5s
+        reservations.hold.allocate: 2s
+        reservations.fees.calculate: 500ms
+        reservations.route.plan: 10s
       slo:
-        starport.reservation.reserve.time: 50ms,100ms,250ms,500ms,1s,2s,5s
-        starport.external.route.time: 20ms,50ms,100ms,200ms,500ms,1s,2s
+        reservations.hold.allocate: 10ms,50ms,100ms,500ms,1s,2s
+        reservations.fees.calculate: 1ms,5ms,10ms,50ms,100ms
+        reservations.route.plan: 50ms,100ms,200ms,500ms,1s,2s,5s
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,liveness,readiness
   tracing:
     sampling:
       probability: 1.0
@@ -123,10 +161,9 @@ management:
     scheduling:
       pool:
         size: 1
-  endpoint:
-    prometheus:
-      enabled: true
 app:
+  trade-route-planner:
+    base-url: http://trade-route-planner
   events:
     topics:
       # To są NAZWY BINDINGÓW (do StreamBridge), nie tematy Kafki.
@@ -137,6 +174,13 @@ app:
   batch-size: 50
   max-attempts: 10
 
+
+downstream:
+  http:
+    # Connect and read timeouts for outbound HTTP calls to trade-route-planner.
+    # Keep these tight to avoid thread exhaustion under downstream slowness.
+    connect-timeout-ms: 200
+    read-timeout-ms: 2000
 
 logging:
   level:

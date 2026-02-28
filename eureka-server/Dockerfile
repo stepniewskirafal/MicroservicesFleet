@@ -1,16 +1,25 @@
-# --- build stage: Maven w obrazie ---
+# ─── Build stage ─────────────────────────────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-21 AS build
-WORKDIR /app
-# kopiujemy cały monorepo (albo zoptymalizuj przez .dockerignore)
-COPY . .
-# budujemy wyłącznie eureka-server (+ potrzebne zależności z -am)
-RUN mvn -q -DskipTests -pl eureka-server -am package
+WORKDIR /build
 
-# --- run stage: lekki JRE ---
-FROM eclipse-temurin:21-jre
+# Copy root POM and all module POMs for dependency caching
+COPY pom.xml ./
+COPY eureka-server/pom.xml ./eureka-server/
+COPY starport-registry/pom.xml ./starport-registry/
+COPY trade-route-planner/pom.xml ./trade-route-planner/
+
+RUN mvn -pl eureka-server -am dependency:go-offline -q
+
+# Copy source and build
+COPY eureka-server/src ./eureka-server/src
+RUN mvn -pl eureka-server -am package -DskipTests -q
+
+# ─── Runtime stage ───────────────────────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
-# curl do healthchecków/debugu
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-COPY --from=build /app/eureka-server/target/eureka-server-*.jar /app/app.jar
+
+COPY --from=build /build/eureka-server/target/eureka-server-0.0.1-SNAPSHOT.jar app.jar
+
 EXPOSE 8761
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
