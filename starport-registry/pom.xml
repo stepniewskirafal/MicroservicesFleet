@@ -34,6 +34,9 @@
 		<swagger.version>2.2.38</swagger.version>
 		<testcontainers.version>1.20.1</testcontainers.version>
 		<wiremock.version>3.9.1</wiremock.version>
+		<jqwik.version>1.9.2</jqwik.version>
+		<pitest-maven.version>1.17.4</pitest-maven.version>
+		<pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -115,25 +118,13 @@
 			<version>${swagger.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.spockframework</groupId>
-			<artifactId>spock-core</artifactId>
-			<version>2.4-M6-groovy-4.0</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.spockframework</groupId>
-			<artifactId>spock-spring</artifactId>
-			<version>2.4-M6-groovy-4.0</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
 			<version>4.2.0</version>
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Testcontainers: PostgreSQL + JUnit + Spock -->
+		<!-- Testcontainers: PostgreSQL + JUnit -->
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers</artifactId>
@@ -143,7 +134,7 @@
 
 		<dependency>
 			<groupId>org.testcontainers</groupId>
-			<artifactId>spock</artifactId>
+			<artifactId>junit-jupiter</artifactId>
 			<version>${testcontainers.version}</version>
 			<scope>test</scope>
 		</dependency>
@@ -172,6 +163,14 @@
 			<groupId>org.wiremock</groupId>
 			<artifactId>wiremock-standalone</artifactId>
 			<version>${wiremock.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Property-based testing -->
+		<dependency>
+			<groupId>net.jqwik</groupId>
+			<artifactId>jqwik</artifactId>
+			<version>${jqwik.version}</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -242,34 +241,114 @@
 					</java>
 				</configuration>
 			</plugin>
-			<plugin>
-				<groupId>org.codehaus.gmavenplus</groupId>
-				<artifactId>gmavenplus-plugin</artifactId>
-				<version>3.0.2</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>addTestSources</goal>
-							<goal>compile</goal>
-							<goal>compileTests</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
+			<!-- Unit tests: *Test.java + *Properties.java (excludes integration/E2E/contract/repository) -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Properties.java</include>
+					</includes>
+					<excludes>
+						<exclude>**/*E2ETest.java</exclude>
+						<exclude>**/*RepositoryTest.java</exclude>
+						<exclude>**/*ContractTest.java</exclude>
+					</excludes>
 					<parallel>classes</parallel>
-					<threadCount>3</threadCount>
+					<threadCount>2</threadCount>
+					<perCoreThreadCount>true</perCoreThreadCount>
+					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
-					<forkCount>2C</forkCount>
+					<systemPropertyVariables>
+						<spring.profiles.active>test</spring.profiles.active>
+					</systemPropertyVariables>
+					<properties>
+						<configurationParameters>
+							junit.jupiter.execution.parallel.enabled=true
+							junit.jupiter.execution.parallel.mode.default=concurrent
+							junit.jupiter.execution.parallel.mode.classes.default=concurrent
+							junit.jupiter.execution.parallel.config.strategy=dynamic
+							junit.jupiter.execution.parallel.config.dynamic.factor=2
+						</configurationParameters>
+					</properties>
+				</configuration>
+			</plugin>
+			<!-- Integration tests: *E2ETest.java + *RepositoryTest.java + *ContractTest.java -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*E2ETest.java</include>
+						<include>**/*RepositoryTest.java</include>
+						<include>**/*ContractTest.java</include>
+					</includes>
 					<systemPropertyVariables>
 						<spring.profiles.active>test</spring.profiles.active>
 					</systemPropertyVariables>
 				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Mutation testing: runs against unit tests only -->
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>${pitest-maven.version}</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>${pitest-junit5-plugin.version}</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<targetClasses>
+						<param>com.galactic.starport.*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.galactic.starport.**.*Test</param>
+						<param>com.galactic.starport.**.*Properties</param>
+					</targetTests>
+					<excludedTestClasses>
+						<param>**.*E2ETest</param>
+						<param>**.*RepositoryTest</param>
+						<param>**.*ContractTest</param>
+					</excludedTestClasses>
+					<mutators>
+						<mutator>STRONGER</mutator>
+					</mutators>
+					<mutationThreshold>80</mutationThreshold>
+					<timestampedReports>false</timestampedReports>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- RECOMMENDED: Fast local dev — skip static analysis -->
+		<!-- Usage: ./mvnw test -T 1C -Pfast -->
+		<profile>
+			<id>fast</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.diffplug.spotless</groupId>
+						<artifactId>spotless-maven-plugin</artifactId>
+						<configuration>
+							<skip>true</skip>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

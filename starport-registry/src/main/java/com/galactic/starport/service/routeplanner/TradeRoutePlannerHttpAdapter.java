@@ -1,0 +1,131 @@
+package com.galactic.starport.service.routeplanner;
+
+import com.galactic.starport.service.ReserveBayCommand;
+import com.galactic.starport.service.Route;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+@Primary
+@Service
+@Slf4j
+class TradeRoutePlannerHttpAdapter implements RoutePlanner {
+
+    private static final String OBSERVATION_NAME = "reservations.route.plan";
+    private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
+    private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
+
+    private final RestClient restClient;
+    private final ObservationRegistry observationRegistry;
+    private final MeterRegistry meterRegistry;
+    private final Counter routePlanSuccessCounter;
+
+    TradeRoutePlannerHttpAdapter(
+            RestClient tradeRoutePlannerRestClient,
+            MeterRegistry meterRegistry,
+            ObservationRegistry observationRegistry) {
+        this.restClient = tradeRoutePlannerRestClient;
+        this.observationRegistry = observationRegistry;
+        this.meterRegistry = meterRegistry;
+        this.routePlanSuccessCounter = Counter.builder(METRIC_ROUTE_PLAN_SUCCESS)
+                .description("Number of successfully planned routes")
+                .register(meterRegistry);
+    }
+
+    @Override
+    public Route calculateRoute(ReserveBayCommand command) {
+        if (!command.requestRoute()) {
+            return null;
+        }
+        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
+                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
+                .observe(() -> callTradeRoutePlanner(command));
+    }
+
+    private Route callTradeRoutePlanner(ReserveBayCommand command) {
+        TradeRoutePlannerRequest request = buildRequest(command);
+        try {
+            TradeRoutePlannerResponse response = restClient
+                    .post()
+                    .uri("/routes/plan")
+                    .body(request)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        // 4xx = domain rejection (route cannot be planned for this origin/destination)
+                        incrementErrorCounter("domain");
+                        throw new RouteUnavailableException(
+                                command.startStarportCode(), command.destinationStarportCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        // 5xx = infrastructure failure (planner service is down)
+                        incrementErrorCounter("infrastructure");
+                        throw new RouteUnavailableException(
+                                command.startStarportCode(), command.destinationStarportCode());
+                    })
+                    .body(TradeRoutePlannerResponse.class);
+
+            routePlanSuccessCounter.increment();
+            log.info(
+                    "Route planned: {} from {} to {} — eta={}h risk={}",
+                    response.routeId(),
+                    command.startStarportCode(),
+                    command.destinationStarportCode(),
+                    response.etaHours(),
+                    response.riskScore());
+
+            return Route.builder()
+                    .routeCode(response.routeId())
+                    .startStarportCode(command.startStarportCode())
+                    .destinationStarportCode(command.destinationStarportCode())
+                    .etaLightYears(response.etaHours())
+                    .riskScore(response.riskScore())
+                    .isActive(true)
+                    .build();
+
+        } catch (RouteUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            incrementErrorCounter("infrastructure");
+            log.error(
+                    "Failed to plan route from {} to {}: {}",
+                    command.startStarportCode(),
+                    command.destinationStarportCode(),
+                    e.getMessage(),
+                    e);
+            throw new RouteUnavailableException(
+                    command.startStarportCode(), command.destinationStarportCode(), e);
+        }
+    }
+
+    private void incrementErrorCounter(String errorType) {
+        Counter.builder(METRIC_ROUTE_PLAN_ERROR)
+                .description("Number of failed route planning attempts")
+                .tag("errorType", errorType)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private TradeRoutePlannerRequest buildRequest(ReserveBayCommand command) {
+        double fuelRangeLY = fuelRangeLYForShipClass(command.shipClass());
+        return new TradeRoutePlannerRequest(
+                command.startStarportCode(),
+                command.destinationStarportCode(),
+                new TradeRoutePlannerRequest.ShipProfileDto(command.shipClass().name(), fuelRangeLY));
+    }
+
+    private double fuelRangeLYForShipClass(ReserveBayCommand.ShipClass shipClass) {
+        return switch (shipClass) {
+            case SCOUT -> 15.0;
+            case FREIGHTER -> 25.0;
+            case CRUISER -> 40.0;
+            case UNKNOWN -> 5.0;
+        };
+    }
+}
