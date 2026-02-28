@@ -2,6 +2,7 @@ package com.galactic.starport.service;
 
 import java.util.Optional;
 
+import com.galactic.starport.service.confirmreservation.ConfirmReservationFacade;
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
@@ -14,18 +15,18 @@ import org.springframework.stereotype.Service;
 public class ReservationService {
 
     private final HoldReservationFacade holdReservationFacade;
-    private final ConfirmReservationService confirmReservationService;
+    private final ConfirmReservationFacade confirmReservationFacade;
     private final ReserveBayValidator reservationValidator;
     private final ReservationCalculationFacade reservationCalculationFacade;
 
     public ReservationService(
             HoldReservationFacade holdReservationFacade,
-            ConfirmReservationService confirmReservationService,
+            ConfirmReservationFacade confirmReservationFacade,
             ReserveBayValidator reservationValidator,
             ReservationCalculationFacade reservationCalculationFacade) {
 
         this.holdReservationFacade = holdReservationFacade;
-        this.confirmReservationService = confirmReservationService;
+        this.confirmReservationFacade = confirmReservationFacade;
         this.reservationValidator = reservationValidator;
         this.reservationCalculationFacade = reservationCalculationFacade;
     }
@@ -43,7 +44,7 @@ public class ReservationService {
         ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
 
         // Confirm the reservation with the calculated data
-        Reservation reservation = confirmReservationService.confirmReservation(
+        Reservation reservation = confirmReservationFacade.confirmReservation(
                 calc, command.destinationStarportCode());
 
         return Optional.of(reservation);

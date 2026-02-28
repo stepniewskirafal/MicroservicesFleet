@@ -2,6 +2,7 @@ package com.galactic.starport.service;
 
 import static org.mockito.Mockito.mock;
 
+import com.galactic.starport.service.confirmreservation.ConfirmReservationFacade;
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
@@ -22,7 +23,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 class ReservationServiceMetricsTest {
 
     private HoldReservationFacade holdReservationFacade;
-    private ConfirmReservationService confirmReservationService;
+    private ConfirmReservationFacade confirmReservationFacade;
     private ReserveBayValidator validateReservationCommandService;
     private ReservationCalculationFacade reservationCalculationFacade;
 
@@ -33,7 +34,7 @@ class ReservationServiceMetricsTest {
     @BeforeEach
     void setUp() {
         holdReservationFacade = mock(HoldReservationFacade.class);
-        confirmReservationService = mock(ConfirmReservationService.class);
+        confirmReservationFacade = mock(ConfirmReservationFacade.class);
         validateReservationCommandService = mock(ReserveBayValidator.class);
         reservationCalculationFacade = mock(ReservationCalculationFacade.class);
 
@@ -45,7 +46,7 @@ class ReservationServiceMetricsTest {
 
         reservationService = new ReservationService(
                 holdReservationFacade,
-                confirmReservationService,
+                confirmReservationFacade,
                 validateReservationCommandService,
                 reservationCalculationFacade);
     }

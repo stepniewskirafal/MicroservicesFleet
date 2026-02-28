@@ -1,6 +1,7 @@
-package com.galactic.starport.service;
+package com.galactic.starport.service.confirmreservation;
 
 import com.galactic.starport.repository.StarportPersistenceFacade;
+import com.galactic.starport.service.Reservation;
 import com.galactic.starport.service.outbox.OutboxFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import io.micrometer.observation.Observation;
@@ -13,12 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-class ConfirmReservationService {
+class ConfirmReservationService implements ConfirmReservationFacade {
     private static final String OBSERVATION_NAME = "reservations.confirm";
     private final ObservationRegistry observationRegistry;
     private final OutboxFacade outboxFacade;
     private final StarportPersistenceFacade persistenceFacade;
 
+    @Override
     @Transactional
     public Reservation confirmReservation(ReservationCalculation calc, String destinationStarportCode) {
         Observation obs = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
