@@ -23,7 +23,6 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     RoutePlanner routePlanner;
 
     @Test
-    @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ)
     void shouldCalculateRouteWhenRequested() {
         // given
         String originCode = "ALPHA-BASE-ROUTE";
@@ -66,7 +65,6 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     }
 
     @Test
-    @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ)
     void shouldReturnNullRouteWhenNotRequested() {
         // given
         ReserveBayCommand cmd = ReserveBayCommand.builder()
@@ -88,13 +86,10 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     }
 
     @Test
-    @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.WRITE)
     void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
-        // given — scoped stub matched on this test's originPortId; atPriority(1) takes
-        // precedence over the default 200 stub without resetting shared WireMock state
+        // given — override default WireMock stub to return 422
+        wireMock.resetAll();
         wireMock.stubFor(post(urlEqualTo("/routes/plan"))
-                .withRequestBody(matchingJsonPath("$.originPortId", equalTo("ORIGIN-422")))
-                .atPriority(1)
                 .willReturn(aResponse()
                         .withStatus(422)
                         .withHeader("Content-Type", "application/json")
