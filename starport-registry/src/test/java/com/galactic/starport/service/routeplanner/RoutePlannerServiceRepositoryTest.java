@@ -15,7 +15,7 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
 
-@Execution(ExecutionMode.CONCURRENT)
+@Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
 class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
 
