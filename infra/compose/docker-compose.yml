@@ -90,52 +90,106 @@ services:
       kafka:
         condition: service_started
 
-#  starport-registry:
-#    build:
-#      context: ../../
-#      dockerfile: starport-registry/Dockerfile
-#    container_name: starport-registry
-#    depends_on:
-#      eureka:
-#        condition: service_healthy
-#      postgres:
-#        condition: service_healthy
-#      zipkin:
-#        condition: service_started
-#      kafka:
-#        condition: service_started
-#    environment:
-#      SPRING_PROFILES_ACTIVE: docker
-#    ports:
-#      - "8080:8080"
+  starport-registry-1:
+    build:
+      context: ../../
+      dockerfile: starport-registry/Dockerfile
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+      kafka:
+        condition: service_started
+    environment:
+      PORT: 8081
+      EUREKA_URL: http://eureka:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/starports
+      DB_USER: postgres
+      DB_PASS: postgres
+      KAFKA_BROKERS: kafka:9093
+      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
-#  trade-route-planner-1:
-#    build:
-#      context: ../../
-#      dockerfile: trade-route-planner/Dockerfile
-#    depends_on:
-#      eureka:
-#        condition: service_healthy
-#      zipkin:
-#        condition: service_started
-#    environment:
-#      EUREKA_URL: http://eureka:8761/eureka
-#      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
-#    ports:
-#      - "8082:8082"
+  starport-registry-2:
+    build:
+      context: ../../
+      dockerfile: starport-registry/Dockerfile
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+      kafka:
+        condition: service_started
+    environment:
+      PORT: 8084
+      EUREKA_URL: http://eureka:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/starports
+      DB_USER: postgres
+      DB_PASS: postgres
+      KAFKA_BROKERS: kafka:9093
+      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
-#  trade-route-planner-2:
-#    build:
-#      context: ../../
-#      dockerfile: trade-route-planner/Dockerfile
-#    depends_on:
-#      eureka:
-#        condition: service_healthy
-#      zipkin:
-#        condition: service_started
-#    environment:
-#      EUREKA_URL: http://eureka:8761/eureka
-#      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
-#      PORT: 8083
-#    ports:
-#      - "8083:8083"
+  trade-route-planner-1:
+    build:
+      context: ../../
+      dockerfile: trade-route-planner/Dockerfile
+    depends_on:
+      eureka:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+    environment:
+      PORT: 8082
+      EUREKA_URL: http://eureka:8761/eureka
+      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  trade-route-planner-2:
+    build:
+      context: ../../
+      dockerfile: trade-route-planner/Dockerfile
+    depends_on:
+      eureka:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+    environment:
+      PORT: 8083
+      EUREKA_URL: http://eureka:8761/eureka
+      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
