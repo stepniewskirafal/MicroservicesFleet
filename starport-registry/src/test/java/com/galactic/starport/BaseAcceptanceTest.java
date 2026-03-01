@@ -25,7 +25,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class BaseAcceptanceTest {
 
-    static final WireMockServer wireMock;
+    public static final WireMockServer wireMock;
 
     @ServiceConnection
     static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16-alpine")
