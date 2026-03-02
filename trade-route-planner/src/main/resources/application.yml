@@ -13,11 +13,29 @@ eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    # Push Spring Boot Actuator health status to Eureka so the registry reflects
+    # the real application state, not just heartbeat liveness.
+    healthcheck:
+      enabled: true
   instance:
     instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
   opentelemetry:
     tracing:
       export:
@@ -26,10 +44,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
-  endpoint:
-    prometheus:
-      enabled: true
+        include: health,info,metrics,prometheus,liveness,readiness
   tracing:
     sampling:
       probability: 1.0
