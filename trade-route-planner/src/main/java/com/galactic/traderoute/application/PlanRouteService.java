@@ -5,6 +5,7 @@ import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.domain.model.RouteRequest;
 import com.galactic.traderoute.port.in.PlanRouteUseCase;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -21,18 +22,18 @@ class PlanRouteService implements PlanRouteUseCase {
     private static final String OBSERVATION_NAME = "routes.plan";
     private static final String METRIC_SUCCESS = "routes.planned.count";
     private static final String METRIC_REJECTED = "routes.rejected.count";
+    private static final String METRIC_RISK_SCORE = "routes.risk.score";
+    private static final String METRIC_ETA_HOURS = "routes.eta.hours";
 
     private final ObservationRegistry observationRegistry;
+    private final MeterRegistry meterRegistry;
     private final Counter plannedCounter;
-    private final Counter rejectedCounter;
 
     PlanRouteService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
+        this.meterRegistry = meterRegistry;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)
                 .description("Number of successfully planned routes")
-                .register(meterRegistry);
-        this.rejectedCounter = Counter.builder(METRIC_REJECTED)
-                .description("Number of rejected route planning attempts")
                 .register(meterRegistry);
     }
 
@@ -60,6 +61,23 @@ class PlanRouteService implements PlanRouteUseCase {
                 etaHours,
                 riskScore);
 
+        // Risk score distribution — key input to tariff calculation (up to 20% discount).
+        // Micrometer caches meters by (name+tags), so registration is idempotent.
+        DistributionSummary.builder(METRIC_RISK_SCORE)
+                .description("Distribution of route risk scores (0=safe, 1=dangerous); affects tariff discount")
+                .tag("originPortId", request.originPortId())
+                .tag("destinationPortId", request.destinationPortId())
+                .register(meterRegistry)
+                .record(riskScore);
+
+        // ETA distribution — useful for capacity planning and SLA monitoring per ship class.
+        DistributionSummary.builder(METRIC_ETA_HOURS)
+                .description("Distribution of planned route ETA in hours")
+                .baseUnit("hours")
+                .tag("shipClass", request.shipClass())
+                .register(meterRegistry)
+                .record(etaHours);
+
         plannedCounter.increment();
         return PlannedRoute.builder()
                 .routeId(routeId)
@@ -70,7 +88,12 @@ class PlanRouteService implements PlanRouteUseCase {
 
     private void validateFuelRange(RouteRequest request) {
         if (request.fuelRangeLY() < MIN_FUEL_RANGE_LY) {
-            rejectedCounter.increment();
+            // Tag with rejection reason to enable filtering by cause in dashboards.
+            Counter.builder(METRIC_REJECTED)
+                    .description("Number of rejected route planning attempts")
+                    .tag("reason", "INSUFFICIENT_RANGE")
+                    .register(meterRegistry)
+                    .increment();
             throw new RouteRejectionException(
                     "INSUFFICIENT_RANGE",
                     "Required minimum fuel range is " + MIN_FUEL_RANGE_LY

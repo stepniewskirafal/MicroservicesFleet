@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 
 import com.galactic.starport.repository.StarportPersistenceFacade;
 import com.galactic.starport.service.ReserveBayCommand;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.tck.TestObservationRegistry;
 import io.micrometer.observation.tck.TestObservationRegistryAssert;
 import java.time.Instant;
@@ -26,7 +27,7 @@ class CreateHoldReservationServiceObservabilityTest {
     void setUp() {
         observationRegistry = TestObservationRegistry.create();
         persistenceFacade = mock(StarportPersistenceFacade.class);
-        service = new CreateHoldReservationService(persistenceFacade, observationRegistry);
+        service = new CreateHoldReservationService(persistenceFacade, observationRegistry, new SimpleMeterRegistry());
     }
 
     @Test

@@ -48,7 +48,8 @@ class ReservationServiceMetricsTest {
                 holdReservationFacade,
                 confirmReservationFacade,
                 validateReservationCommandService,
-                reservationCalculationFacade);
+                reservationCalculationFacade,
+                meterRegistry);
     }
 
     /*

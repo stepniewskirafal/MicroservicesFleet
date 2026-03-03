@@ -127,25 +127,26 @@ management:
   metrics:
     distribution:
       percentiles-histogram:
-        starport.reservation.reserve.time: true
-        starport.reservation.fee.time: true
-        starport.external.route.time: true
         reservations.fees.calculated.amount: true
         reservations.fees.calculated.hours: true
+        reservations.hold.allocate: true
+        reservations.route.plan: true
+        reservations.fees.calculate: true
       percentiles:
         reservations.fees.calculated.amount: 0.5,0.9,0.99
         reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
-        starport.reservation.reserve.time: 5ms
-        starport.reservation.fee.time: 1ms
-        starport.external.route.time: 5ms
+        reservations.hold.allocate: 5ms
+        reservations.fees.calculate: 1ms
+        reservations.route.plan: 50ms
       maximum-expected-value:
-        starport.reservation.reserve.time: 10s
-        starport.reservation.fee.time: 2s
-        starport.external.route.time: 5s
+        reservations.hold.allocate: 2s
+        reservations.fees.calculate: 500ms
+        reservations.route.plan: 10s
       slo:
-        starport.reservation.reserve.time: 50ms,100ms,250ms,500ms,1s,2s,5s
-        starport.external.route.time: 20ms,50ms,100ms,200ms,500ms,1s,2s
+        reservations.hold.allocate: 10ms,50ms,100ms,500ms,1s,2s
+        reservations.fees.calculate: 1ms,5ms,10ms,50ms,100ms
+        reservations.route.plan: 50ms,100ms,200ms,500ms,1s,2s,5s
   endpoints:
     web:
       exposure:

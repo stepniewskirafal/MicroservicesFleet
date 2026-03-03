@@ -2,6 +2,7 @@ package com.galactic.starport.service.outbox;
 
 import com.galactic.starport.repository.OutboxEventEntity;
 import com.galactic.starport.repository.OutboxEventJpaRepository;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -28,6 +29,7 @@ class InboxPublisher {
     private static final String OBS_PUBLISH = "reservations.inbox.publish";
     private static final String METRIC_POLL_DURATION = "reservations.inbox.poll.duration";
     private static final String METRIC_BATCH_SIZE = "reservations.inbox.poll.batch.size";
+    private static final String METRIC_DEAD_LETTER = "reservations.outbox.dead.letter";
     private final OutboxEventJpaRepository repo;
     private final StreamBridge streamBridge;
     private final ObservationRegistry observationRegistry;
@@ -56,11 +58,9 @@ class InboxPublisher {
     public void pollAndPublish() {
         Timer.Sample sample = Timer.start(meterRegistry);
         String outcome = "success";
-        int size = 0;
         boolean anyFailure = false;
         try {
             List<OutboxEventEntity> batch = repo.lockBatchPending(batchSize);
-            size = batch.size();
             if (batch.isEmpty()) {
                 outcome = "empty";
                 return;
@@ -69,7 +69,7 @@ class InboxPublisher {
                     .description("Outbox batch size fetched during poll")
                     .baseUnit("events")
                     .register(meterRegistry)
-                    .record(size);
+                    .record(batch.size());
             for (OutboxEventEntity e : batch) {
                 if (!processSingleEvent(e)) {
                     anyFailure = true;
@@ -82,14 +82,12 @@ class InboxPublisher {
             outcome = "error";
             throw ex;
         } finally {
-            Timer timer = Timer.builder(METRIC_POLL_DURATION)
+            // batchSize removed from tags: values 0..50 would create high cardinality.
+            // Use the METRIC_BATCH_SIZE DistributionSummary above for batch size analysis.
+            sample.stop(Timer.builder(METRIC_POLL_DURATION)
                     .description("Outbox poll+publish batch duration")
                     .tag("outcome", outcome)
-                    .tag("batchSize", String.valueOf(size))
-                    .register(meterRegistry);
-
-
-            sample.stop(timer);
+                    .register(meterRegistry));
         }
     }
 
@@ -143,6 +141,13 @@ class InboxPublisher {
         if (e.getAttempts() >= maxAttempts) {
             e.markFailed();
             log.warn("Outbox permanently failed id={} attempts={}", e.getId(), e.getAttempts(), ex);
+            // Alert: event will never be delivered — requires manual intervention.
+            Counter.builder(METRIC_DEAD_LETTER)
+                    .description("Outbox events permanently failed after max delivery attempts")
+                    .tag("eventType", e.getEventType())
+                    .tag("binding", e.getBinding())
+                    .register(meterRegistry)
+                    .increment();
         } else {
             log.info("Outbox temporary failure id={} attempts={}", e.getId(), e.getAttempts(), ex);
         }

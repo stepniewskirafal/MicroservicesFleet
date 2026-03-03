@@ -23,8 +23,7 @@ class ConfirmReservationService implements ConfirmReservationFacade {
     @Override
     @Transactional
     public Reservation confirmReservation(ReservationCalculation calc, String destinationStarportCode) {
-        Observation obs = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("eventType", "ReservationConfirmed");
+        Observation obs = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry);
         if (destinationStarportCode != null) {
             obs.lowCardinalityKeyValue("starport", destinationStarportCode);
         }
