@@ -120,16 +120,15 @@
                     },
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "rate(business_revenue_total_PLN_total[1m0s]) * 60",
+                    "expr": "rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval]) * 3600",
                     "format": "time_series",
                     "instant": false,
-                    "interval": "",
-                    "legendFormat": "Income",
+                    "legendFormat": "CR/hour",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Average Income (Per Hour)",
+            "title": "Fee Revenue Rate (CR/hour)",
             "type": "timeseries"
         },
         {
@@ -217,7 +216,7 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "100 *\r\nsum(rate(business_funnel_reservation_completed_total[1m0s]))\r\n/\r\nclamp_min(sum(rate(business_funnel_reservation_started_total[1m0s])), 1e-9)\r\n",
+                    "expr": "100 *\r\nsum(rate(reservations_created_total{outcome=\"confirmed\"}[$__rate_interval]))\r\n/\r\nclamp_min(sum(rate(reservations_created_total[$__rate_interval])), 1e-9)\r\n",
                     "instant": false,
                     "legendFormat": "Rate",
                     "range": true,
@@ -328,7 +327,7 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "100 *\r\nsum(rate(business_funnel_reservation_failed_total[$__rate_interval]))\r\n/\r\nclamp_min(sum(rate(business_funnel_reservation_started_total[$__rate_interval])), 1e-9)\r\n",
+                    "expr": "100 *\r\nsum(rate(reservations_created_total{outcome=~\"no_capacity|route_unavailable\"}[$__rate_interval]))\r\n/\r\nclamp_min(sum(rate(reservations_created_total[$__rate_interval])), 1e-9)\r\n",
                     "instant": false,
                     "legendFormat": "Rate",
                     "range": true,
@@ -436,13 +435,13 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "process_resident_memory_bytes{job=\"loki\"} / 1024^2",
-                    "legendFormat": "Usage",
+                    "expr": "sum(jvm_memory_used_bytes{job=\"starport-registry\"}) / 1024^2",
+                    "legendFormat": "Used (all areas)",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Ram Usage [MB]",
+            "title": "JVM Memory Usage [MB]",
             "type": "timeseries"
         },
         {
@@ -530,14 +529,14 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "go_memstats_heap_alloc_bytes{job=\"loki\"} / 1024^2",
+                    "expr": "jvm_memory_used_bytes{job=\"starport-registry\", area=\"heap\"} / 1024^2",
                     "instant": false,
-                    "legendFormat": "Allocation",
+                    "legendFormat": "Heap Used",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Heap Memory Allocated",
+            "title": "JVM Heap Memory [MB]",
             "type": "timeseries"
         },
         {
@@ -629,7 +628,7 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "rate(process_cpu_seconds_total{job=\"loki\"}[$__rate_interval]) / scalar(go_sched_gomaxprocs_threads{job=\"loki\"}) * 100",
+                    "expr": "process_cpu_usage{job=\"starport-registry\"} * 100",
                     "instant": false,
                     "legendFormat": "CPU",
                     "range": true,
@@ -737,14 +736,14 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "1000 * sum(rate(reservations_reserve_seconds_sum[$__rate_interval]))\r\n  /\r\nsum(rate(reservations_reserve_seconds_count[$__rate_interval]))",
+                    "expr": "1000 * sum(rate(http_server_requests_seconds_sum{job=\"starport-registry\",uri=\"/api/v1/starports/{code}/reservations\",method=\"POST\"}[$__rate_interval]))\r\n  /\r\nclamp_min(sum(rate(http_server_requests_seconds_count{job=\"starport-registry\",uri=\"/api/v1/starports/{code}/reservations\",method=\"POST\"}[$__rate_interval])), 1e-9)",
                     "instant": false,
                     "legendFormat": "Average Time",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Average Reservation Duration [ms]",
+            "title": "Avg Reservation HTTP Request Duration [ms]",
             "type": "timeseries"
         },
         {
@@ -832,36 +831,28 @@
                         "type": "prometheus",
                         "uid": "PBFA97CFB590B2093"
                     },
-                    "disableTextWrap": false,
-                    "editorMode": "builder",
-                    "expr": "reservations_route_plan_success_total",
-                    "fullMetaSearch": false,
-                    "includeNullMetadata": true,
+                    "editorMode": "code",
+                    "expr": "rate(reservations_route_plan_success_total[$__rate_interval])",
                     "instant": false,
                     "legendFormat": "success",
                     "range": true,
-                    "refId": "A",
-                    "useBackend": false
+                    "refId": "A"
                 },
                 {
                     "datasource": {
                         "type": "prometheus",
                         "uid": "PBFA97CFB590B2093"
                     },
-                    "disableTextWrap": false,
-                    "editorMode": "builder",
-                    "expr": "reservations_route_plan_errors_total",
-                    "fullMetaSearch": false,
+                    "editorMode": "code",
+                    "expr": "rate(reservations_route_plan_errors_total[$__rate_interval])",
                     "hide": false,
-                    "includeNullMetadata": true,
                     "instant": false,
                     "legendFormat": "error",
                     "range": true,
-                    "refId": "B",
-                    "useBackend": false
+                    "refId": "B"
                 }
             ],
-            "title": "Route Plan Resuts",
+            "title": "Route Plan Results",
             "type": "timeseries"
         },
         {
@@ -952,14 +943,14 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "sum by (eventType) (\r\n  increase(reservations_inbox_publish_seconds_count{error!=\"\"}[1m])\r\n)",
+                    "expr": "sum by (eventType) (\r\n  rate(reservations_inbox_publish_seconds_count[$__rate_interval])\r\n)",
                     "instant": false,
                     "legendFormat": "__auto",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Inbox Poll: Average Poll+Publish Pace",
+            "title": "Inbox: Publish Throughput by Event Type (events/s)",
             "type": "timeseries"
         },
         {
@@ -1120,7 +1111,7 @@
                     {
                         "matcher": {
                             "id": "byName",
-                            "options": "none"
+                            "options": "confirmed"
                         },
                         "properties": [
                             {
@@ -1135,22 +1126,7 @@
                     {
                         "matcher": {
                             "id": "byName",
-                            "options": "CustomerNotFoundException"
-                        },
-                        "properties": [
-                            {
-                                "id": "color",
-                                "value": {
-                                    "fixedColor": "purple",
-                                    "mode": "fixed"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "matcher": {
-                            "id": "byName",
-                            "options": "NoDockingBaysAvailableException"
+                            "options": "no_capacity"
                         },
                         "properties": [
                             {
@@ -1165,22 +1141,7 @@
                     {
                         "matcher": {
                             "id": "byName",
-                            "options": "ShipNotFoundException"
-                        },
-                        "properties": [
-                            {
-                                "id": "color",
-                                "value": {
-                                    "fixedColor": "yellow",
-                                    "mode": "fixed"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "matcher": {
-                            "id": "byName",
-                            "options": "StarportNotFoundException"
+                            "options": "route_unavailable"
                         },
                         "properties": [
                             {
@@ -1220,7 +1181,7 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "sum(increase(reservations_reserve_seconds_count[$__interval])) by (error)\r\n",
+                    "expr": "sum by (outcome) (\r\n  increase(reservations_created_total{outcome!=\"confirmed\"}[$__rate_interval])\r\n)\r\n",
                     "hide": false,
                     "instant": false,
                     "legendFormat": "__auto",
@@ -1507,14 +1468,14 @@
                         "uid": "PBFA97CFB590B2093"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(reservations_fees_calculated_amount_pln_sum[$__rate_interval]))\r\n/\r\nsum(rate(reservations_fees_calculated_amount_pln_count[$__rate_interval]))\r\n",
+                    "expr": "sum(rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval]))\r\n/\r\nclamp_min(sum(rate(reservations_fees_calculated_amount_cr_count[$__rate_interval])), 1e-9)\r\n",
                     "instant": false,
-                    "legendFormat": "Average payment",
+                    "legendFormat": "Average fee [CR]",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Average Reservation Payment",
+            "title": "Average Reservation Fee [CR]",
             "type": "timeseries"
         },
         {
@@ -1609,7 +1570,7 @@
                     "refId": "A"
                 }
             ],
-            "title": "Outbox append throughput by binding (events/s)**",
+            "title": "Outbox append throughput by binding (events/s)",
             "type": "timeseries"
         }
     ],
@@ -1627,6 +1588,6 @@
     "timezone": "browser",
     "title": "Starport registry dashboard",
     "uid": "cfbchaf4k2scgf",
-    "version": 58,
+    "version": 59,
     "weekStart": ""
 }
