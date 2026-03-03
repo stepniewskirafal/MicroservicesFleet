@@ -23,8 +23,8 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
     private final RestClient restClient;
     private final ObservationRegistry observationRegistry;
+    private final MeterRegistry meterRegistry;
     private final Counter routePlanSuccessCounter;
-    private final Counter routePlanErrorCounter;
 
     TradeRoutePlannerHttpAdapter(
             RestClient tradeRoutePlannerRestClient,
@@ -32,11 +32,9 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
             ObservationRegistry observationRegistry) {
         this.restClient = tradeRoutePlannerRestClient;
         this.observationRegistry = observationRegistry;
+        this.meterRegistry = meterRegistry;
         this.routePlanSuccessCounter = Counter.builder(METRIC_ROUTE_PLAN_SUCCESS)
                 .description("Number of successfully planned routes")
-                .register(meterRegistry);
-        this.routePlanErrorCounter = Counter.builder(METRIC_ROUTE_PLAN_ERROR)
-                .description("Number of failed route planning attempts")
                 .register(meterRegistry);
     }
 
@@ -60,12 +58,14 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        routePlanErrorCounter.increment();
+                        // 4xx = domain rejection (route cannot be planned for this origin/destination)
+                        incrementErrorCounter("domain");
                         throw new RouteUnavailableException(
                                 command.startStarportCode(), command.destinationStarportCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
-                        routePlanErrorCounter.increment();
+                        // 5xx = infrastructure failure (planner service is down)
+                        incrementErrorCounter("infrastructure");
                         throw new RouteUnavailableException(
                                 command.startStarportCode(), command.destinationStarportCode());
                     })
@@ -92,7 +92,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
         } catch (RouteUnavailableException e) {
             throw e;
         } catch (Exception e) {
-            routePlanErrorCounter.increment();
+            incrementErrorCounter("infrastructure");
             log.error(
                     "Failed to plan route from {} to {}: {}",
                     command.startStarportCode(),
@@ -102,6 +102,14 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
             throw new RouteUnavailableException(
                     command.startStarportCode(), command.destinationStarportCode(), e);
         }
+    }
+
+    private void incrementErrorCounter(String errorType) {
+        Counter.builder(METRIC_ROUTE_PLAN_ERROR)
+                .description("Number of failed route planning attempts")
+                .tag("errorType", errorType)
+                .register(meterRegistry)
+                .increment();
     }
 
     private TradeRoutePlannerRequest buildRequest(ReserveBayCommand command) {

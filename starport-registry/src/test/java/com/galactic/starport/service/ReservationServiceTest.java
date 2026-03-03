@@ -14,6 +14,7 @@ import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
@@ -46,7 +47,11 @@ class ReservationServiceTest {
     @BeforeEach
     void setUp() {
         reservationService = new ReservationService(
-                holdReservationFacade, confirmReservationFacade, reservationValidator, reservationCalculationFacade);
+                holdReservationFacade,
+                confirmReservationFacade,
+                reservationValidator,
+                reservationCalculationFacade,
+                new SimpleMeterRegistry());
     }
 
     @Test

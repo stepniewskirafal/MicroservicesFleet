@@ -86,15 +86,20 @@ class FeeCalculatorServiceObservabilityTest {
                 .hasMeterWithName("reservations.fees.calculated.hours");
 
         // and - podsumowanie kwoty opłaty jest spójne z wynikiem biznesowym
-        DistributionSummary feeSummary = meterRegistry.get("reservations.fees.calculated.amount").summary();
+        DistributionSummary feeSummary = meterRegistry.get("reservations.fees.calculated.amount")
+                .tag("starport", DEST)
+                .tag("shipClass", "FREIGHTER")
+                .summary();
         assert feeSummary.count() == 1 : "Fee summary count should be 1";
         assert feeSummary.totalAmount() == fee.doubleValue() : "Fee summary total should match fee";
-        assert "pln".equals(feeSummary.getId().getBaseUnit()) : "Base unit should be 'pln'";
-        assert "Calculated reservation fee amount".equals(feeSummary.getId().getDescription())
+        assert "CR".equals(feeSummary.getId().getBaseUnit()) : "Base unit should be 'CR'";
+        assert "Calculated reservation fee amount in Credits".equals(feeSummary.getId().getDescription())
                 : "Description should match";
 
         // and - podsumowanie liczby godzin jest spójne z czasem naliczania
-        DistributionSummary hoursSummary = meterRegistry.get("reservations.fees.calculated.hours").summary();
+        DistributionSummary hoursSummary = meterRegistry.get("reservations.fees.calculated.hours")
+                .tag("shipClass", "FREIGHTER")
+                .summary();
         assert hoursSummary.count() == 1 : "Hours summary count should be 1";
         assert hoursSummary.totalAmount() == (double) hours : "Hours summary total should match hours";
         assert "hours".equals(hoursSummary.getId().getBaseUnit()) : "Base unit should be 'hours'";
