@@ -81,8 +81,9 @@ class MutationSensitiveTest {
     void should_not_increment_rejected_counter_on_success() {
         service.planRoute(aRequest("SCOUT", 10.0));
 
-        Counter counter = meterRegistry.get("routes.rejected.count").counter();
-        assertThat(counter.count()).isZero();
+        // Counter is registered lazily on first rejection; absence means zero rejections.
+        Counter counter = meterRegistry.find("routes.rejected.count").counter();
+        assertThat(counter).isNull();
     }
 
     @Test
