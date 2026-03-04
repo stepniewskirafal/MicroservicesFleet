@@ -6,7 +6,7 @@ services:
 
   eureka:
     build:
-      context: ../../..
+      context: ../..
       dockerfile: eureka-server/Dockerfile
     container_name: eureka
     ports:
@@ -152,7 +152,7 @@ services:
 
   starport-registry-1:
     build:
-      context: ../../..
+      context: ../..
       dockerfile: starport-registry/Dockerfile
     container_name: starport-registry-1
     depends_on:
@@ -183,7 +183,7 @@ services:
 
   starport-registry-2:
     build:
-      context: ../../..
+      context: ../..
       dockerfile: starport-registry/Dockerfile
     container_name: starport-registry-2
     depends_on:
@@ -214,7 +214,7 @@ services:
 
   trade-route-planner-1:
     build:
-      context: ../../..
+      context: ../..
       dockerfile: trade-route-planner/Dockerfile
     container_name: trade-route-planner-1
     depends_on:
@@ -237,7 +237,7 @@ services:
 
   trade-route-planner-2:
     build:
-      context: ../../..
+      context: ../..
       dockerfile: trade-route-planner/Dockerfile
     container_name: trade-route-planner-2
     depends_on:
