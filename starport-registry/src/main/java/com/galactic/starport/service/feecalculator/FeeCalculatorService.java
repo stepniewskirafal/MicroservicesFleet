@@ -24,12 +24,18 @@ class FeeCalculatorService implements FeeCalculator {
     FeeCalculatorService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
-        // Pre-register so the metric exists in Prometheus before the first request,
-        // making it immediately visible in Grafana dashboards.
-        DistributionSummary.builder(METRIC_FEE_AMOUNT)
-                .baseUnit("CR")
-                .description("Calculated reservation fee amount in Credits")
-                .register(meterRegistry);
+        // Pre-register billing-hours metric for every ship class so Prometheus exposes it
+        // from startup — before the first reservation request hits.
+        // METRIC_FEE_AMOUNT is NOT pre-registered here because it carries a dynamic
+        // "starport" tag; mixing a no-tag series with tagged series for the same metric
+        // name causes Prometheus label-cardinality conflicts and silently drops the metric.
+        for (ShipClass shipClass : ShipClass.values()) {
+            DistributionSummary.builder(METRIC_FEE_HOURS)
+                    .baseUnit("hours")
+                    .description("Charged hours used to calculate reservation fee")
+                    .tag("shipClass", shipClass.name())
+                    .register(meterRegistry);
+        }
     }
 
     @Override

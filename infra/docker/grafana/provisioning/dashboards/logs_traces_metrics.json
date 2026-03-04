@@ -102,14 +102,14 @@
             "id": 18,
             "options": {
                 "legend": {
-                    "calcs": [],
-                    "displayMode": "list",
+                    "calcs": ["mean", "lastNotNull"],
+                    "displayMode": "table",
                     "placement": "bottom",
                     "showLegend": true
                 },
                 "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
+                    "mode": "multi",
+                    "sort": "desc"
                 }
             },
             "targets": [
@@ -120,12 +120,26 @@
                     },
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval]) * 3600",
+                    "expr": "sum by(shipClass) (rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval])) * 3600",
                     "format": "time_series",
                     "instant": false,
-                    "legendFormat": "CR/hour",
+                    "legendFormat": "{{shipClass}}",
                     "range": true,
                     "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "PBFA97CFB590B2093"
+                    },
+                    "editorMode": "code",
+                    "exemplar": false,
+                    "expr": "sum(rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval])) * 3600",
+                    "format": "time_series",
+                    "instant": false,
+                    "legendFormat": "Total",
+                    "range": true,
+                    "refId": "B"
                 }
             ],
             "title": "Fee Revenue Rate (CR/hour)",
