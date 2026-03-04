@@ -105,8 +105,7 @@ class RoutePlannerExceptionHandlerTest {
 
         mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$['shipProfile.fuelRangeLY']").doesNotExist());
-        // The exact field path depends on framework; just confirm it's 422
+                .andExpect(jsonPath("$['shipProfile.fuelRangeLY']").isString());
     }
 
     // ── Malformed JSON ────────────────────────────────────────────────────────
