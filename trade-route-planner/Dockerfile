@@ -2,8 +2,10 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 
-# Copy root POM and module POM for dependency caching
+# Copy root POM and all module POMs for dependency caching
 COPY pom.xml ./
+COPY eureka-server/pom.xml ./eureka-server/
+COPY starport-registry/pom.xml ./starport-registry/
 COPY trade-route-planner/pom.xml ./trade-route-planner/
 
 RUN mvn -pl trade-route-planner -am dependency:go-offline -q
