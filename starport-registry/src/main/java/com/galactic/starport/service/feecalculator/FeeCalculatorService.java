@@ -24,6 +24,12 @@ class FeeCalculatorService implements FeeCalculator {
     FeeCalculatorService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
+        // Pre-register so the metric exists in Prometheus before the first request,
+        // making it immediately visible in Grafana dashboards.
+        DistributionSummary.builder(METRIC_FEE_AMOUNT)
+                .baseUnit("CR")
+                .description("Calculated reservation fee amount in Credits")
+                .register(meterRegistry);
     }
 
     @Override
