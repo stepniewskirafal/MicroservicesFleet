@@ -6,7 +6,7 @@ services:
 
   eureka:
     build:
-      context: ../../
+      context: ../../..
       dockerfile: eureka-server/Dockerfile
     container_name: eureka
     ports:
@@ -37,6 +37,53 @@ services:
       - ./prometheus:/etc/prometheus:ro
     ports:
       - "9090:9090"
+
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready | grep -q 'ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail:/etc/promtail:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health | grep -q '\"database\": \"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   postgres:
     image: postgres:16-alpine
@@ -105,7 +152,7 @@ services:
 
   starport-registry-1:
     build:
-      context: ../../
+      context: ../../..
       dockerfile: starport-registry/Dockerfile
     container_name: starport-registry-1
     depends_on:
@@ -136,7 +183,7 @@ services:
 
   starport-registry-2:
     build:
-      context: ../../
+      context: ../../..
       dockerfile: starport-registry/Dockerfile
     container_name: starport-registry-2
     depends_on:
@@ -167,7 +214,7 @@ services:
 
   trade-route-planner-1:
     build:
-      context: ../../
+      context: ../../..
       dockerfile: trade-route-planner/Dockerfile
     container_name: trade-route-planner-1
     depends_on:
@@ -190,7 +237,7 @@ services:
 
   trade-route-planner-2:
     build:
-      context: ../../
+      context: ../../..
       dockerfile: trade-route-planner/Dockerfile
     container_name: trade-route-planner-2
     depends_on:
@@ -210,3 +257,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 45s
+
+volumes:
+  grafana-data:
