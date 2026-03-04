@@ -59,8 +59,10 @@ class InboxPublisher {
         Timer.Sample sample = Timer.start(meterRegistry);
         String outcome = "success";
         boolean anyFailure = false;
+        int actualBatchSize = 0;
         try {
             List<OutboxEventEntity> batch = repo.lockBatchPending(batchSize);
+            actualBatchSize = batch.size();
             if (batch.isEmpty()) {
                 outcome = "empty";
                 return;
@@ -82,11 +84,10 @@ class InboxPublisher {
             outcome = "error";
             throw ex;
         } finally {
-            // batchSize removed from tags: values 0..50 would create high cardinality.
-            // Use the METRIC_BATCH_SIZE DistributionSummary above for batch size analysis.
             sample.stop(Timer.builder(METRIC_POLL_DURATION)
                     .description("Outbox poll+publish batch duration")
                     .tag("outcome", outcome)
+                    .tag("batchSize", String.valueOf(actualBatchSize))
                     .register(meterRegistry));
         }
     }

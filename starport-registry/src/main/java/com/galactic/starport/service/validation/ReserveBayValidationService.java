@@ -33,13 +33,22 @@ class ReserveBayValidationService implements ReserveBayValidator, Validator {
     @Override
     public void validate(Object target, Errors errors) {
         ReserveBayCommand command = (ReserveBayCommand) target;
-        Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("routeRequested", String.valueOf(command.requestRoute()))
-                .observe(() -> {
-                    for (ReserveBayCommandValidationRule rule : validationRules) {
-                        rule.validate(command, errors);
-                    }
-                });
+        Observation parent = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
+                .lowCardinalityKeyValue("routeRequested", String.valueOf(command.requestRoute()));
+        parent.start();
+        try (Observation.Scope scope = parent.openScope()) {
+            for (ReserveBayCommandValidationRule rule : validationRules) {
+                Observation.createNotStarted("validation.rule", observationRegistry)
+                        .lowCardinalityKeyValue("rule", rule.getClass().getSimpleName())
+                        .parentObservation(parent)
+                        .observe(() -> rule.validate(command, errors));
+            }
+        } catch (Exception ex) {
+            parent.error(ex);
+            throw ex;
+        } finally {
+            parent.stop();
+        }
         log.info("Reservation command validated. errorsCount={}", errors.getErrorCount());
     }
 
