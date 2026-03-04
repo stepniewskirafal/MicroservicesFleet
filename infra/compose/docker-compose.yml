@@ -1,4 +1,9 @@
 services:
+
+  # ─────────────────────────────────────────────
+  # INFRASTRUCTURE
+  # ─────────────────────────────────────────────
+
   eureka:
     build:
       context: ../../
@@ -18,7 +23,12 @@ services:
     container_name: zipkin
     ports:
       - "9411:9411"
-    # prosto: bez healthchecka (Zipkin jest lekki i szybki)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9411/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   prometheus:
     image: prom/prometheus:latest
@@ -48,35 +58,34 @@ services:
     image: apache/kafka:3.7.0
     container_name: kafka
     ports:
-      - "9092:9092"               # tylko HOST listener wystawiamy na zewnątrz
+      - "9092:9092"               # HOST listener – dostępny z localhost (Postman, IntelliJ)
     environment:
-      # KRaft (bez Zookeepera)
+      # KRaft – bez Zookeepera
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
 
-      # === LISTENERS ===
-      # Broker nasłuchuje na 3 gniazdach:
-      # - PLAINTEXT_HOST: dla klientów z hosta (IntelliJ) -> localhost:9092
-      # - PLAINTEXT_DOCKER: dla kontenerów w sieci Compose -> kafka:9093
-      # - CONTROLLER: KRaft quorum
+      # Broker nasłuchuje na 3 adresach:
+      #  PLAINTEXT_HOST   – klienci z hosta (localhost:9092)
+      #  PLAINTEXT_DOCKER – kontenery w sieci Compose (kafka:9093)
+      #  CONTROLLER       – KRaft quorum
       KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
-
-      # To, co broker ogłasza klientom (metadata):
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_DOCKER://kafka:9093
-
-      # Mapowanie nazw listenerów na protokoły
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
-
-      # Komunikacja między brokerami (tu single-node) po „dockerowym” listenerze
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_DOCKER
 
-      # Pozostałe sensowne domyślne
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_NUM_PARTITIONS: 1
+    healthcheck:
+      # Broker jest gotowy, gdy odpowiada na API-versions request
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9093 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -88,21 +97,26 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────
+  # APPLICATION SERVICES
+  # ─────────────────────────────────────────────
 
   starport-registry-1:
     build:
       context: ../../
       dockerfile: starport-registry/Dockerfile
+    container_name: starport-registry-1
     depends_on:
       eureka:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      zipkin:
-        condition: service_started
       kafka:
-        condition: service_started
+        condition: service_healthy
+      zipkin:
+        condition: service_healthy
     environment:
       PORT: 8081
       EUREKA_URL: http://eureka:8761/eureka
@@ -118,21 +132,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 40s
+      start_period: 60s
 
   starport-registry-2:
     build:
       context: ../../
       dockerfile: starport-registry/Dockerfile
+    container_name: starport-registry-2
     depends_on:
       eureka:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      zipkin:
-        condition: service_started
       kafka:
-        condition: service_started
+        condition: service_healthy
+      zipkin:
+        condition: service_healthy
     environment:
       PORT: 8084
       EUREKA_URL: http://eureka:8761/eureka
@@ -148,17 +163,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 40s
+      start_period: 60s
 
   trade-route-planner-1:
     build:
       context: ../../
       dockerfile: trade-route-planner/Dockerfile
+    container_name: trade-route-planner-1
     depends_on:
       eureka:
         condition: service_healthy
       zipkin:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
@@ -170,17 +186,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 45s
 
   trade-route-planner-2:
     build:
       context: ../../
       dockerfile: trade-route-planner/Dockerfile
+    container_name: trade-route-planner-2
     depends_on:
       eureka:
         condition: service_healthy
       zipkin:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8083
       EUREKA_URL: http://eureka:8761/eureka
@@ -192,4 +209,4 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 45s
