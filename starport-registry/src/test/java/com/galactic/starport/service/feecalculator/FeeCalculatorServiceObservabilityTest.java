@@ -86,13 +86,14 @@ class FeeCalculatorServiceObservabilityTest {
                 .hasMeterWithName("reservations.fees.calculated.hours");
 
         // and - podsumowanie kwoty opłaty jest spójne z wynikiem biznesowym
+        // "starport" tag removed from the metric — dynamic, high-cardinality values break
+        // Prometheus label-consistency; the dashboard aggregates by shipClass anyway.
         DistributionSummary feeSummary = meterRegistry.get("reservations.fees.calculated.amount")
-                .tag("starport", DEST)
                 .tag("shipClass", "FREIGHTER")
                 .summary();
         assert feeSummary.count() == 1 : "Fee summary count should be 1";
         assert feeSummary.totalAmount() == fee.doubleValue() : "Fee summary total should match fee";
-        assert "CR".equals(feeSummary.getId().getBaseUnit()) : "Base unit should be 'CR'";
+        assert "cr".equals(feeSummary.getId().getBaseUnit()) : "Base unit should be 'cr'";
         assert "Calculated reservation fee amount in Credits".equals(feeSummary.getId().getDescription())
                 : "Description should match";
 

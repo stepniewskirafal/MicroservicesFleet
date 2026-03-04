@@ -24,12 +24,17 @@ class FeeCalculatorService implements FeeCalculator {
     FeeCalculatorService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
-        // Pre-register billing-hours metric for every ship class so Prometheus exposes it
-        // from startup — before the first reservation request hits.
-        // METRIC_FEE_AMOUNT is NOT pre-registered here because it carries a dynamic
-        // "starport" tag; mixing a no-tag series with tagged series for the same metric
-        // name causes Prometheus label-cardinality conflicts and silently drops the metric.
+        // Pre-register both metrics for every ship class so Prometheus exposes them
+        // from startup — before the first reservation request arrives.
+        // Both metrics use only the "shipClass" tag (finite, enumerable set), which
+        // guarantees a consistent label cardinality across all series for the same
+        // metric name — a hard requirement of the Prometheus data model.
         for (ShipClass shipClass : ShipClass.values()) {
+            DistributionSummary.builder(METRIC_FEE_AMOUNT)
+                    .baseUnit("cr")
+                    .description("Calculated reservation fee amount in Credits")
+                    .tag("shipClass", shipClass.name())
+                    .register(meterRegistry);
             DistributionSummary.builder(METRIC_FEE_HOURS)
                     .baseUnit("hours")
                     .description("Charged hours used to calculate reservation fee")
@@ -47,11 +52,13 @@ class FeeCalculatorService implements FeeCalculator {
                     long billingHours = calculateBillingHours(command);
                     BigDecimal fee = calculateFeeAmount(command.shipClass(), billingHours);
 
-                    // Revenue by starport + ship class — Micrometer caches meters by (name+tags).
+                    // Revenue by ship class — Micrometer caches meters by (name+tags).
+                    // "starport" is intentionally omitted: it is a high-cardinality, dynamic
+                    // value that would prevent pre-registration and violate Prometheus'
+                    // label-consistency requirement across series of the same metric name.
                     DistributionSummary.builder(METRIC_FEE_AMOUNT)
-                            .baseUnit("CR")
+                            .baseUnit("cr")
                             .description("Calculated reservation fee amount in Credits")
-                            .tag("starport", command.destinationStarportCode())
                             .tag("shipClass", command.shipClass().name())
                             .register(meterRegistry)
                             .record(fee.doubleValue());
