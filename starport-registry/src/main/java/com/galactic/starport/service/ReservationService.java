@@ -1,6 +1,7 @@
 package com.galactic.starport.service;
 
 import com.galactic.starport.service.confirmreservation.ConfirmReservationFacade;
+import com.galactic.starport.service.confirmreservation.ReservationConfirmationException;
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
@@ -64,6 +65,14 @@ public class ReservationService {
                     "starport", starport,
                     "shipClass", shipClass,
                     "reason", "route_unavailable")
+                    .increment();
+            throw e;
+
+        } catch (ReservationConfirmationException e) {
+            meterRegistry.counter(METRIC_CREATED,
+                    "starport", starport,
+                    "shipClass", shipClass,
+                    "outcome", "error")
                     .increment();
             throw e;
         }
