@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-class PlanRouteService implements PlanRouteUseCase {
+public class PlanRouteService implements PlanRouteUseCase {
 
     private static final double MIN_FUEL_RANGE_LY = 1.0;
     private static final String OBSERVATION_NAME = "routes.plan";
@@ -29,7 +29,7 @@ class PlanRouteService implements PlanRouteUseCase {
     private final MeterRegistry meterRegistry;
     private final Counter plannedCounter;
 
-    PlanRouteService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
+    public PlanRouteService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)
