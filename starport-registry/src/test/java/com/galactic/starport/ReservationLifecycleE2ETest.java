@@ -46,13 +46,13 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
         // then - rezerwacja potwierdzona z trasą
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                1,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        Map<String, Object> row = jdbc.queryForMap(
+                "select r.status, r.fee_charged, count(rt.id) as route_count" +
+                " from reservation r left join route rt on rt.reservation_id = r.id" +
+                " where r.id = ? group by r.status, r.fee_charged", id);
+        assertEquals("CONFIRMED", row.get("status"));
+        assertNotNull(row.get("fee_charged"));
+        assertEquals(1L, row.get("route_count"));
     }
 
     @Test
@@ -87,12 +87,12 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
         // then - rezerwacja potwierdzona bez trasy
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                0,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        Map<String, Object> row = jdbc.queryForMap(
+                "select r.status, r.fee_charged, count(rt.id) as route_count" +
+                " from reservation r left join route rt on rt.reservation_id = r.id" +
+                " where r.id = ? group by r.status, r.fee_charged", id);
+        assertEquals("CONFIRMED", row.get("status"));
+        assertNotNull(row.get("fee_charged"));
+        assertEquals(0L, row.get("route_count"));
     }
 }
