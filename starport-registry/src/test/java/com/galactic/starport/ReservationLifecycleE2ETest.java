@@ -3,6 +3,7 @@ package com.galactic.starport;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,20 @@ import org.springframework.http.ResponseEntity;
  * ATDD: obsługa błędów i cykl życia rezerwacji – scenariusze integracyjne.
  */
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
+
+    record ReservationSnapshot(String status, BigDecimal feeCharged, int routeCount) {}
+
+    private ReservationSnapshot fetchSnapshot(long reservationId) {
+        return jdbc.queryForObject(
+                "select r.status, r.fee_charged, count(rt.id) as route_count" +
+                " from reservation r left join route rt on rt.reservation_id = r.id" +
+                " where r.id = ? group by r.status, r.fee_charged",
+                (rs, _) -> new ReservationSnapshot(
+                        rs.getString("status"),
+                        rs.getBigDecimal("fee_charged"),
+                        rs.getInt("route_count")),
+                reservationId);
+    }
 
     @Test
     void lifecycleCreateAndConfirmReservationWithRoute() throws Exception {
@@ -45,13 +60,10 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
         // then - rezerwacja potwierdzona z trasą
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                1,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        ReservationSnapshot snapshot = fetchSnapshot(id);
+        assertEquals("CONFIRMED", snapshot.status());
+        assertNotNull(snapshot.feeCharged());
+        assertEquals(1, snapshot.routeCount());
     }
 
     @Test
@@ -86,12 +98,9 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
         // then - rezerwacja potwierdzona bez trasy
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                0,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        ReservationSnapshot snapshot = fetchSnapshot(id);
+        assertEquals("CONFIRMED", snapshot.status());
+        assertNotNull(snapshot.feeCharged());
+        assertEquals(0, snapshot.routeCount());
     }
 }
