@@ -16,7 +16,6 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
     @Test
     void lifecycleCreateAndConfirmReservationWithRoute() throws Exception {
-        // given - unikalne kody per metoda, brak konfliktu przy równoległym wykonaniu
         String starport = "DEF-LC-WR";
         String customerCode = "CUST-LC-WR";
         String shipCode = "SS-LC-WR-01";
