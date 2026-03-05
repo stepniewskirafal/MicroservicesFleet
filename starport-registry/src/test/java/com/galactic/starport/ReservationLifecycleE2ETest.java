@@ -22,7 +22,7 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
                 "select r.status, r.fee_charged, count(rt.id) as route_count" +
                 " from reservation r left join route rt on rt.reservation_id = r.id" +
                 " where r.id = ? group by r.status, r.fee_charged",
-                (rs, _) -> new ReservationSnapshot(
+                (rs, rowNum) -> new ReservationSnapshot(
                         rs.getString("status"),
                         rs.getBigDecimal("fee_charged"),
                         rs.getInt("route_count")),
