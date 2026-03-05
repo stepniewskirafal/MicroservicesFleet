@@ -5,9 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.time.Instant;
 import java.util.Map;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
@@ -22,31 +20,24 @@ import org.springframework.http.ResponseEntity;
  * wewnętrznej implementacji.
  */
 @AutoConfigureObservability
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
-    // Unikalne kody per klasa – brak konfliktu z ReservationApiE2ETest (używa "DEF", "CUST-001", "SS-Enterprise-01")
-    private static final String STARPORT = "DEF-LIFECYCLE";
     private static final String CUSTOMER_CODE = "CUST-LC-001";
     private static final String SHIP_CODE = "SS-LC-Enterprise-01";
 
-    @BeforeAll
-    void setup() {
-        // Brak purgeAndReset() – nie niszczymy danych innych równoległych klas testowych.
-        // Unikalne kody zapewniają izolację bez potrzeby truncate.
+    @Test
+    void lifecycleCreateAndConfirmReservationWithRoute() throws Exception {
+        // given - każdy test ma własny unikalny starport → brak konfliktu INSERT przy równoległym starcie
+        String starport = "DEF-LC-WR";
         seedDefaultReservationFixture(
-                STARPORT,
+                starport,
                 Map.of(
                         "destinationName", "Alpha Base Central",
                         "customerCode", CUSTOMER_CODE,
                         "customerName", "Lifecycle Customer",
                         "shipCode", SHIP_CODE));
-    }
 
-    @Test
-    void lifecycleCreateAndConfirmReservationWithRoute() throws Exception {
-        // given - Utworzenie rezerwacji z planowaniem trasy
         Instant start = Instant.now().plusSeconds(100);
         Instant end = start.plusSeconds(60);
         Map<String, Object> withRoute = makePayload(Map.of(
@@ -57,11 +48,10 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
                 "shipCode", SHIP_CODE));
 
         // when - Wywołanie API
-        ResponseEntity<String> resp = postReservation(STARPORT, withRoute);
+        ResponseEntity<String> resp = postReservation(starport, withRoute);
 
         // then - Rezerwacja jest potwierdzona i ma trasę
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
-        // ID z odpowiedzi – brak race condition (nie ma "order by id desc limit 1")
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
         assertEquals(
                 "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
@@ -74,8 +64,16 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
     @Test
     void lifecycleCreateAndConfirmReservationWithoutRoute() throws Exception {
-        // given - Utworzenie rezerwacji bez planowania trasy
-        // Przedział czasowy nie nakłada się z lifecycleCreateAndConfirmReservationWithRoute (200s > 160s)
+        // given - osobny starport → brak konfliktu INSERT z lifecycleCreateAndConfirmReservationWithRoute
+        String starport = "DEF-LC-NR";
+        seedDefaultReservationFixture(
+                starport,
+                Map.of(
+                        "destinationName", "Alpha Base Central",
+                        "customerCode", CUSTOMER_CODE,
+                        "customerName", "Lifecycle Customer",
+                        "shipCode", SHIP_CODE));
+
         Instant start = Instant.now().plusSeconds(200);
         Instant end = start.plusSeconds(60);
         Map<String, Object> noRoute = makePayload(Map.of(
@@ -86,7 +84,7 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
                 "shipCode", SHIP_CODE));
 
         // when - Wywołanie API
-        ResponseEntity<String> resp = postReservation(STARPORT, noRoute);
+        ResponseEntity<String> resp = postReservation(starport, noRoute);
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
 
         // then - Rezerwacja jest potwierdzona bez trasy
