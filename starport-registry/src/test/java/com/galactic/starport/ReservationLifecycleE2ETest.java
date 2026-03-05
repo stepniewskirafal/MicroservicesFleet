@@ -7,12 +7,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
  * ATDD: obsługa błędów i cykl życia rezerwacji – scenariusze integracyjne.
  */
+@ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
     record ReservationSnapshot(String status, BigDecimal feeCharged, int routeCount) {}
