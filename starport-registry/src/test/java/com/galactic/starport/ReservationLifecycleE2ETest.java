@@ -3,40 +3,46 @@ package com.galactic.starport;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
  * ATDD: obsługa błędów i cykl życia rezerwacji – scenariusze integracyjne.
- *
  */
-//
-
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
-    // Unikalne kody per klasa – brak konfliktu z ReservationApiE2ETest (używa "DEF", "CUST-001", "SS-Enterprise-01")
-    private static final String STARPORT = "DEF-LIFECYCLE";
-    private static final String CUSTOMER_CODE = "CUST-LC-001";
-    private static final String SHIP_CODE = "SS-LC-Enterprise-01";
+    record ReservationSnapshot(String status, BigDecimal feeCharged, int routeCount) {}
+
+    private ReservationSnapshot fetchSnapshot(long reservationId) {
+        return jdbc.queryForObject(
+                "select r.status, r.fee_charged, count(rt.id) as route_count" +
+                " from reservation r left join route rt on rt.reservation_id = r.id" +
+                " where r.id = ? group by r.status, r.fee_charged",
+                (rs, rowNum) -> new ReservationSnapshot(
+                        rs.getString("status"),
+                        rs.getBigDecimal("fee_charged"),
+                        rs.getInt("route_count")),
+                reservationId);
+    }
 
     @Test
     void lifecycleCreateAndConfirmReservationWithRoute() throws Exception {
-        // given - Utworzenie rezerwacji z planowaniem trasy
+        String starport = "DEF-LC-WR";
+        String customerCode = "CUST-LC-WR";
+        String shipCode = "SS-LC-WR-01";
+
         seedDefaultReservationFixture(
-                STARPORT,
+                starport,
                 Map.of(
+                        "originCode", "ALPHA-BASE-WR",
                         "destinationName", "Alpha Base Central",
-                        "customerCode", CUSTOMER_CODE,
+                        "customerCode", customerCode,
                         "customerName", "Lifecycle Customer",
-                        "shipCode", SHIP_CODE));
+                        "shipCode", shipCode));
 
         Instant start = Instant.now().plusSeconds(100);
         Instant end = start.plusSeconds(60);
@@ -44,58 +50,56 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
                 "requestRoute", true,
                 "startAt", start.toString(),
                 "endAt", end.toString(),
-                "customerCode", CUSTOMER_CODE,
-                "shipCode", SHIP_CODE));
+                "customerCode", customerCode,
+                "shipCode", shipCode,
+                "originPortId", "ALPHA-BASE-WR"));
 
-        // when - Wywołanie API
-        ResponseEntity<String> resp = postReservation(STARPORT, withRoute);
+        // when
+        ResponseEntity<String> resp = postReservation(starport, withRoute);
 
-        // then - Rezerwacja jest potwierdzona i ma trasę
+        // then - rezerwacja potwierdzona z trasą
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
-        // ID z odpowiedzi – brak race condition (nie ma "order by id desc limit 1")
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                1,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        ReservationSnapshot snapshot = fetchSnapshot(id);
+        assertEquals("CONFIRMED", snapshot.status());
+        assertNotNull(snapshot.feeCharged());
+        assertEquals(1, snapshot.routeCount());
     }
 
     @Test
     void lifecycleCreateAndConfirmReservationWithoutRoute() throws Exception {
-        // given - Utworzenie rezerwacji bez planowania trasy
-        // Przedział czasowy nie nakłada się z lifecycleCreateAndConfirmReservationWithRoute (200s > 160s)
-        seedDefaultReservationFixture(
-                STARPORT,
-                Map.of(
-                        "destinationName", "Alpha Base Central",
-                        "customerCode", CUSTOMER_CODE,
-                        "customerName", "Lifecycle Customer",
-                        "shipCode", SHIP_CODE));
+        String starport = "DEF-LC-NR";
+        String customerCode = "CUST-LC-NR";
+        String shipCode = "SS-LC-NR-01";
 
-        Instant start = Instant.now().plusSeconds(200);
+        seedDefaultReservationFixture(
+                starport,
+                Map.of(
+                        "originCode", "ALPHA-BASE-NR",
+                        "destinationName", "Alpha Base Central",
+                        "customerCode", customerCode,
+                        "customerName", "Lifecycle Customer",
+                        "shipCode", shipCode));
+
+        Instant start = Instant.now().plusSeconds(100);
         Instant end = start.plusSeconds(60);
         Map<String, Object> noRoute = makePayload(Map.of(
                 "requestRoute", false,
                 "startAt", start.toString(),
                 "endAt", end.toString(),
-                "customerCode", CUSTOMER_CODE,
-                "shipCode", SHIP_CODE));
+                "customerCode", customerCode,
+                "shipCode", shipCode,
+                "originPortId", "ALPHA-BASE-NR"));
 
-        // when - Wywołanie API
-        ResponseEntity<String> resp = postReservation(STARPORT, noRoute);
+        // when
+        ResponseEntity<String> resp = postReservation(starport, noRoute);
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
 
-        // then - Rezerwacja jest potwierdzona bez trasy
+        // then - rezerwacja potwierdzona bez trasy
         Long id = ((Number) parseJson(resp).get("reservationId")).longValue();
-        assertEquals(
-                "CONFIRMED", jdbc.queryForObject("select status from reservation where id = ?", String.class, id));
-        assertNotNull(
-                jdbc.queryForObject("select fee_charged from reservation where id = ?", java.math.BigDecimal.class, id));
-        assertEquals(
-                0,
-                jdbc.queryForObject("select count(*) from route where reservation_id = ?", Integer.class, id));
+        ReservationSnapshot snapshot = fetchSnapshot(id);
+        assertEquals("CONFIRMED", snapshot.status());
+        assertNotNull(snapshot.feeCharged());
+        assertEquals(0, snapshot.routeCount());
     }
 }
