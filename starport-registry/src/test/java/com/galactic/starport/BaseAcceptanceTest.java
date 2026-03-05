@@ -8,6 +8,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -23,6 +25,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ)
 public abstract class BaseAcceptanceTest {
 
     public static final WireMockServer wireMock;

@@ -86,6 +86,7 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     }
 
     @Test
+    @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
     void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
         // given — override default WireMock stub to return 422
         wireMock.resetAll();
