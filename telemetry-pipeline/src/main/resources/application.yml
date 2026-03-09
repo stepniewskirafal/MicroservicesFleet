@@ -1,0 +1,127 @@
+server:
+  port: ${PORT:8090}
+
+spring:
+  application:
+    name: telemetry-pipeline
+  cloud:
+    function:
+      definition: telemetryPipeline
+    discovery:
+      enabled: true
+
+    stream:
+      defaultBinder: kafka
+
+      function:
+        definition: telemetryPipeline
+
+      bindings:
+        telemetryPipeline-in-0:
+          destination: telemetry.raw
+          group: telemetry-pipeline
+          content-type: application/json
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+        telemetryPipeline-out-0:
+          destination: telemetry.alerts
+          content-type: application/json
+
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          autoCreateTopics: true
+          autoAddPartitions: false
+          configuration:
+            auto.offset.reset: latest
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# Sensor threshold defaults — override per environment
+telemetry:
+  thresholds:
+    sensors:
+      TEMPERATURE:
+        lower: -50.0
+        upper: 300.0
+      RADIATION:
+        lower: 0.0
+        upper: 1000.0
+      FUEL_LEVEL:
+        lower: 5.0
+        upper: 100.0
+      ENGINE_VIBRATION:
+        lower: 0.0
+        upper: 80.0
+      HULL_INTEGRITY:
+        lower: 20.0
+        upper: 100.0
+      OXYGEN_LEVEL:
+        lower: 18.0
+        upper: 100.0
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    healthcheck:
+      enabled: true
+  instance:
+    instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://tempo:4318/v1/traces
+    logging:
+      export:
+        otlp:
+          endpoint: http://tempo:4318/v1/logs
+  metrics:
+    distribution:
+      percentiles-histogram:
+        telemetry.filter.validation: true
+        telemetry.filter.enrichment: true
+        telemetry.filter.aggregation: true
+        telemetry.filter.anomaly: true
+      slo:
+        telemetry.filter.validation: 1ms,5ms,10ms,50ms
+        telemetry.filter.enrichment: 1ms,5ms,10ms,50ms
+        telemetry.filter.aggregation: 1ms,5ms,10ms,50ms
+        telemetry.filter.anomaly: 1ms,5ms,10ms,50ms
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,liveness,readiness
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+
+logging:
+  level:
+    com.galactic.telemetry: DEBUG
+    org.springframework.cloud.stream: INFO
+    org.springframework.kafka: INFO
