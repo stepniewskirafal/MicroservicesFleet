@@ -48,6 +48,20 @@
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
 
+		<!--
+		  Explicit Jersey 1.x client — required by EurekaJerseyClientAutoConfiguration
+		  to register the TransportClientFactories<?> bean needed by Spring Cloud
+		  Netflix 4.3.0's eurekaClient() factory method.
+		  Without this, spring-cloud-starter-stream-kafka's transitive dependency
+		  tree interferes with Jersey class resolution, leaving no TransportClientFactories
+		  bean and causing an UnsatisfiedDependencyException at startup.
+		-->
+		<dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-client</artifactId>
+			<version>1.19.4</version>
+		</dependency>
+
 		<!-- Observability: Prometheus + Micrometer -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
