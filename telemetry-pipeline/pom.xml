@@ -24,6 +24,12 @@
 	</properties>
 
 	<dependencies>
+		<!-- Web: required for Eureka transport + Actuator endpoints -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
 		<!-- Spring Cloud Stream + Kafka binder -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
