@@ -18,6 +18,11 @@ scrape_configs:
       - targets: ["host.docker.internal:8081"]
 
 
+  - job_name: "telemetry-pipeline"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8090", "host.docker.internal:8091"]
+
   - job_name: "loki"
     metrics_path: /metrics
     static_configs:

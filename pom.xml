@@ -21,6 +21,7 @@
         <module>eureka-server</module>
         <module>starport-registry</module>
         <module>trade-route-planner</module>
+        <module>telemetry-pipeline</module>
     </modules>
 
     <properties>
