@@ -32,7 +32,7 @@ spring:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
           autoCreateTopics: true
-          autoAddPartitions: false
+          autoAddPartitions: true
           configuration:
             auto.offset.reset: latest
 
