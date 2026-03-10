@@ -15,8 +15,12 @@ scrape_configs:
   - job_name: "starport-registry"
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["host.docker.internal:8081"]
+      - targets: ["host.docker.internal:8081", "host.docker.internal:8084"]
 
+  - job_name: "trade-route-planner"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8082", "host.docker.internal:8083"]
 
   - job_name: "telemetry-pipeline"
     metrics_path: /actuator/prometheus
