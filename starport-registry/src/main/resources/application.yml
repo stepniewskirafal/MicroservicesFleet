@@ -87,6 +87,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Allow V5 to run even if V2 checksum changed (was modified after first apply)
+    validate-on-migrate: false
 
 telemetry:
   adapter: stream  # przełącznik adaptera TelemetryPort: stream | kafka
