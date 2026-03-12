@@ -2,6 +2,7 @@ package com.galactic.starport.service.routeplanner;
 
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -39,6 +40,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     }
 
     @Override
+    @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
     public Route calculateRoute(ReserveBayCommand command) {
         if (!command.requestRoute()) {
             return null;
@@ -47,6 +49,14 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                 .lowCardinalityKeyValue("startStarport", command.startStarportCode())
                 .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
                 .observe(() -> callTradeRoutePlanner(command));
+    }
+
+    private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
+        incrementErrorCounter("circuit_open");
+        log.warn("Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
+                command.startStarportCode(), command.destinationStarportCode());
+        throw new RouteUnavailableException(
+                command.startStarportCode(), command.destinationStarportCode(), t);
     }
 
     private Route callTradeRoutePlanner(ReserveBayCommand command) {

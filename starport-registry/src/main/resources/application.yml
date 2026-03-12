@@ -1,5 +1,11 @@
 server:
   port: ${PORT:8081}
+  tomcat:
+    threads:
+      max: 60
+      min-spare: 15
+    accept-count: 200
+    max-connections: 2000
 
 spring:
   application:
@@ -8,12 +14,17 @@ spring:
   task:
     scheduling:
       pool:
-        size: 1
+        size: 2
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/starports}
     username: ${DB_USER:postgres}
     password: ${DB_PASS:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 5000
+      leak-detection-threshold: 10000
 
   jpa:
     open-in-view: false
@@ -36,7 +47,7 @@ spring:
       # Removes instances that return non-2xx from the active pool without waiting for Eureka eviction.
       health-check:
         initial-delay: 0s
-        interval: 15s
+        interval: 5s
         path:
           default: /actuator/health
       # LB stats via Micrometer — enable and avoid high-cardinality path tags
@@ -170,10 +181,26 @@ app:
       reservations: reservationCreated-out-0
       tariffs:      tariffCalculated-out-0
       routeChanges: routeChanged-out-0
-  poll-interval-ms: 30000
-  batch-size: 50
+  poll-interval-ms: 5000
+  batch-size: 200
   max-attempts: 10
 
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      trade-route-planner:
+        register-health-indicator: true
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-type: COUNT_BASED
+  timelimiter:
+    instances:
+      trade-route-planner:
+        timeout-duration: 3s
 
 downstream:
   http:
