@@ -97,14 +97,11 @@ eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
-    # Push Spring Boot Actuator health status to Eureka so the registry reflects
-    # the real application state (UP/DOWN/OUT_OF_SERVICE), not just heartbeat liveness.
     healthcheck:
       enabled: true
   instance:
     instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
     prefer-ip-address: true
-    # Reduce the time Eureka needs to detect a lost instance
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
@@ -112,10 +109,6 @@ management:
   endpoint:
     health:
       show-details: always
-      # Expose /actuator/health/liveness and /actuator/health/readiness as separate groups.
-      # readiness: used by load-balancers and Kubernetes readiness probes to decide if the
-      #            instance should receive traffic.
-      # liveness:  used by orchestrators (K8s) to decide if the process should be restarted.
       probes:
         enabled: true
     prometheus:
@@ -130,13 +123,10 @@ management:
       export:
         otlp:
           endpoint: http://tempo:4318/v1/traces
-          # jeśli masz opcję transportu w tej wersji Boota:
-          # transport: HTTP
     logging:
       export:
         otlp:
           endpoint: http://tempo:4318/v1/logs
-          # transport: HTTP
   metrics:
     distribution:
       percentiles-histogram:
@@ -206,8 +196,6 @@ resilience4j:
 
 downstream:
   http:
-    # Connect and read timeouts for outbound HTTP calls to trade-route-planner.
-    # Keep these tight to avoid thread exhaustion under downstream slowness.
     connect-timeout-ms: 200
     read-timeout-ms: 2000
 
