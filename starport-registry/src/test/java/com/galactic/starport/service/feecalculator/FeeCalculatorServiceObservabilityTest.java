@@ -44,7 +44,6 @@ class FeeCalculatorServiceObservabilityTest {
                 .requestRoute(true)
                 .build();
 
-        
         BigDecimal fee = feeCalculatorService.calculateFee(cmd);
 
         TestObservationRegistryAssert.assertThat(observationRegistry)
@@ -60,7 +59,7 @@ class FeeCalculatorServiceObservabilityTest {
 
     @Test
     void calculateFeeRecordsFeeAndHoursDistributionSummaries() {
-        
+
         Instant start = Instant.parse("2003-01-01T00:00:00Z");
         long hours = 2L;
         ReserveBayCommand cmd = ReserveBayCommand.builder()
@@ -74,30 +73,33 @@ class FeeCalculatorServiceObservabilityTest {
                 .requestRoute(true)
                 .build();
 
-        
         BigDecimal fee = feeCalculatorService.calculateFee(cmd);
 
         MeterRegistryAssert.assertThat(meterRegistry)
                 .hasMeterWithName("reservations.fees.calculated.amount")
                 .hasMeterWithName("reservations.fees.calculated.hours");
 
-        DistributionSummary feeSummary = meterRegistry.get("reservations.fees.calculated.amount")
+        DistributionSummary feeSummary = meterRegistry
+                .get("reservations.fees.calculated.amount")
                 .tag("starport", DEST)
                 .tag("shipClass", "FREIGHTER")
                 .summary();
         assert feeSummary.count() == 1 : "Fee summary count should be 1";
         assert feeSummary.totalAmount() == fee.doubleValue() : "Fee summary total should match fee";
         assert "cr".equals(feeSummary.getId().getBaseUnit()) : "Base unit should be 'cr'";
-        assert "Calculated reservation fee amount in Credits".equals(feeSummary.getId().getDescription())
+        assert "Calculated reservation fee amount in Credits"
+                        .equals(feeSummary.getId().getDescription())
                 : "Description should match";
 
-        DistributionSummary hoursSummary = meterRegistry.get("reservations.fees.calculated.hours")
+        DistributionSummary hoursSummary = meterRegistry
+                .get("reservations.fees.calculated.hours")
                 .tag("shipClass", "FREIGHTER")
                 .summary();
         assert hoursSummary.count() == 1 : "Hours summary count should be 1";
         assert hoursSummary.totalAmount() == (double) hours : "Hours summary total should match hours";
         assert "hours".equals(hoursSummary.getId().getBaseUnit()) : "Base unit should be 'hours'";
-        assert "Charged hours used to calculate reservation fee".equals(hoursSummary.getId().getDescription())
+        assert "Charged hours used to calculate reservation fee"
+                        .equals(hoursSummary.getId().getDescription())
                 : "Description should match";
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
- * ATDD: obsługa błędów i cykl życia rezerwacji – scenariusze integracyjne.
+ * ATDD: error handling and reservation lifecycle – integration scenarios.
  */
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
@@ -22,13 +22,11 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
 
     private ReservationSnapshot fetchSnapshot(long reservationId) {
         return jdbc.queryForObject(
-                "select r.status, r.fee_charged, count(rt.id) as route_count" +
-                " from reservation r left join route rt on rt.reservation_id = r.id" +
-                " where r.id = ? group by r.status, r.fee_charged",
+                "select r.status, r.fee_charged, count(rt.id) as route_count"
+                        + " from reservation r left join route rt on rt.reservation_id = r.id"
+                        + " where r.id = ? group by r.status, r.fee_charged",
                 (rs, rowNum) -> new ReservationSnapshot(
-                        rs.getString("status"),
-                        rs.getBigDecimal("fee_charged"),
-                        rs.getInt("route_count")),
+                        rs.getString("status"), rs.getBigDecimal("fee_charged"), rs.getInt("route_count")),
                 reservationId);
     }
 
@@ -50,14 +48,19 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
         Instant start = Instant.now().plusSeconds(100);
         Instant end = start.plusSeconds(60);
         Map<String, Object> withRoute = makePayload(Map.of(
-                "requestRoute", true,
-                "startAt", start.toString(),
-                "endAt", end.toString(),
-                "customerCode", customerCode,
-                "shipCode", shipCode,
-                "originPortId", "ALPHA-BASE-WR"));
+                "requestRoute",
+                true,
+                "startAt",
+                start.toString(),
+                "endAt",
+                end.toString(),
+                "customerCode",
+                customerCode,
+                "shipCode",
+                shipCode,
+                "originPortId",
+                "ALPHA-BASE-WR"));
 
-        
         ResponseEntity<String> resp = postReservation(starport, withRoute);
 
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
@@ -86,14 +89,19 @@ class ReservationLifecycleE2ETest extends BaseAcceptanceTest {
         Instant start = Instant.now().plusSeconds(100);
         Instant end = start.plusSeconds(60);
         Map<String, Object> noRoute = makePayload(Map.of(
-                "requestRoute", false,
-                "startAt", start.toString(),
-                "endAt", end.toString(),
-                "customerCode", customerCode,
-                "shipCode", shipCode,
-                "originPortId", "ALPHA-BASE-NR"));
+                "requestRoute",
+                false,
+                "startAt",
+                start.toString(),
+                "endAt",
+                end.toString(),
+                "customerCode",
+                customerCode,
+                "shipCode",
+                shipCode,
+                "originPortId",
+                "ALPHA-BASE-NR"));
 
-        
         ResponseEntity<String> resp = postReservation(starport, noRoute);
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
 

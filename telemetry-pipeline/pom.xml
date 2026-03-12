@@ -53,20 +53,15 @@
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
-		<!--
-		  Explicit Jersey 1.x client — required by EurekaJerseyClientAutoConfiguration
-		  to register the TransportClientFactories<?> bean needed by Spring Cloud
-		  Netflix 4.3.0's eurekaClient() factory method.
-		  Without this, spring-cloud-starter-stream-kafka's transitive dependency
-		  tree interferes with Jersey class resolution, leaving no TransportClientFactories
-		  bean and causing an UnsatisfiedDependencyException at startup.
-		-->
+		<!-- Tracing: Micrometer → OpenTelemetry bridge + exporters -->
 		<dependency>
-			<groupId>com.sun.jersey</groupId>
-			<artifactId>jersey-client</artifactId>
-			<version>1.19.4</version>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-otel</artifactId>
 		</dependency>
-
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-otlp</artifactId>
+		</dependency>
 		<!-- Observability: Prometheus + Micrometer -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
@@ -76,13 +71,11 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-observation</artifactId>
 		</dependency>
+
+		<!-- AOP: required for @Observed annotation support -->
 		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-tracing-bridge-otel</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>io.zipkin.reporter2</groupId>
-			<artifactId>zipkin-reporter-brave</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
 		</dependency>
 
 		<!-- Jackson for JSON serialization -->

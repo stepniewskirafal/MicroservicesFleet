@@ -8,6 +8,7 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,7 @@ class ReserveBayValidationService implements ReserveBayValidator, Validator {
 
     @Override
     public void validate(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         BeanPropertyBindingResult errors = new BeanPropertyBindingResult(command, "reserveBayCommand");
         validate(command, errors);
         if (!errors.hasErrors()) {

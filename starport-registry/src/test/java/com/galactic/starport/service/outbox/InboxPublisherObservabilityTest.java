@@ -41,7 +41,8 @@ class InboxPublisherObservabilityTest {
         meterRegistry = new SimpleMeterRegistry();
         repo = mock(OutboxEventJpaRepository.class);
         streamBridge = mock(StreamBridge.class);
-        publisher = new InboxPublisher(repo, streamBridge, observationRegistry, meterRegistry, BATCH_SIZE, MAX_ATTEMPTS);
+        publisher =
+                new InboxPublisher(repo, streamBridge, observationRegistry, meterRegistry, BATCH_SIZE, MAX_ATTEMPTS);
     }
 
     @Test
@@ -130,7 +131,8 @@ class InboxPublisherObservabilityTest {
         assertEquals(1, t.count());
 
         var meters = meterRegistry.getMeters().stream()
-                .filter(m -> "reservations.inbox.poll.batch.size".equals(m.getId().getName()))
+                .filter(m ->
+                        "reservations.inbox.poll.batch.size".equals(m.getId().getName()))
                 .toList();
         assert meters.isEmpty() : "Batch size summary should not be created for empty batch";
     }

@@ -8,6 +8,9 @@ import com.galactic.starport.service.reservationcalculation.ReservationCalculati
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.BaggageInScope;
+import io.micrometer.tracing.Tracer;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +29,10 @@ public class ReservationService {
     private final ReserveBayValidator reservationValidator;
     private final ReservationCalculationFacade reservationCalculationFacade;
     private final MeterRegistry meterRegistry;
+    private final Tracer tracer;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         reservationValidator.validate(command);
 
         String starport = command.destinationStarportCode();
@@ -35,46 +40,42 @@ public class ReservationService {
 
         try {
             Long reservationId = holdReservationFacade.createHoldReservation(command);
-            ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
-            Reservation reservation = confirmReservationFacade.confirmReservation(calc, starport);
 
-            meterRegistry.counter(METRIC_CREATED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "outcome", "confirmed")
-                    .increment();
+            try (BaggageInScope ignored = tracer.createBaggageInScope("reservationId", String.valueOf(reservationId))) {
+                ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
+                Reservation reservation = confirmReservationFacade.confirmReservation(calc, starport);
 
-            return Optional.of(reservation);
+                incrementReservationCounter(starport, shipClass, "confirmed");
+                return Optional.of(reservation);
+            }
 
-        } catch (NoDockingBaysAvailableException e) {
-            meterRegistry.counter(METRIC_CREATED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "outcome", "no_capacity")
-                    .increment();
-            throw e;
+        } catch (NoDockingBaysAvailableException ex) {
+            incrementReservationCounter(starport, shipClass, "no_capacity");
+            throw ex;
 
-        } catch (RouteUnavailableException e) {
-            meterRegistry.counter(METRIC_CREATED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "outcome", "route_unavailable")
+        } catch (RouteUnavailableException ex) {
+            incrementReservationCounter(starport, shipClass, "route_unavailable");
+            meterRegistry
+                    .counter(
+                            METRIC_HOLD_RELEASED,
+                            "starport",
+                            starport,
+                            "shipClass",
+                            shipClass,
+                            "reason",
+                            "route_unavailable")
                     .increment();
-            // The HOLD expires via TTL; track it as released for capacity accounting.
-            meterRegistry.counter(METRIC_HOLD_RELEASED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "reason", "route_unavailable")
-                    .increment();
-            throw e;
+            throw ex;
 
-        } catch (ReservationConfirmationException e) {
-            meterRegistry.counter(METRIC_CREATED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "outcome", "error")
-                    .increment();
-            throw e;
+        } catch (ReservationConfirmationException ex) {
+            incrementReservationCounter(starport, shipClass, "error");
+            throw ex;
         }
+    }
+
+    private void incrementReservationCounter(String starport, String shipClass, String outcome) {
+        meterRegistry
+                .counter(METRIC_CREATED, "starport", starport, "shipClass", shipClass, "outcome", outcome)
+                .increment();
     }
 }

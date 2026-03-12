@@ -8,6 +8,9 @@ server:
     max-connections: 2000
 
 spring:
+  threads:
+    virtual:
+      enabled: true
   application:
     name: starport-registry
 
@@ -59,7 +62,7 @@ spring:
     stream:
       defaultBinder: kafka
 
-      # === BINDINGS (producenci) ===
+      # === BINDINGS (producers) ===
       bindings:
         reservationCreated-out-0:
           destination: starport.reservations
@@ -73,13 +76,13 @@ spring:
           destination: starport.route-changes
           contentType: application/json
 
-      # === KAFKA-SPECYFICZNE ===
+      # === KAFKA-SPECIFIC ===
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
-          # Binder może tworzyć tematy (niezależnie od ustawienia brokera).
+          # Binder can create topics (regardless of broker-side settings).
           autoCreateTopics: true
-          # Nie doda partycji, jeśli istniejący topic ma ich mniej niż oczekuje aplikacja.
+          # Will not add partitions if existing topic has fewer than the app expects.
           autoAddPartitions: false
           configuration:
             key.serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -91,20 +94,17 @@ spring:
     validate-on-migrate: false
 
 telemetry:
-  adapter: stream  # przełącznik adaptera TelemetryPort: stream | kafka
+  adapter: stream  # TelemetryPort adapter switch: stream | kafka
 
 eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
-    # Push Spring Boot Actuator health status to Eureka so the registry reflects
-    # the real application state (UP/DOWN/OUT_OF_SERVICE), not just heartbeat liveness.
     healthcheck:
       enabled: true
   instance:
     instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
     prefer-ip-address: true
-    # Reduce the time Eureka needs to detect a lost instance
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
@@ -112,10 +112,6 @@ management:
   endpoint:
     health:
       show-details: always
-      # Expose /actuator/health/liveness and /actuator/health/readiness as separate groups.
-      # readiness: used by load-balancers and Kubernetes readiness probes to decide if the
-      #            instance should receive traffic.
-      # liveness:  used by orchestrators (K8s) to decide if the process should be restarted.
       probes:
         enabled: true
     prometheus:
@@ -125,34 +121,31 @@ management:
       enabled: true
     readinessstate:
       enabled: true
-  opentelemetry:
+  otlp:
     tracing:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/traces
-          # jeśli masz opcję transportu w tej wersji Boota:
-          # transport: HTTP
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
     logging:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/logs
-          # transport: HTTP
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://tempo:4318/v1/logs}
   metrics:
     distribution:
       percentiles-histogram:
+        http.server.requests: true
         reservations.fees.calculated.amount: true
         reservations.fees.calculated.hours: true
         reservations.hold.allocate: true
         reservations.route.plan: true
         reservations.fees.calculate: true
       percentiles:
+        http.server.requests: 0.5,0.95,0.99
         reservations.fees.calculated.amount: 0.5,0.9,0.99
         reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
+        http.server.requests: 5ms
         reservations.hold.allocate: 5ms
         reservations.fees.calculate: 1ms
         reservations.route.plan: 50ms
       maximum-expected-value:
+        http.server.requests: 10s
         reservations.hold.allocate: 2s
         reservations.fees.calculate: 500ms
         reservations.route.plan: 10s
@@ -166,10 +159,15 @@ management:
         include: health,info,metrics,prometheus,liveness,readiness
   tracing:
     sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+      probability: ${TRACE_SAMPLING:1.0}
+    baggage:
+      remote-fields:
+        - reservationId
+        - routeId
+      correlation:
+        fields:
+          - reservationId
+          - routeId
   task:
     scheduling:
       pool:
@@ -179,7 +177,7 @@ app:
     base-url: http://trade-route-planner
   events:
     topics:
-      # To są NAZWY BINDINGÓW (do StreamBridge), nie tematy Kafki.
+      # These are BINDING NAMES (for StreamBridge), not Kafka topic names.
       reservations: reservationCreated-out-0
       tariffs:      tariffCalculated-out-0
       routeChanges: routeChanged-out-0
@@ -206,12 +204,12 @@ resilience4j:
 
 downstream:
   http:
-    # Connect and read timeouts for outbound HTTP calls to trade-route-planner.
-    # Keep these tight to avoid thread exhaustion under downstream slowness.
     connect-timeout-ms: 200
     read-timeout-ms: 2000
 
 logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql.BasicBinder: trace

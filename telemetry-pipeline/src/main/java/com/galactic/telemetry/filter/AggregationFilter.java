@@ -2,11 +2,11 @@ package com.galactic.telemetry.filter;
 
 import com.galactic.telemetry.model.AggregatedTelemetry;
 import com.galactic.telemetry.model.EnrichedTelemetry;
-import com.galactic.telemetry.model.SensorType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,11 +27,17 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
 
     private static final Logger log = LoggerFactory.getLogger(AggregationFilter.class);
     private static final Duration DEFAULT_WINDOW = Duration.ofMinutes(5);
+    private static final int MAX_WINDOWS = 10_000;
+    private static final int EVICTION_INTERVAL = 1000;
 
     private final ConcurrentMap<String, WindowState> windows = new ConcurrentHashMap<>();
+    private final AtomicLong operationCount = new AtomicLong();
 
     @Override
     public AggregatedTelemetry apply(EnrichedTelemetry enriched) {
+        if (operationCount.incrementAndGet() % EVICTION_INTERVAL == 0) {
+            evictExpiredWindows(enriched.timestamp());
+        }
         String key = enriched.shipId() + ":" + enriched.sensorType().name();
         Instant now = enriched.timestamp();
 
@@ -71,6 +77,14 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
         return Duration.between(state.windowStart, now).compareTo(DEFAULT_WINDOW) > 0;
     }
 
+    private void evictExpiredWindows(Instant now) {
+        if (windows.size() <= MAX_WINDOWS) {
+            return;
+        }
+        windows.entrySet().removeIf(entry -> isExpired(entry.getValue(), now));
+        log.debug("Evicted expired windows, remaining: {}", windows.size());
+    }
+
     // Visible for testing
     void clearWindows() {
         windows.clear();
@@ -107,8 +121,14 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
         }
 
         private WindowState(
-                double avg, double max, double currentValue, double stdDev, long count,
-                Instant windowStart, Instant windowEnd, double m2) {
+                double avg,
+                double max,
+                double currentValue,
+                double stdDev,
+                long count,
+                Instant windowStart,
+                Instant windowEnd,
+                double m2) {
             this.avg = avg;
             this.max = max;
             this.currentValue = currentValue;

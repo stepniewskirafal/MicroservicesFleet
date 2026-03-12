@@ -19,8 +19,18 @@ datasources:
     jsonData:
       tracesToMetrics:
         datasourceUid: PBFA97CFB590B2093
+      tracesToLogs:
+        datasourceUid: loki
+        filterByTraceID: true
+        filterBySpanID: false
+        mapTagNamesEnabled: true
+        mappedTags:
+          - key: service.name
+            value: service
       serviceMap:
         datasourceUid: PBFA97CFB590B2093
+      nodeGraph:
+        enabled: true
       exemplarTraceIdDestinations:
         - datasourceUid: tempo
           name: trace_id
@@ -34,6 +44,6 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: "\\[trace_id=(\\w+)\\]"
-          name: trace_id
+          matcherRegex: "\\[\\w[\\w-]*,(\\w{16,32}),\\w+\\]"
+          name: traceId
           url: "$${__value.raw}"

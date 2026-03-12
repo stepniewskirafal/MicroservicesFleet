@@ -6,8 +6,6 @@ distributor:
       protocols:
         http:
           endpoint: 0.0.0.0:4318
-    zipkin:
-      endpoint: 0.0.0.0:9411
 storage:
   trace:
     backend: local
@@ -20,7 +18,7 @@ metrics_generator:
   storage:
     path: /tmp/tempo/generator/wal
     remote_write:
-      - url: http://host.docker.internal:9090/api/v1/write
+      - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
 overrides:
   metrics_generator_processors: [service-graphs, span-metrics]

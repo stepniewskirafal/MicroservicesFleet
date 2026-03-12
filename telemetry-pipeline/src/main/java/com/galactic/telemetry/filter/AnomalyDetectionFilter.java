@@ -5,6 +5,7 @@ import com.galactic.telemetry.model.AnomalyAlert;
 import com.galactic.telemetry.model.AnomalyAlert.Severity;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.Nullable;
 import java.time.Instant;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -30,8 +31,17 @@ public class AnomalyDetectionFilter implements Function<AggregatedTelemetry, Ano
     }
 
     @Override
+    @Nullable
     public AnomalyAlert apply(AggregatedTelemetry aggregated) {
-        // CRITICAL: value exceeds hard threshold
+        AnomalyAlert thresholdAlert = checkThresholdBreach(aggregated);
+        if (thresholdAlert != null) {
+            return thresholdAlert;
+        }
+        return checkStatisticalAnomaly(aggregated);
+    }
+
+    @Nullable
+    private AnomalyAlert checkThresholdBreach(AggregatedTelemetry aggregated) {
         if (aggregated.currentValue() > aggregated.upperThreshold()) {
             criticalCounter.increment();
             String description = String.format(
@@ -41,17 +51,7 @@ public class AnomalyDetectionFilter implements Function<AggregatedTelemetry, Ano
                     aggregated.currentValue(),
                     aggregated.upperThreshold());
             log.warn(description);
-            return new AnomalyAlert(
-                    aggregated.shipId(),
-                    aggregated.sensorType(),
-                    Severity.CRITICAL,
-                    description,
-                    aggregated.currentValue(),
-                    aggregated.upperThreshold(),
-                    aggregated.rollingAvg(),
-                    aggregated.shipClass(),
-                    aggregated.currentSector(),
-                    Instant.now());
+            return createAlert(aggregated, Severity.CRITICAL, description, aggregated.upperThreshold());
         }
 
         if (aggregated.currentValue() < aggregated.lowerThreshold()) {
@@ -63,47 +63,46 @@ public class AnomalyDetectionFilter implements Function<AggregatedTelemetry, Ano
                     aggregated.currentValue(),
                     aggregated.lowerThreshold());
             log.warn(description);
-            return new AnomalyAlert(
-                    aggregated.shipId(),
-                    aggregated.sensorType(),
-                    Severity.CRITICAL,
-                    description,
-                    aggregated.currentValue(),
-                    aggregated.lowerThreshold(),
-                    aggregated.rollingAvg(),
-                    aggregated.shipClass(),
-                    aggregated.currentSector(),
-                    Instant.now());
+            return createAlert(aggregated, Severity.CRITICAL, description, aggregated.lowerThreshold());
         }
 
-        // WARNING: statistical deviation — value deviates more than 3σ from rolling average
-        if (aggregated.windowSampleCount() > 2 && aggregated.rollingStdDev() > 0) {
-            double deviation = Math.abs(aggregated.currentValue() - aggregated.rollingAvg());
-            if (deviation > STATISTICAL_SIGMA * aggregated.rollingStdDev()) {
-                warningCounter.increment();
-                String description = String.format(
-                        "Sensor %s on ship %s: statistical anomaly — value %.2f deviates %.1fσ from avg %.2f",
-                        aggregated.sensorType(),
-                        aggregated.shipId(),
-                        aggregated.currentValue(),
-                        deviation / aggregated.rollingStdDev(),
-                        aggregated.rollingAvg());
-                log.warn(description);
-                return new AnomalyAlert(
-                        aggregated.shipId(),
-                        aggregated.sensorType(),
-                        Severity.WARNING,
-                        description,
-                        aggregated.currentValue(),
-                        aggregated.rollingAvg() + STATISTICAL_SIGMA * aggregated.rollingStdDev(),
-                        aggregated.rollingAvg(),
-                        aggregated.shipClass(),
-                        aggregated.currentSector(),
-                        Instant.now());
-            }
-        }
-
-        // No anomaly — return null (Spring Cloud Stream filters out nulls)
         return null;
+    }
+
+    @Nullable
+    private AnomalyAlert checkStatisticalAnomaly(AggregatedTelemetry aggregated) {
+        if (aggregated.windowSampleCount() <= 2 || aggregated.rollingStdDev() <= 0) {
+            return null;
+        }
+        double deviation = Math.abs(aggregated.currentValue() - aggregated.rollingAvg());
+        if (deviation > STATISTICAL_SIGMA * aggregated.rollingStdDev()) {
+            warningCounter.increment();
+            String description = String.format(
+                    "Sensor %s on ship %s: statistical anomaly — value %.2f deviates %.1fσ from avg %.2f",
+                    aggregated.sensorType(),
+                    aggregated.shipId(),
+                    aggregated.currentValue(),
+                    deviation / aggregated.rollingStdDev(),
+                    aggregated.rollingAvg());
+            log.warn(description);
+            double statisticalThreshold = aggregated.rollingAvg() + STATISTICAL_SIGMA * aggregated.rollingStdDev();
+            return createAlert(aggregated, Severity.WARNING, description, statisticalThreshold);
+        }
+        return null;
+    }
+
+    private AnomalyAlert createAlert(
+            AggregatedTelemetry aggregated, Severity severity, String description, double thresholdValue) {
+        return new AnomalyAlert(
+                aggregated.shipId(),
+                aggregated.sensorType(),
+                severity,
+                description,
+                aggregated.currentValue(),
+                thresholdValue,
+                aggregated.rollingAvg(),
+                aggregated.shipClass(),
+                aggregated.currentSector(),
+                Instant.now());
     }
 }

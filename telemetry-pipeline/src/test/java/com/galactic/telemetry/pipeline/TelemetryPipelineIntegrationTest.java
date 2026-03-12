@@ -19,11 +19,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.GenericMessage;
 
-@SpringBootTest(properties = {
-    "spring.cloud.function.definition=telemetryPipeline",
-    "spring.cloud.stream.function.definition=telemetryPipeline",
-    "eureka.client.enabled=false"
-})
+@SpringBootTest(
+        properties = {
+            "spring.cloud.function.definition=telemetryPipeline",
+            "spring.cloud.stream.function.definition=telemetryPipeline",
+            "eureka.client.enabled=false"
+        })
 @Import(TestChannelBinderConfiguration.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class TelemetryPipelineIntegrationTest {
@@ -45,8 +46,7 @@ class TelemetryPipelineIntegrationTest {
     @Test
     @Order(1)
     void telemetryExceedingThreshold_producesAlert() {
-        RawTelemetry raw = new RawTelemetry(
-                "SHIP-001", "TEMPERATURE", 500.0, Instant.now(), Map.of());
+        RawTelemetry raw = new RawTelemetry("SHIP-001", "TEMPERATURE", 500.0, Instant.now(), Map.of());
 
         input.send(new GenericMessage<>(raw));
 
@@ -61,8 +61,7 @@ class TelemetryPipelineIntegrationTest {
     @Test
     @Order(2)
     void fuelBelowThreshold_producesCriticalAlert() {
-        RawTelemetry raw = new RawTelemetry(
-                "SHIP-002", "FUEL_LEVEL", 2.0, Instant.now(), Map.of());
+        RawTelemetry raw = new RawTelemetry("SHIP-002", "FUEL_LEVEL", 2.0, Instant.now(), Map.of());
 
         input.send(new GenericMessage<>(raw));
 
@@ -77,8 +76,7 @@ class TelemetryPipelineIntegrationTest {
     @Test
     @Order(3)
     void normalTelemetry_noAlertProduced() {
-        RawTelemetry raw = new RawTelemetry(
-                "SHIP-001", "TEMPERATURE", 42.5, Instant.now(), Map.of());
+        RawTelemetry raw = new RawTelemetry("SHIP-001", "TEMPERATURE", 42.5, Instant.now(), Map.of());
 
         input.send(new GenericMessage<>(raw));
 
@@ -89,8 +87,7 @@ class TelemetryPipelineIntegrationTest {
     @Test
     @Order(4)
     void invalidTelemetry_noAlertProduced() {
-        RawTelemetry raw = new RawTelemetry(
-                null, "TEMPERATURE", 42.5, Instant.now(), Map.of());
+        RawTelemetry raw = new RawTelemetry(null, "TEMPERATURE", 42.5, Instant.now(), Map.of());
 
         input.send(new GenericMessage<>(raw));
 
@@ -101,8 +98,7 @@ class TelemetryPipelineIntegrationTest {
     @Test
     @Order(5)
     void unknownSensorType_droppedByValidation() {
-        RawTelemetry raw = new RawTelemetry(
-                "SHIP-001", "UNKNOWN_SENSOR", 42.5, Instant.now(), Map.of());
+        RawTelemetry raw = new RawTelemetry("SHIP-001", "UNKNOWN_SENSOR", 42.5, Instant.now(), Map.of());
 
         input.send(new GenericMessage<>(raw));
 

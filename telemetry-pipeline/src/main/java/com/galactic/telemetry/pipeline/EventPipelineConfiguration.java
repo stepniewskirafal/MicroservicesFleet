@@ -24,6 +24,8 @@ public class EventPipelineConfiguration {
     private static final Logger log = LoggerFactory.getLogger(EventPipelineConfiguration.class);
 
     private static final String PROCESSED_BY = "telemetry-pipeline";
+    private static final double RISK_THRESHOLD_LOW = 0.3;
+    private static final double RISK_THRESHOLD_HIGH = 0.7;
 
     @Bean
     public Function<ReservationCreatedEvent, EnrichedReservationEvent> reservationPipeline(
@@ -111,9 +113,9 @@ public class EventPipelineConfiguration {
     }
 
     private static String classifyRisk(double riskScore) {
-        if (riskScore < 0.3) {
+        if (riskScore < RISK_THRESHOLD_LOW) {
             return "LOW";
-        } else if (riskScore < 0.7) {
+        } else if (riskScore < RISK_THRESHOLD_HIGH) {
             return "MEDIUM";
         } else {
             return "HIGH";

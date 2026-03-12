@@ -3,8 +3,8 @@ package com.galactic.starport.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.galactic.starport.service.DockingBay;
-import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Reservation;
+import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,16 +44,14 @@ class ReservationWebMapperTest {
 
     @Test
     void should_map_request_without_route_to_command() {
-        
+
         Instant start = Instant.parse("2027-01-01T08:00:00Z");
         Instant end = Instant.parse("2027-01-01T09:00:00Z");
         ReservationCreateRequest req = new ReservationCreateRequest(
                 "CUST-001", "SHP-007", ReservationCreateRequest.ShipClass.FREIGHTER, start, end, false, null);
 
-        
         ReserveBayCommand cmd = mapper.toCommand("OMEGA", req);
 
-        
         assertThat(cmd.destinationStarportCode()).isEqualTo("OMEGA");
         assertThat(cmd.startStarportCode()).isNull();
         assertThat(cmd.requestRoute()).isFalse();
@@ -62,14 +60,14 @@ class ReservationWebMapperTest {
 
     @Test
     void should_map_reservation_to_response_with_route() {
-        
+
         Instant start = Instant.parse("2027-01-01T08:00:00Z");
         Instant end = Instant.parse("2027-01-01T09:00:00Z");
         Route route = Route.builder()
                 .routeCode("RT-1")
                 .startStarportCode("ABC")
                 .destinationStarportCode("DEF")
-                .etaLightYears(4.2)
+                .etaHours(4.2)
                 .riskScore(0.3)
                 .build();
         Reservation reservation = Reservation.builder()
@@ -81,10 +79,8 @@ class ReservationWebMapperTest {
                 .route(route)
                 .build();
 
-        
         ReservationResponse resp = mapper.toResponse("DEF", reservation);
 
-        
         assertThat(resp.reservationId()).isEqualTo(42L);
         assertThat(resp.starportCode()).isEqualTo("DEF");
         assertThat(resp.bayNumber()).isEqualTo("BAY-1");
@@ -95,13 +91,13 @@ class ReservationWebMapperTest {
         assertThat(resp.route().routeCode()).isEqualTo("RT-1");
         assertThat(resp.route().startStarportCode()).isEqualTo("ABC");
         assertThat(resp.route().destinationStarportCode()).isEqualTo("DEF");
-        assertThat(resp.route().etaLightYears()).isEqualTo(4.2);
+        assertThat(resp.route().etaHours()).isEqualTo(4.2);
         assertThat(resp.route().riskScore()).isEqualTo(0.3);
     }
 
     @Test
     void should_map_reservation_to_response_without_route() {
-        
+
         Reservation reservation = Reservation.builder()
                 .id(10L)
                 .dockingBay(DockingBay.builder().bayLabel("BAY-3").build())
@@ -111,10 +107,8 @@ class ReservationWebMapperTest {
                 .route(null)
                 .build();
 
-        
         ReservationResponse resp = mapper.toResponse("OMEGA", reservation);
 
-        
         assertThat(resp.reservationId()).isEqualTo(10L);
         assertThat(resp.starportCode()).isEqualTo("OMEGA");
         assertThat(resp.route()).isNull();

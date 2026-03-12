@@ -7,6 +7,7 @@ COPY pom.xml ./
 COPY eureka-server/pom.xml ./eureka-server/
 COPY starport-registry/pom.xml ./starport-registry/
 COPY trade-route-planner/pom.xml ./trade-route-planner/
+COPY telemetry-pipeline/pom.xml ./telemetry-pipeline/
 
 RUN mvn -pl trade-route-planner -am dependency:go-offline -q
 

@@ -15,21 +15,28 @@ services:
       retries: 30
       start_period: 60s
 
-  zipkin:
-    image: openzipkin/zipkin:2.24
-    container_name: zipkin
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./grafana/tempo.yml:/etc/tempo/tempo.yml:ro
     ports:
-      - "9411:9411"
+      - "3200:3200"   # Tempo API
+      - "4318:4318"   # OTLP HTTP receiver
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9411/health | grep -q 'UP'"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready | grep -q 'ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
     volumes:
       - ./prometheus:/etc/prometheus:ro
     ports:
@@ -70,10 +77,12 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
+      - tempo
       - loki
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health | grep -q '\"database\": \"ok\"'"]
@@ -109,17 +118,17 @@ services:
     image: apache/kafka:3.7.0
     container_name: kafka
     ports:
-      - "9092:9092"               # HOST listener – dostępny z localhost (Postman, IntelliJ)
+      - "9092:9092"               # HOST listener – accessible from localhost (Postman, IntelliJ)
     environment:
-      # KRaft – bez Zookeepera
+      # KRaft – no Zookeeper
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
 
-      # Broker nasłuchuje na 3 adresach:
-      #  PLAINTEXT_HOST   – klienci z hosta (localhost:9092)
-      #  PLAINTEXT_DOCKER – kontenery w sieci Compose (kafka:9093)
+      # Broker listens on 3 addresses:
+      #  PLAINTEXT_HOST   – host clients (localhost:9092)
+      #  PLAINTEXT_DOCKER – containers in Compose network (kafka:9093)
       #  CONTROLLER       – KRaft quorum
       KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_DOCKER://kafka:9093
@@ -131,7 +140,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_NUM_PARTITIONS: 2
     healthcheck:
-      # Broker jest gotowy, gdy odpowiada na API-versions request
+      # Broker is ready when it responds to API-versions request
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9093 > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
@@ -166,7 +175,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8081
@@ -175,11 +184,12 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -197,7 +207,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8084
@@ -206,11 +216,12 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8084:8084"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -226,17 +237,18 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8082:8082"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -252,17 +264,18 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8083
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8083:8083"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -278,17 +291,18 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8090
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8090:8090"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -304,17 +318,18 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8091
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     ports:
       - "8091:8091"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8091/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12

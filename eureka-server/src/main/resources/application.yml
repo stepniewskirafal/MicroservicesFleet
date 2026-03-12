@@ -10,11 +10,13 @@ eureka:
     register-with-eureka: false
     fetch-registry: false
   server:
-    enable-self-preservation: false
+    # WARNING: self-preservation is disabled for dev/local — enable in production
+    # to prevent cascading eviction during network partitions or GC pauses.
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
     eviction-interval-timer-in-ms: 5000
-    # Skraca czas, po którym klienci zobaczą nowe instancje w Eureka
+    # Reduces the delay before clients see newly registered instances in Eureka
     response-cache-update-interval-ms: 3000
-    # Nie czekaj na synchronizację z innymi węzłami (standalone)
+    # Do not wait for synchronization with other nodes (standalone mode)
     wait-time-in-ms-when-sync-empty: 0
 
 management:

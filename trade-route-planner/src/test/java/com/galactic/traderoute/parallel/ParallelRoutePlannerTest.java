@@ -41,8 +41,7 @@ class ParallelRoutePlannerTest {
 
     @RepeatedTest(value = 20, name = "concurrent planning #{currentRepetition}/{totalRepetitions}")
     void should_produce_valid_route_under_concurrent_junit5_execution(TestInfo info) {
-        int repetition = Integer.parseInt(
-                info.getDisplayName().replaceAll(".*#(\\d+)/.*", "$1"));
+        int repetition = Integer.parseInt(info.getDisplayName().replaceAll(".*#(\\d+)/.*", "$1"));
 
         RouteRequest request = RouteRequest.builder()
                 .originPortId("SP-PARALLEL-" + repetition)
@@ -96,7 +95,9 @@ class ParallelRoutePlannerTest {
             f.get();
         }
 
-        assertThat(errors).as("No thread should have thrown an unexpected exception").isEmpty();
+        assertThat(errors)
+                .as("No thread should have thrown an unexpected exception")
+                .isEmpty();
         assertThat(callCount.get()).isEqualTo(threadCount);
 
         results.forEach(r -> {
@@ -122,9 +123,7 @@ class ParallelRoutePlannerTest {
 
             PlannedRoute route = SERVICE.planRoute(req);
 
-            assertThat(route.etaHours())
-                    .as("ETA for %s", shipClasses[i])
-                    .isBetween(minEtas[i], maxEtas[i]);
+            assertThat(route.etaHours()).as("ETA for %s", shipClasses[i]).isBetween(minEtas[i], maxEtas[i]);
         }
     }
 

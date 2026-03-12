@@ -25,9 +25,13 @@ public class StreamBridgeRouteEventPublisher implements RouteEventPublisher {
 
         boolean sent = streamBridge.send(BINDING, message);
         if (sent) {
-            log.info("Published RoutePlannedEvent: routeId={} {} -> {}", event.routeId(), event.originPortId(), event.destinationPortId());
+            log.info(
+                    "Published RoutePlannedEvent: routeId={} {} -> {}",
+                    event.routeId(),
+                    event.originPortId(),
+                    event.destinationPortId());
         } else {
-            log.warn("Failed to publish RoutePlannedEvent: routeId={}", event.routeId());
+            throw new EventPublishingException("Failed to publish RoutePlannedEvent: routeId=" + event.routeId());
         }
     }
 }

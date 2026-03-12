@@ -5,6 +5,7 @@ import com.galactic.telemetry.model.SensorType;
 import com.galactic.telemetry.model.ValidatedTelemetry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.Nullable;
 import java.util.Map;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -27,37 +28,32 @@ public class ValidationFilter implements Function<RawTelemetry, ValidatedTelemet
     }
 
     @Override
+    @Nullable
     public ValidatedTelemetry apply(RawTelemetry raw) {
         receivedCounter.increment();
 
         if (raw == null) {
-            log.warn("Received null telemetry message — dropping");
-            invalidCounter.increment();
-            return null;
+            return reject("Received null telemetry message — dropping");
         }
 
         if (raw.shipId() == null || raw.shipId().isBlank()) {
-            log.warn("Missing shipId — dropping message");
-            invalidCounter.increment();
-            return null;
+            return reject("Missing shipId — dropping message");
         }
 
         if (!SensorType.isValid(raw.sensorType())) {
-            log.warn("Unknown sensor type '{}' for ship {} — dropping", raw.sensorType(), raw.shipId());
-            invalidCounter.increment();
-            return null;
+            return reject("Unknown sensor type '{}' for ship {} — dropping", raw.sensorType(), raw.shipId());
         }
 
         if (Double.isNaN(raw.value()) || Double.isInfinite(raw.value())) {
-            log.warn("Invalid value {} for sensor {} on ship {} — dropping", raw.value(), raw.sensorType(), raw.shipId());
-            invalidCounter.increment();
-            return null;
+            return reject(
+                    "Invalid value {} for sensor {} on ship {} — dropping",
+                    raw.value(),
+                    raw.sensorType(),
+                    raw.shipId());
         }
 
         if (raw.timestamp() == null) {
-            log.warn("Missing timestamp for ship {} — dropping", raw.shipId());
-            invalidCounter.increment();
-            return null;
+            return reject("Missing timestamp for ship {} — dropping", raw.shipId());
         }
 
         SensorType sensorType = SensorType.valueOf(raw.sensorType());
@@ -68,5 +64,11 @@ public class ValidationFilter implements Function<RawTelemetry, ValidatedTelemet
                 raw.value(),
                 raw.timestamp(),
                 raw.metadata() != null ? raw.metadata() : Map.of());
+    }
+
+    private @Nullable ValidatedTelemetry reject(String message, Object... args) {
+        log.warn(message, args);
+        invalidCounter.increment();
+        return null;
     }
 }

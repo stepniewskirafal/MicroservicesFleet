@@ -125,7 +125,7 @@ class RoutePlannerExceptionHandlerTest {
         mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(validRequest()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error").value("Internal server error"))
-                .andExpect(jsonPath("$.details").value("Something went wrong"));
+                .andExpect(jsonPath("$.details").doesNotExist());
     }
 
     private static String validRequest() {

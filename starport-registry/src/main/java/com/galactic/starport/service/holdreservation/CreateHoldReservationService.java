@@ -6,6 +6,7 @@ import com.galactic.starport.service.ReserveBayCommand;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ class CreateHoldReservationService implements HoldReservationFacade {
 
     @Override
     public Long createHoldReservation(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("starport", command.destinationStarportCode())
                 .lowCardinalityKeyValue("shipClass", command.shipClass().name())
@@ -45,9 +47,13 @@ class CreateHoldReservationService implements HoldReservationFacade {
                                 command.endAt());
                         return reservationId;
                     } catch (NoDockingBaysAvailableException e) {
-                        meterRegistry.counter(METRIC_CAPACITY_REJECTED,
-                                "starport", command.destinationStarportCode(),
-                                "shipClass", command.shipClass().name())
+                        meterRegistry
+                                .counter(
+                                        METRIC_CAPACITY_REJECTED,
+                                        "starport",
+                                        command.destinationStarportCode(),
+                                        "shipClass",
+                                        command.shipClass().name())
                                 .increment();
                         throw e;
                     }

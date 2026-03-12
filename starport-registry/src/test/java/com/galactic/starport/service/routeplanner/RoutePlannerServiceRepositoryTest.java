@@ -54,7 +54,7 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
         assertTrue(route.getRouteCode().startsWith("ROUTE-"), "Route code should start with ROUTE-");
         assertEquals(cmd.startStarportCode(), route.getStartStarportCode());
         assertEquals(cmd.destinationStarportCode(), route.getDestinationStarportCode());
-        assertTrue(route.getEtaLightYears() > 0);
+        assertTrue(route.getEtaHours() > 0);
         assertTrue(route.getRiskScore() >= 0 && route.getRiskScore() <= 1.0);
         assertTrue(route.isActive());
     }
@@ -81,12 +81,14 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
     void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
         wireMock.resetAll();
-        wireMock.stubFor(post(urlEqualTo("/routes/plan"))
-                .willReturn(aResponse()
-                        .withStatus(422)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(
-                                """
+        wireMock.stubFor(
+                post(urlEqualTo("/routes/plan"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(422)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                """
                                 {"error":"ROUTE_REJECTED","reason":"INSUFFICIENT_RANGE","details":"Fuel too low"}
                                 """)));
 

@@ -13,7 +13,7 @@ public class Customer {
     private String name;
 
     @Builder.Default
-    private List<Ship> ships;
+    private List<Ship> ships = List.of();
 
     private Instant createdAt;
     private Instant updatedAt;

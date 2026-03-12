@@ -38,9 +38,7 @@ class RoutePlannerControllerTest {
                         .riskScore(0.32)
                         .build());
 
-        mvc.perform(post(URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validRequest()))
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(validRequest()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.routeId").value("ROUTE-ABC123"))
                 .andExpect(jsonPath("$.etaHours").value(18.7))
@@ -53,9 +51,7 @@ class RoutePlannerControllerTest {
         given(planRouteUseCase.planRoute(any()))
                 .willThrow(new RouteRejectionException("INSUFFICIENT_RANGE", "Fuel range too low"));
 
-        mvc.perform(post(URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validRequest()))
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(validRequest()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error").value("ROUTE_REJECTED"))
                 .andExpect(jsonPath("$.reason").value("INSUFFICIENT_RANGE"));
@@ -63,7 +59,8 @@ class RoutePlannerControllerTest {
 
     @Test
     void should_return_422_when_originPortId_missing() throws Exception {
-        String body = """
+        String body =
+                """
                 {
                   "destinationPortId": "SP-DEST",
                   "shipProfile": { "class": "FREIGHTER", "fuelRangeLY": 25.0 }
@@ -76,7 +73,8 @@ class RoutePlannerControllerTest {
 
     @Test
     void should_return_422_when_shipProfile_missing() throws Exception {
-        String body = """
+        String body =
+                """
                 {
                   "originPortId": "SP-ORIGIN",
                   "destinationPortId": "SP-DEST"

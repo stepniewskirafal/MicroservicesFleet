@@ -32,29 +32,25 @@ class DestinationStarportValidationRuleTest {
 
     @Test
     void should_pass_when_destination_starport_exists() {
-        
+
         ReserveBayCommand cmd = aCommand("DEF");
         Errors errors = errorsFor(cmd);
         given(persistenceFacade.starportExistsByCode("DEF")).willReturn(true);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isFalse();
     }
 
     @Test
     void should_reject_when_destination_starport_does_not_exist() {
-        
+
         ReserveBayCommand cmd = aCommand("MISSING");
         Errors errors = errorsFor(cmd);
         given(persistenceFacade.starportExistsByCode("MISSING")).willReturn(false);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(DestinationStarportValidationRule.ERROR_CODE);
     }

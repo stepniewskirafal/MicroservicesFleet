@@ -1,9 +1,15 @@
 package com.galactic.starport.controller;
 
-import com.galactic.starport.service.*;
+import com.galactic.starport.service.CustomerNotFoundException;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.NoDockingBaysAvailableException;
+import com.galactic.starport.service.ShipNotFoundException;
+import com.galactic.starport.service.StarportNotFoundException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_DETAILS = "details";
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -24,13 +31,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
-        ex.getMostSpecificCause();
         return ResponseEntity.badRequest()
-                .body(Map.of(
-                        "error",
-                        "Malformed JSON",
-                        ERROR_DETAILS,
-                        ex.getMostSpecificCause().getMessage()));
+                .body(Map.of("error", "Malformed JSON", ERROR_DETAILS, "Request body could not be parsed"));
     }
 
     @ExceptionHandler(NoDockingBaysAvailableException.class)
@@ -66,7 +68,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntime(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Internal server error", ERROR_DETAILS, ex.getMessage()));
+        log.error("Unhandled exception", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal server error"));
     }
 }

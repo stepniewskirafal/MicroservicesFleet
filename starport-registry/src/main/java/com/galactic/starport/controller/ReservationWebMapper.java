@@ -27,15 +27,19 @@ class ReservationWebMapper {
                         .routeCode(r.getRouteCode())
                         .startStarportCode(r.getStartStarportCode())
                         .destinationStarportCode(r.getDestinationStarportCode())
-                        .etaLightYears(r.getEtaLightYears())
+                        .etaHours(r.getEtaHours())
                         .riskScore(r.getRiskScore())
                         .build())
+                .orElse(null);
+
+        String bayNumber = Optional.ofNullable(reservation.getDockingBay())
+                .map(bay -> bay.getBayLabel())
                 .orElse(null);
 
         return ReservationResponse.builder()
                 .reservationId(reservation.getId())
                 .starportCode(starportCode)
-                .bayNumber(reservation.getDockingBay().getBayLabel())
+                .bayNumber(bayNumber)
                 .startAt(reservation.getStartAt())
                 .endAt(reservation.getEndAt())
                 .feeCharged(reservation.getFeeCharged())

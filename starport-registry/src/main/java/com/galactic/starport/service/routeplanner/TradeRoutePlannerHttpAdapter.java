@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatusCode;
@@ -18,9 +19,14 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
+    private static final String ROUTE_PLAN_URI = "/routes/plan";
     private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
     private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
+    private static final double FUEL_RANGE_SCOUT = 15.0;
+    private static final double FUEL_RANGE_FREIGHTER = 25.0;
+    private static final double FUEL_RANGE_CRUISER = 40.0;
+    private static final double FUEL_RANGE_UNKNOWN = 5.0;
 
     private final RestClient restClient;
     private final ObservationRegistry observationRegistry;
@@ -42,21 +48,23 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     @Override
     @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
     public Route calculateRoute(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (!command.requestRoute()) {
             return null;
         }
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("startStarport", Objects.toString(command.startStarportCode(), "unknown"))
                 .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
                 .observe(() -> callTradeRoutePlanner(command));
     }
 
     private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
         incrementErrorCounter("circuit_open");
-        log.warn("Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
-                command.startStarportCode(), command.destinationStarportCode());
-        throw new RouteUnavailableException(
-                command.startStarportCode(), command.destinationStarportCode(), t);
+        log.warn(
+                "Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
+                command.startStarportCode(),
+                command.destinationStarportCode());
+        throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), t);
     }
 
     private Route callTradeRoutePlanner(ReserveBayCommand command) {
@@ -64,7 +72,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
         try {
             TradeRoutePlannerResponse response = restClient
                     .post()
-                    .uri("/routes/plan")
+                    .uri(ROUTE_PLAN_URI)
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
@@ -81,6 +89,11 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     })
                     .body(TradeRoutePlannerResponse.class);
 
+            if (response == null) {
+                incrementErrorCounter("empty_response");
+                throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode());
+            }
+
             routePlanSuccessCounter.increment();
             log.info(
                     "Route planned: {} from {} to {} — eta={}h risk={}",
@@ -94,7 +107,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     .routeCode(response.routeId())
                     .startStarportCode(command.startStarportCode())
                     .destinationStarportCode(command.destinationStarportCode())
-                    .etaLightYears(response.etaHours())
+                    .etaHours(response.etaHours())
                     .riskScore(response.riskScore())
                     .isActive(true)
                     .build();
@@ -109,8 +122,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     command.destinationStarportCode(),
                     e.getMessage(),
                     e);
-            throw new RouteUnavailableException(
-                    command.startStarportCode(), command.destinationStarportCode(), e);
+            throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), e);
         }
     }
 
@@ -132,10 +144,10 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
     private double fuelRangeLYForShipClass(ReserveBayCommand.ShipClass shipClass) {
         return switch (shipClass) {
-            case SCOUT -> 15.0;
-            case FREIGHTER -> 25.0;
-            case CRUISER -> 40.0;
-            case UNKNOWN -> 5.0;
+            case SCOUT -> FUEL_RANGE_SCOUT;
+            case FREIGHTER -> FUEL_RANGE_FREIGHTER;
+            case CRUISER -> FUEL_RANGE_CRUISER;
+            case UNKNOWN -> FUEL_RANGE_UNKNOWN;
         };
     }
 }

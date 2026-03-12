@@ -9,10 +9,7 @@ import lombok.Builder;
 
 @Builder
 public record PlanRouteRequest(
-        @NotBlank String originPortId,
-        @NotBlank String destinationPortId,
-        @NotNull @Valid ShipProfileDto shipProfile) {
+        @NotBlank String originPortId, @NotBlank String destinationPortId, @NotNull @Valid ShipProfileDto shipProfile) {
 
-    public record ShipProfileDto(
-            @NotBlank @JsonProperty("class") String shipClass, @Positive double fuelRangeLY) {}
+    public record ShipProfileDto(@NotBlank @JsonProperty("class") String shipClass, @Positive double fuelRangeLY) {}
 }

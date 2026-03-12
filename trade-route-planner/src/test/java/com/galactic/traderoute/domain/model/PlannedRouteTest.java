@@ -24,10 +24,16 @@ class PlannedRouteTest {
 
     @Test
     void should_support_record_equality() {
-        PlannedRoute a =
-                PlannedRoute.builder().routeId("ROUTE-X").etaHours(10.0).riskScore(0.5).build();
-        PlannedRoute b =
-                PlannedRoute.builder().routeId("ROUTE-X").etaHours(10.0).riskScore(0.5).build();
+        PlannedRoute a = PlannedRoute.builder()
+                .routeId("ROUTE-X")
+                .etaHours(10.0)
+                .riskScore(0.5)
+                .build();
+        PlannedRoute b = PlannedRoute.builder()
+                .routeId("ROUTE-X")
+                .etaHours(10.0)
+                .riskScore(0.5)
+                .build();
 
         assertThat(a).isEqualTo(b);
         assertThat(a.hashCode()).isEqualTo(b.hashCode());
@@ -35,12 +41,21 @@ class PlannedRouteTest {
 
     @Test
     void should_differ_when_any_field_differs() {
-        PlannedRoute base =
-                PlannedRoute.builder().routeId("ROUTE-A").etaHours(10.0).riskScore(0.5).build();
-        PlannedRoute diffId =
-                PlannedRoute.builder().routeId("ROUTE-B").etaHours(10.0).riskScore(0.5).build();
-        PlannedRoute diffEta =
-                PlannedRoute.builder().routeId("ROUTE-A").etaHours(99.0).riskScore(0.5).build();
+        PlannedRoute base = PlannedRoute.builder()
+                .routeId("ROUTE-A")
+                .etaHours(10.0)
+                .riskScore(0.5)
+                .build();
+        PlannedRoute diffId = PlannedRoute.builder()
+                .routeId("ROUTE-B")
+                .etaHours(10.0)
+                .riskScore(0.5)
+                .build();
+        PlannedRoute diffEta = PlannedRoute.builder()
+                .routeId("ROUTE-A")
+                .etaHours(99.0)
+                .riskScore(0.5)
+                .build();
 
         assertThat(base).isNotEqualTo(diffId);
         assertThat(base).isNotEqualTo(diffEta);

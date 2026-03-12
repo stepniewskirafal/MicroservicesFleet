@@ -36,7 +36,7 @@ class ReservationCalculationServiceTest {
 
     @Test
     void should_return_calculation_with_fee_and_route() {
-        
+
         Long reservationId = 42L;
         ReserveBayCommand cmd = aCommand(true);
         Route route = Route.builder().routeCode("RT-1").build();
@@ -44,10 +44,8 @@ class ReservationCalculationServiceTest {
         given(feeCalculator.calculateFee(cmd)).willReturn(BigDecimal.valueOf(100));
         given(routePlanner.calculateRoute(cmd)).willReturn(route);
 
-        
         ReservationCalculation result = service.calculate(reservationId, cmd);
 
-        
         assertThat(result.reservationId()).isEqualTo(42L);
         assertThat(result.calculatedFee()).isEqualByComparingTo(BigDecimal.valueOf(100));
         assertThat(result.route()).isEqualTo(route);
@@ -55,17 +53,15 @@ class ReservationCalculationServiceTest {
 
     @Test
     void should_return_calculation_with_null_route_when_not_requested() {
-        
+
         Long reservationId = 10L;
         ReserveBayCommand cmd = aCommand(false);
 
         given(feeCalculator.calculateFee(cmd)).willReturn(BigDecimal.valueOf(50));
         given(routePlanner.calculateRoute(cmd)).willReturn(null);
 
-        
         ReservationCalculation result = service.calculate(reservationId, cmd);
 
-        
         assertThat(result.reservationId()).isEqualTo(10L);
         assertThat(result.calculatedFee()).isEqualByComparingTo(BigDecimal.valueOf(50));
         assertThat(result.route()).isNull();

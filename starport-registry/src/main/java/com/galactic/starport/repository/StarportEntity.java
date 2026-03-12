@@ -1,17 +1,32 @@
 package com.galactic.starport.repository;
 
 import com.galactic.starport.service.Starport;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
 @Entity
-@Table(name = "starport")
+@Table(
+        name = "starport",
+        indexes = {@Index(name = "idx_starport_code", columnList = "code")})
 @Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 class StarportEntity {
@@ -47,6 +62,18 @@ class StarportEntity {
                 .name(this.name)
                 .description(this.description)
                 .build();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StarportEntity that)) return false;
+        return code != null && code.equals(that.code);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(code);
     }
 
     @PrePersist

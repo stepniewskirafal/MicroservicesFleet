@@ -1,10 +1,23 @@
 package com.galactic.starport.repository;
 
 import com.galactic.starport.service.Customer;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,7 +25,9 @@ import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
 @Entity
-@Table(name = "customer")
+@Table(
+        name = "customer",
+        indexes = {@Index(name = "idx_customer_code", columnList = "customer_code")})
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @Getter
 @Setter
@@ -60,6 +75,18 @@ class CustomerEntity {
                 .createdAt(this.createdAt)
                 .updatedAt(this.updatedAt)
                 .build();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof CustomerEntity that)) return false;
+        return customerCode != null && customerCode.equals(that.customerCode);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(customerCode);
     }
 
     @PrePersist

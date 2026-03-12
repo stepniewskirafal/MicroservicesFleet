@@ -1,8 +1,17 @@
 package com.galactic.starport.repository;
 
 import com.galactic.starport.service.Route;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -27,7 +36,7 @@ class RouteEntity {
     private String destinationStarportCode;
 
     @Column(name = "eta_light_years")
-    private Double etaLightYears;
+    private Double etaHours;
 
     @Column(name = "risk_score")
     private Double riskScore;
@@ -46,9 +55,21 @@ class RouteEntity {
         this.routeCode = route.getRouteCode();
         this.startStarportCode = route.getStartStarportCode();
         this.destinationStarportCode = route.getDestinationStarportCode();
-        this.etaLightYears = route.getEtaLightYears();
+        this.etaHours = route.getEtaHours();
         this.riskScore = route.getRiskScore();
         this.reservationId = reservationId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof RouteEntity that)) return false;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 
     @PrePersist

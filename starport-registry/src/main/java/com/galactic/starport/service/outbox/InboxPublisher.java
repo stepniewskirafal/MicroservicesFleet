@@ -34,8 +34,8 @@ class InboxPublisher {
     private final StreamBridge streamBridge;
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
-    private final Integer batchSize;
-    private final Integer maxAttempts;
+    private final int batchSize;
+    private final int maxAttempts;
 
     InboxPublisher(
             OutboxEventJpaRepository repo,
@@ -43,8 +43,7 @@ class InboxPublisher {
             ObservationRegistry observationRegistry,
             MeterRegistry meterRegistry,
             @Value("${outbox.batch-size:50}") int batchSize,
-            @Value("${outbox.max-attempts:10}") int maxAttempts
-    ) {
+            @Value("${outbox.max-attempts:10}") int maxAttempts) {
         this.repo = repo;
         this.streamBridge = streamBridge;
         this.observationRegistry = observationRegistry;
@@ -72,8 +71,8 @@ class InboxPublisher {
                     .baseUnit("events")
                     .register(meterRegistry)
                     .record(batch.size());
-            for (OutboxEventEntity e : batch) {
-                if (!processSingleEvent(e)) {
+            for (OutboxEventEntity event : batch) {
+                if (!processSingleEvent(event)) {
                     anyFailure = true;
                 }
             }
@@ -92,38 +91,38 @@ class InboxPublisher {
         }
     }
 
-    private boolean processSingleEvent(OutboxEventEntity e) {
+    private boolean processSingleEvent(OutboxEventEntity outboxEvent) {
         ReceiverContext<Map<String, String>> receiverCtx = new ReceiverContext<>(Map::get, Kind.CONSUMER);
-        receiverCtx.setCarrier(toStringHeaders(e.getHeadersJson()));
+        receiverCtx.setCarrier(toStringHeaders(outboxEvent.getHeadersJson()));
         receiverCtx.setRemoteServiceName("kafka");
         Observation publishObs = Observation.createNotStarted(OBS_PUBLISH, () -> receiverCtx, observationRegistry)
-                .lowCardinalityKeyValue("binding", e.getBinding())
-                .lowCardinalityKeyValue("eventType", e.getEventType())
-                .highCardinalityKeyValue("outboxId", String.valueOf(e.getId()));
+                .lowCardinalityKeyValue("binding", outboxEvent.getBinding())
+                .lowCardinalityKeyValue("eventType", outboxEvent.getEventType())
+                .highCardinalityKeyValue("outboxId", String.valueOf(outboxEvent.getId()));
         publishObs.start();
         try (Observation.Scope scope = publishObs.openScope()) {
-            Message<?> msg = buildMessage(e);
-            boolean sent = streamBridge.send(e.getBinding(), msg);
+            Message<?> msg = buildMessage(outboxEvent);
+            boolean sent = streamBridge.send(outboxEvent.getBinding(), msg);
             if (!sent) {
-                throw new IllegalStateException("StreamBridge.send returned false");
+                throw new IllegalStateException("StreamBridge.send returned false for outboxId=" + outboxEvent.getId());
             }
-            e.markSent();
+            outboxEvent.markSent();
             return true;
         } catch (Exception ex) {
             publishObs.error(ex);
-            handleFailure(e, ex);
+            handleFailure(outboxEvent, ex);
             return false;
         } finally {
             publishObs.stop();
         }
     }
 
-    private Message<?> buildMessage(OutboxEventEntity e) {
-        Map<String, Object> payload = e.getPayloadJson();
-        Map<String, Object> headers = e.getHeadersJson();
+    private Message<?> buildMessage(OutboxEventEntity outboxEvent) {
+        Map<String, Object> payload = outboxEvent.getPayloadJson();
+        Map<String, Object> headers = outboxEvent.getHeadersJson();
 
         return MessageBuilder.withPayload(payload)
-                .setHeader(KafkaHeaders.KEY, e.getMessageKey())
+                .setHeader(KafkaHeaders.KEY, outboxEvent.getMessageKey())
                 .copyHeaders(headers == null ? Map.of() : headers)
                 .build();
     }
@@ -134,23 +133,22 @@ class InboxPublisher {
         }
         return headers.entrySet().stream()
                 .collect(Collectors.toMap(
-                        Map.Entry::getKey, e -> e.getValue() == null ? "" : String.valueOf(e.getValue())));
+                        Map.Entry::getKey, entry -> entry.getValue() == null ? "" : String.valueOf(entry.getValue())));
     }
 
-    private void handleFailure(OutboxEventEntity e, Exception ex) {
-        e.bumpAttempts();
-        if (e.getAttempts() >= maxAttempts) {
-            e.markFailed();
-            log.warn("Outbox permanently failed id={} attempts={}", e.getId(), e.getAttempts(), ex);
-            // Alert: event will never be delivered — requires manual intervention.
+    private void handleFailure(OutboxEventEntity outboxEvent, Exception ex) {
+        outboxEvent.bumpAttempts();
+        if (outboxEvent.getAttempts() >= maxAttempts) {
+            outboxEvent.markFailed();
+            log.warn("Outbox permanently failed id={} attempts={}", outboxEvent.getId(), outboxEvent.getAttempts(), ex);
             Counter.builder(METRIC_DEAD_LETTER)
                     .description("Outbox events permanently failed after max delivery attempts")
-                    .tag("eventType", e.getEventType())
-                    .tag("binding", e.getBinding())
+                    .tag("eventType", outboxEvent.getEventType())
+                    .tag("binding", outboxEvent.getBinding())
                     .register(meterRegistry)
                     .increment();
         } else {
-            log.info("Outbox temporary failure id={} attempts={}", e.getId(), e.getAttempts(), ex);
+            log.info("Outbox temporary failure id={} attempts={}", outboxEvent.getId(), outboxEvent.getAttempts(), ex);
         }
     }
 }
