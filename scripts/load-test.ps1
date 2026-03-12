@@ -2,17 +2,35 @@
 # load-test.ps1  –  Generate 100 interleaved reservation requests
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\load-test.ps1
-#         powershell -ExecutionPolicy Bypass -File scripts\load-test.ps1 -Base http://localhost:8084
+#         powershell -ExecutionPolicy Bypass -File scripts\load-test.ps1 -ScriptId 2
 #         powershell -ExecutionPolicy Bypass -File scripts\load-test.ps1 -WithRoutes
+#
+# Run all 5 in parallel:
+#   powershell -ExecutionPolicy Bypass -File scripts\load-test-all.ps1
+#
+# ScriptId 1-5 gives each script a separate time window so dates
+# never overlap between scripts (each gets its own 500-hour band).
 # ------------------------------------------------------------------
 param(
     [string]$Base = "http://localhost:8081",
+    [ValidateRange(1,5)][int]$ScriptId = 1,
     [switch]$WithRoutes  # only enable route planning if trade-route-planner is running
 )
 
 $API = "$Base/api/v1/starports"
 $ok = 0; $fail = 0; $err = 0; $mismatch = 0
-$runId = Get-Random -Minimum 1000 -Maximum 9999
+
+# ── Time offset strategy ─────────────────────────────────────────
+# Each ScriptId gets a 500-hour band. Within each band, requests are
+# spaced 8 hours apart (max duration = 4h), so no overlap is possible.
+#
+#   Script 1: offsets  1000 –  1400
+#   Script 2: offsets  2000 –  2400
+#   Script 3: offsets  3000 –  3400
+#   Script 4: offsets  4000 –  4400
+#   Script 5: offsets  5000 –  5400
+#
+$offsetBase = $ScriptId * 1000
 
 function Fire {
     param(
@@ -138,8 +156,9 @@ for ($i = 1; $i -le 50; $i++) {
     $ships   = $shipsByClass[$class]
     $shipDef = $ships[(Get-Random -Minimum 0 -Maximum $ships.Count)]
 
-    # Unique time window per run
-    $offset   = ($runId * 100) + ($i * 5)
+    # Unique time window: ScriptId determines band, $i determines slot within band
+    # 8h spacing guarantees no overlap even with max 4h duration
+    $offset   = $offsetBase + ($i * 8)
     $duration = Get-Random -Minimum 1 -Maximum 4
 
     # Route planning: only if -WithRoutes flag is set
@@ -237,10 +256,10 @@ $badCalls += ,@{ Label = "BAD   negative duration";       Expect = 422; Url = "$
 
 Write-Host "============================================"
 Write-Host " Starport Registry Load Test (100 requests)"
-Write-Host " Target: $Base"
-Write-Host " Run ID: $runId (unique time offsets)"
-Write-Host " Routes: $(if ($WithRoutes) { 'ENABLED (needs trade-route-planner)' } else { 'DISABLED' })"
-Write-Host " Pattern: GOOD, BAD, GOOD, BAD, ..."
+Write-Host " Target:    $Base"
+Write-Host " Script ID: $ScriptId / 5  (offset band: $($offsetBase)–$($offsetBase + 400)h)"
+Write-Host " Routes:    $(if ($WithRoutes) { 'ENABLED (needs trade-route-planner)' } else { 'DISABLED' })"
+Write-Host " Pattern:   GOOD, BAD, GOOD, BAD, ..."
 Write-Host "============================================"
 Write-Host ""
 
