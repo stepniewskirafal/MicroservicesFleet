@@ -12,13 +12,6 @@ import org.springframework.web.client.RestClient;
 @Configuration(proxyBeanMethods = false)
 class RestClientConfig {
 
-    /**
-     * Load-balanced builder: Spring Cloud post-processes this bean (via BeanPostProcessor)
-     * to inject the LoadBalancerInterceptor before any dependent bean receives it. This
-     * avoids the ordering issue of the old @LoadBalanced RestTemplate + RestClient.builder(template)
-     * pattern, where interceptors were copied at build time before SmartInitializingSingleton
-     * had a chance to add them.
-     */
     @Bean
     @LoadBalanced
     @ConditionalOnProperty(name = "spring.cloud.discovery.enabled", havingValue = "true", matchIfMissing = true)
