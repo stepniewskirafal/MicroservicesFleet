@@ -257,7 +257,7 @@ $badCalls += ,@{ Label = "BAD   negative duration";       Expect = 422; Url = "$
 Write-Host "============================================"
 Write-Host " Starport Registry Load Test (100 requests)"
 Write-Host " Target:    $Base"
-Write-Host " Script ID: $ScriptId / 5  (offset band: $($offsetBase)–$($offsetBase + 400)h)"
+Write-Host " Script ID: $ScriptId / 5  (offset band: $($offsetBase)-$($offsetBase + 400)h)"
 Write-Host " Routes:    $(if ($WithRoutes) { 'ENABLED (needs trade-route-planner)' } else { 'DISABLED' })"
 Write-Host " Pattern:   GOOD, BAD, GOOD, BAD, ..."
 Write-Host "============================================"
