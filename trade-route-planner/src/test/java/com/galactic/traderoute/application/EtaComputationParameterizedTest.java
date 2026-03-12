@@ -22,7 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class EtaComputationParameterizedTest {
 
     private final PlanRouteService service =
-            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP);
+            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP, event -> {});
 
     @ParameterizedTest(name = "[{index}] shipClass={0} → ETA in [{1}, {2}]")
     @CsvSource({

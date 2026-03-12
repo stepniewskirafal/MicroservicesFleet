@@ -9,6 +9,27 @@ spring:
     discovery:
       enabled: true
 
+    stream:
+      defaultBinder: kafka
+
+      bindings:
+        routePlanned-out-0:
+          destination: starport.route-planned
+          content-type: application/json
+
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          autoCreateTopics: true
+          autoAddPartitions: false
+          configuration:
+            key.serializer: org.apache.kafka.common.serialization.StringSerializer
+            value.serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
 eureka:
   client:
     serviceUrl:

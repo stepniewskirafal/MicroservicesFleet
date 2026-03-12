@@ -1,14 +1,17 @@
 package com.galactic.traderoute.application;
 
 import com.galactic.traderoute.domain.model.PlannedRoute;
+import com.galactic.traderoute.domain.model.RoutePlannedEvent;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.domain.model.RouteRequest;
 import com.galactic.traderoute.port.in.PlanRouteUseCase;
+import com.galactic.traderoute.port.out.RouteEventPublisher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
@@ -27,11 +30,16 @@ public class PlanRouteService implements PlanRouteUseCase {
 
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
+    private final RouteEventPublisher routeEventPublisher;
     private final Counter plannedCounter;
 
-    public PlanRouteService(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
+    public PlanRouteService(
+            MeterRegistry meterRegistry,
+            ObservationRegistry observationRegistry,
+            RouteEventPublisher routeEventPublisher) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
+        this.routeEventPublisher = routeEventPublisher;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)
                 .description("Number of successfully planned routes")
                 .register(meterRegistry);
@@ -79,11 +87,24 @@ public class PlanRouteService implements PlanRouteUseCase {
                 .record(etaHours);
 
         plannedCounter.increment();
-        return PlannedRoute.builder()
+
+        PlannedRoute result = PlannedRoute.builder()
                 .routeId(routeId)
                 .etaHours(etaHours)
                 .riskScore(riskScore)
                 .build();
+
+        routeEventPublisher.publish(RoutePlannedEvent.builder()
+                .routeId(routeId)
+                .originPortId(request.originPortId())
+                .destinationPortId(request.destinationPortId())
+                .shipClass(request.shipClass())
+                .etaHours(etaHours)
+                .riskScore(riskScore)
+                .plannedAt(Instant.now())
+                .build());
+
+        return result;
     }
 
     private void validateFuelRange(RouteRequest request) {

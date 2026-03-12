@@ -23,7 +23,7 @@ class PlanRouteServiceTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        service = new PlanRouteService(meterRegistry, ObservationRegistry.NOOP);
+        service = new PlanRouteService(meterRegistry, ObservationRegistry.NOOP, event -> {});
     }
 
     @Test

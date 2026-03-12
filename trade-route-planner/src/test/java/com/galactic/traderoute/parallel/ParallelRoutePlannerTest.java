@@ -37,7 +37,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 class ParallelRoutePlannerTest {
 
     private static final PlanRouteService SERVICE =
-            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP);
+            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP, event -> {});
 
     @RepeatedTest(value = 20, name = "concurrent planning #{currentRepetition}/{totalRepetitions}")
     void should_produce_valid_route_under_concurrent_junit5_execution(TestInfo info) {
@@ -131,7 +131,7 @@ class ParallelRoutePlannerTest {
     @Test
     void counter_should_be_incremented_atomically_by_all_threads() throws Exception {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        PlanRouteService localService = new PlanRouteService(registry, ObservationRegistry.NOOP);
+        PlanRouteService localService = new PlanRouteService(registry, ObservationRegistry.NOOP, event -> {});
 
         int threadCount = 30;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);

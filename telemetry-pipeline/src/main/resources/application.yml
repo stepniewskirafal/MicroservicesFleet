@@ -6,7 +6,7 @@ spring:
     name: telemetry-pipeline
   cloud:
     function:
-      definition: telemetryPipeline
+      definition: telemetryPipeline;reservationPipeline;routePipeline
     discovery:
       enabled: true
 
@@ -14,9 +14,10 @@ spring:
       defaultBinder: kafka
 
       function:
-        definition: telemetryPipeline
+        definition: telemetryPipeline;reservationPipeline;routePipeline
 
       bindings:
+        # Existing telemetry pipeline
         telemetryPipeline-in-0:
           destination: telemetry.raw
           group: telemetry-pipeline
@@ -26,6 +27,30 @@ spring:
             back-off-initial-interval: 1000
         telemetryPipeline-out-0:
           destination: telemetry.alerts
+          content-type: application/json
+
+        # Reservation events: consume from starport.reservations, publish enriched
+        reservationPipeline-in-0:
+          destination: starport.reservations
+          group: telemetry-pipeline
+          content-type: application/json
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+        reservationPipeline-out-0:
+          destination: telemetry.enriched-reservations
+          content-type: application/json
+
+        # Route events: consume from starport.route-planned, publish enriched
+        routePipeline-in-0:
+          destination: starport.route-planned
+          group: telemetry-pipeline
+          content-type: application/json
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+        routePipeline-out-0:
+          destination: telemetry.enriched-routes
           content-type: application/json
 
       kafka:

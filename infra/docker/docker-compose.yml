@@ -1,10 +1,6 @@
 name: microservices_fleet
 services:
 
-  # ─────────────────────────────────────────────
-  # INFRASTRUCTURE
-  # ─────────────────────────────────────────────
-
   eureka:
     build:
       context: ../..
@@ -228,11 +224,14 @@ services:
     depends_on:
       eureka:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
       zipkin:
         condition: service_healthy
     environment:
       PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
       ZIPKIN_URL: http://zipkin:9411/api/v2/spans
     ports:
       - "8082:8082"
@@ -251,11 +250,14 @@ services:
     depends_on:
       eureka:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
       zipkin:
         condition: service_healthy
     environment:
       PORT: 8083
       EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
       ZIPKIN_URL: http://zipkin:9411/api/v2/spans
     ports:
       - "8083:8083"
