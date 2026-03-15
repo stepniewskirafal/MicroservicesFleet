@@ -27,7 +27,7 @@ class ReservationWebMapper {
                         .routeCode(r.getRouteCode())
                         .startStarportCode(r.getStartStarportCode())
                         .destinationStarportCode(r.getDestinationStarportCode())
-                        .etaLightYears(r.getEtaLightYears())
+                        .etaHours(r.getEtaHours())
                         .riskScore(r.getRiskScore())
                         .build())
                 .orElse(null);

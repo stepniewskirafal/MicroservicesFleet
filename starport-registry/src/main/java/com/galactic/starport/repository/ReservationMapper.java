@@ -89,7 +89,7 @@ class ReservationMapper {
                 .routeCode(routeEntity.getRouteCode())
                 .startStarportCode(routeEntity.getStartStarportCode())
                 .destinationStarportCode(routeEntity.getDestinationStarportCode())
-                .etaLightYears(routeEntity.getEtaLightYears())
+                .etaHours(routeEntity.getEtaHours())
                 .riskScore(routeEntity.getRiskScore())
                 .isActive(reservationStatus == ReservationEntity.ReservationStatus.CONFIRMED)
                 .build();

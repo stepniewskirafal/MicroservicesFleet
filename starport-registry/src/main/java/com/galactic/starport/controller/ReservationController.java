@@ -31,7 +31,7 @@ public class ReservationController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ReservationResponse> create(
             @PathVariable String code, @Valid @RequestBody ReservationCreateRequest req) {
-        log.info("Received reservation create request for starport {}: {}", code, req);
+        log.info("Received reservation create request for starport {}", code);
         var cmd = mapper.toCommand(code, req);
         return service.reserveBay(cmd)
                 .map(domain -> ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(code, domain)))

@@ -79,10 +79,7 @@ class PlanRouteServiceEventPublishingTest {
     void should_record_risk_score_distribution_summary() {
         service.planRoute(aRequest("SP-X", "SP-Y", "SCOUT", 10.0));
 
-        DistributionSummary summary = meterRegistry.get("routes.risk.score")
-                .tag("originPortId", "SP-X")
-                .tag("destinationPortId", "SP-Y")
-                .summary();
+        DistributionSummary summary = meterRegistry.get("routes.risk.score").summary();
 
         assertThat(summary.count()).isEqualTo(1);
         assertThat(summary.totalAmount()).isBetween(0.0, 1.0);

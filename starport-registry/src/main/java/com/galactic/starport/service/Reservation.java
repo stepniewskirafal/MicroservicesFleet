@@ -23,10 +23,6 @@ public class Reservation {
         this.feeCharged = feeCharged;
     }
 
-    public void confirmReservationWithoutRoute() {
-        status = ReservationStatus.CONFIRMED;
-    }
-
     public enum ReservationStatus {
         HOLD,
         CONFIRMED,

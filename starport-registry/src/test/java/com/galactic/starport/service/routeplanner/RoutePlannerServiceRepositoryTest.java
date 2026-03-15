@@ -54,7 +54,7 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
         assertTrue(route.getRouteCode().startsWith("ROUTE-"), "Route code should start with ROUTE-");
         assertEquals(cmd.startStarportCode(), route.getStartStarportCode());
         assertEquals(cmd.destinationStarportCode(), route.getDestinationStarportCode());
-        assertTrue(route.getEtaLightYears() > 0);
+        assertTrue(route.getEtaHours() > 0);
         assertTrue(route.getRiskScore() >= 0 && route.getRiskScore() <= 1.0);
         assertTrue(route.isActive());
     }

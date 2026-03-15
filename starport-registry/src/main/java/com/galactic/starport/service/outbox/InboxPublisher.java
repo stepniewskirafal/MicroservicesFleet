@@ -72,8 +72,8 @@ class InboxPublisher {
                     .baseUnit("events")
                     .register(meterRegistry)
                     .record(batch.size());
-            for (OutboxEventEntity e : batch) {
-                if (!processSingleEvent(e)) {
+            for (OutboxEventEntity event : batch) {
+                if (!processSingleEvent(event)) {
                     anyFailure = true;
                 }
             }
@@ -134,7 +134,7 @@ class InboxPublisher {
         }
         return headers.entrySet().stream()
                 .collect(Collectors.toMap(
-                        Map.Entry::getKey, e -> e.getValue() == null ? "" : String.valueOf(e.getValue())));
+                        Map.Entry::getKey, entry -> entry.getValue() == null ? "" : String.valueOf(entry.getValue())));
     }
 
     private void handleFailure(OutboxEventEntity e, Exception ex) {

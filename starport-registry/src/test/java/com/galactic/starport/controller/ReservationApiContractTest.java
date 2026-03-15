@@ -5,7 +5,15 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.galactic.starport.service.*;
+import com.galactic.starport.service.CustomerNotFoundException;
+import com.galactic.starport.service.DockingBay;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.NoDockingBaysAvailableException;
+import com.galactic.starport.service.Reservation;
+import com.galactic.starport.service.ReservationService;
+import com.galactic.starport.service.Route;
+import com.galactic.starport.service.ShipNotFoundException;
+import com.galactic.starport.service.StarportNotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -45,7 +53,7 @@ class ReservationApiContractTest {
                 .routeCode("RT-42")
                 .startStarportCode("ABC")
                 .destinationStarportCode("DEF")
-                .etaLightYears(4.2)
+                .etaHours(4.2)
                 .riskScore(0.15)
                 .build();
         given(service.reserveBay(any())).willReturn(Optional.of(aReservation(route)));
@@ -65,7 +73,7 @@ class ReservationApiContractTest {
                 .andExpect(jsonPath("$.route.routeCode").isString())
                 .andExpect(jsonPath("$.route.startStarportCode").isString())
                 .andExpect(jsonPath("$.route.destinationStarportCode").isString())
-                .andExpect(jsonPath("$.route.etaLightYears").isNumber())
+                .andExpect(jsonPath("$.route.etaHours").isNumber())
                 .andExpect(jsonPath("$.route.riskScore").isNumber());
     }
 

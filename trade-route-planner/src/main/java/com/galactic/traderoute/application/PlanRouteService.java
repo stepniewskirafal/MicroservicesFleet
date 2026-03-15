@@ -32,11 +32,14 @@ public class PlanRouteService implements PlanRouteUseCase {
     private static final double BASE_ETA_CRUISER = 12.0;
     private static final double BASE_ETA_DEFAULT = 20.0;
     private static final double RISK_ETA_MULTIPLIER = 10.0;
+    private static final String ROUTE_ID_PREFIX = "ROUTE-";
+    private static final int ROUTE_ID_SUFFIX_LENGTH = 8;
 
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
     private final RouteEventPublisher routeEventPublisher;
     private final Counter plannedCounter;
+    private final DistributionSummary riskScoreSummary;
 
     public PlanRouteService(
             MeterRegistry meterRegistry,
@@ -47,6 +50,9 @@ public class PlanRouteService implements PlanRouteUseCase {
         this.routeEventPublisher = routeEventPublisher;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)
                 .description("Number of successfully planned routes")
+                .register(meterRegistry);
+        this.riskScoreSummary = DistributionSummary.builder(METRIC_RISK_SCORE)
+                .description("Distribution of route risk scores (0=safe, 1=dangerous)")
                 .register(meterRegistry);
     }
 
@@ -64,26 +70,31 @@ public class PlanRouteService implements PlanRouteUseCase {
 
         double riskScore = ThreadLocalRandom.current().nextDouble(0.0, 1.0);
         double etaHours = computeEta(request, riskScore);
-        String routeId = "ROUTE-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String routeId = generateRouteId();
 
-        log.info(
-                "Route planned: {} from {} to {} — eta={}h risk={}",
-                routeId,
-                request.originPortId(),
-                request.destinationPortId(),
-                etaHours,
-                riskScore);
+        log.info("Route planned: {} from {} to {} — eta={}h risk={}",
+                routeId, request.originPortId(), request.destinationPortId(), etaHours, riskScore);
 
-        // Risk score distribution — key input to tariff calculation (up to 20% discount).
-        // Micrometer caches meters by (name+tags), so registration is idempotent.
-        DistributionSummary.builder(METRIC_RISK_SCORE)
-                .description("Distribution of route risk scores (0=safe, 1=dangerous); affects tariff discount")
-                .tag("originPortId", request.originPortId())
-                .tag("destinationPortId", request.destinationPortId())
-                .register(meterRegistry)
-                .record(riskScore);
+        recordMetrics(request, riskScore, etaHours);
 
-        // ETA distribution — useful for capacity planning and SLA monitoring per ship class.
+        PlannedRoute result = PlannedRoute.builder()
+                .routeId(routeId)
+                .etaHours(etaHours)
+                .riskScore(riskScore)
+                .build();
+
+        publishRouteEvent(request, routeId, etaHours, riskScore);
+
+        return result;
+    }
+
+    private String generateRouteId() {
+        return ROUTE_ID_PREFIX + UUID.randomUUID().toString().substring(0, ROUTE_ID_SUFFIX_LENGTH).toUpperCase();
+    }
+
+    private void recordMetrics(RouteRequest request, double riskScore, double etaHours) {
+        riskScoreSummary.record(riskScore);
+
         DistributionSummary.builder(METRIC_ETA_HOURS)
                 .description("Distribution of planned route ETA in hours")
                 .baseUnit("hours")
@@ -92,13 +103,9 @@ public class PlanRouteService implements PlanRouteUseCase {
                 .record(etaHours);
 
         plannedCounter.increment();
+    }
 
-        PlannedRoute result = PlannedRoute.builder()
-                .routeId(routeId)
-                .etaHours(etaHours)
-                .riskScore(riskScore)
-                .build();
-
+    private void publishRouteEvent(RouteRequest request, String routeId, double etaHours, double riskScore) {
         routeEventPublisher.publish(RoutePlannedEvent.builder()
                 .routeId(routeId)
                 .originPortId(request.originPortId())
@@ -108,8 +115,6 @@ public class PlanRouteService implements PlanRouteUseCase {
                 .riskScore(riskScore)
                 .plannedAt(Instant.now())
                 .build());
-
-        return result;
     }
 
     private void validateFuelRange(RouteRequest request) {

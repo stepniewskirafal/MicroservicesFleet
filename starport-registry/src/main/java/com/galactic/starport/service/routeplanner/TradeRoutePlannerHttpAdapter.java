@@ -18,9 +18,14 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
+    private static final String ROUTE_PLAN_URI = "/routes/plan";
     private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
     private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
+    private static final double FUEL_RANGE_SCOUT = 15.0;
+    private static final double FUEL_RANGE_FREIGHTER = 25.0;
+    private static final double FUEL_RANGE_CRUISER = 40.0;
+    private static final double FUEL_RANGE_UNKNOWN = 5.0;
 
     private final RestClient restClient;
     private final ObservationRegistry observationRegistry;
@@ -64,7 +69,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
         try {
             TradeRoutePlannerResponse response = restClient
                     .post()
-                    .uri("/routes/plan")
+                    .uri(ROUTE_PLAN_URI)
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
@@ -100,7 +105,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     .routeCode(response.routeId())
                     .startStarportCode(command.startStarportCode())
                     .destinationStarportCode(command.destinationStarportCode())
-                    .etaLightYears(response.etaHours())
+                    .etaHours(response.etaHours())
                     .riskScore(response.riskScore())
                     .isActive(true)
                     .build();
@@ -138,10 +143,10 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
     private double fuelRangeLYForShipClass(ReserveBayCommand.ShipClass shipClass) {
         return switch (shipClass) {
-            case SCOUT -> 15.0;
-            case FREIGHTER -> 25.0;
-            case CRUISER -> 40.0;
-            case UNKNOWN -> 5.0;
+            case SCOUT -> FUEL_RANGE_SCOUT;
+            case FREIGHTER -> FUEL_RANGE_FREIGHTER;
+            case CRUISER -> FUEL_RANGE_CRUISER;
+            case UNKNOWN -> FUEL_RANGE_UNKNOWN;
         };
     }
 }

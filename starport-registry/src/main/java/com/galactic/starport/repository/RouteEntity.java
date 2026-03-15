@@ -35,7 +35,7 @@ class RouteEntity {
     private String destinationStarportCode;
 
     @Column(name = "eta_light_years")
-    private Double etaLightYears;
+    private Double etaHours;
 
     @Column(name = "risk_score")
     private Double riskScore;
@@ -54,7 +54,7 @@ class RouteEntity {
         this.routeCode = route.getRouteCode();
         this.startStarportCode = route.getStartStarportCode();
         this.destinationStarportCode = route.getDestinationStarportCode();
-        this.etaLightYears = route.getEtaLightYears();
+        this.etaHours = route.getEtaHours();
         this.riskScore = route.getRiskScore();
         this.reservationId = reservationId;
     }

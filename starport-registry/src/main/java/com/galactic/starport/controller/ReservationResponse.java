@@ -19,6 +19,6 @@ public record ReservationResponse(
             String routeCode,
             String startStarportCode,
             String destinationStarportCode,
-            Double etaLightYears,
+            Double etaHours,
             Double riskScore) {}
 }

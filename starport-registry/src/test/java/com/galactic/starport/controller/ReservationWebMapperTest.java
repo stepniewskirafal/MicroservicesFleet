@@ -69,7 +69,7 @@ class ReservationWebMapperTest {
                 .routeCode("RT-1")
                 .startStarportCode("ABC")
                 .destinationStarportCode("DEF")
-                .etaLightYears(4.2)
+                .etaHours(4.2)
                 .riskScore(0.3)
                 .build();
         Reservation reservation = Reservation.builder()
@@ -95,7 +95,7 @@ class ReservationWebMapperTest {
         assertThat(resp.route().routeCode()).isEqualTo("RT-1");
         assertThat(resp.route().startStarportCode()).isEqualTo("ABC");
         assertThat(resp.route().destinationStarportCode()).isEqualTo("DEF");
-        assertThat(resp.route().etaLightYears()).isEqualTo(4.2);
+        assertThat(resp.route().etaHours()).isEqualTo(4.2);
         assertThat(resp.route().riskScore()).isEqualTo(0.3);
     }
 

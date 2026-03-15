@@ -10,7 +10,7 @@ public class Route {
     private String routeCode;
     private String startStarportCode;
     private String destinationStarportCode;
-    private Double etaLightYears;
+    private Double etaHours;
     private Double riskScore;
     private boolean isActive;
 }
