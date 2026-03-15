@@ -81,6 +81,12 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     })
                     .body(TradeRoutePlannerResponse.class);
 
+            if (response == null) {
+                incrementErrorCounter("empty_response");
+                throw new RouteUnavailableException(
+                        command.startStarportCode(), command.destinationStarportCode());
+            }
+
             routePlanSuccessCounter.increment();
             log.info(
                     "Route planned: {} from {} to {} — eta={}h risk={}",

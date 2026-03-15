@@ -7,9 +7,6 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.transport.Kind;
 import io.micrometer.observation.transport.SenderContext;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
-import io.micrometer.tracing.propagation.Propagator;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +20,9 @@ class OutboxAppender {
     private final ObjectMapper objectMapper;
     private final ReservationEventMapper mapper;
     private final ObservationRegistry observationRegistry;
-    private final Tracer tracer;
-    private final Propagator propagator;
 
     @Value("${app.events.topics.reservations}")
-    String reservationsBinding;
+    private String reservationsBinding;
 
     void publishReservationConfirmedEvent(Reservation reservation) {
         SenderContext<Map<String, Object>> senderContext = new SenderContext<>(Map::put, Kind.PRODUCER);
@@ -37,7 +32,7 @@ class OutboxAppender {
 
         Observation.createNotStarted("reservations.outbox.append", () -> senderContext, observationRegistry )
                 .lowCardinalityKeyValue("binding", reservationsBinding)
-                .lowCardinalityKeyValue("eventType", EventType.RESERVATION_CONFIRMED.eventName)
+                .lowCardinalityKeyValue("eventType", EventType.RESERVATION_CONFIRMED.getEventName())
                 .highCardinalityKeyValue("reservationId", String.valueOf(reservation.getId()))
                 .observe(() -> {
                     ReservationEventPayload dto = mapper.toPayload(reservation);
@@ -45,7 +40,7 @@ class OutboxAppender {
 
                     outboxWriter.save(
                             reservationsBinding,
-                            EventType.RESERVATION_CONFIRMED.eventName,
+                            EventType.RESERVATION_CONFIRMED.getEventName(),
                             String.valueOf(reservation.getId()),
                             payload,
                             headers);
@@ -54,10 +49,15 @@ class OutboxAppender {
 
     enum EventType {
         RESERVATION_CONFIRMED("ReservationConfirmed");
-        final String eventName;
+
+        private final String eventName;
 
         EventType(String eventName) {
             this.eventName = eventName;
+        }
+
+        String getEventName() {
+            return eventName;
         }
     }
 }

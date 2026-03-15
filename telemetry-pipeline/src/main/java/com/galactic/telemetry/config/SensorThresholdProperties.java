@@ -22,7 +22,7 @@ public class SensorThresholdProperties {
     }
 
     public Map<SensorType, ThresholdRange> getSensors() {
-        return sensors;
+        return java.util.Collections.unmodifiableMap(sensors);
     }
 
     public void setSensors(Map<SensorType, ThresholdRange> overrides) {
@@ -32,7 +32,7 @@ public class SensorThresholdProperties {
     }
 
     public ThresholdRange rangeFor(SensorType sensorType) {
-        return sensors.getOrDefault(sensorType, new ThresholdRange(Double.MIN_VALUE, Double.MAX_VALUE));
+        return sensors.getOrDefault(sensorType, new ThresholdRange(-Double.MAX_VALUE, Double.MAX_VALUE));
     }
 
     public record ThresholdRange(double lower, double upper) {}

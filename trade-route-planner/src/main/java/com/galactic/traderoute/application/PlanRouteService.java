@@ -27,6 +27,11 @@ public class PlanRouteService implements PlanRouteUseCase {
     private static final String METRIC_REJECTED = "routes.rejected.count";
     private static final String METRIC_RISK_SCORE = "routes.risk.score";
     private static final String METRIC_ETA_HOURS = "routes.eta.hours";
+    private static final double BASE_ETA_SCOUT = 8.0;
+    private static final double BASE_ETA_FREIGHTER = 18.0;
+    private static final double BASE_ETA_CRUISER = 12.0;
+    private static final double BASE_ETA_DEFAULT = 20.0;
+    private static final double RISK_ETA_MULTIPLIER = 10.0;
 
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
@@ -51,10 +56,10 @@ public class PlanRouteService implements PlanRouteUseCase {
                 .lowCardinalityKeyValue("originPortId", request.originPortId())
                 .lowCardinalityKeyValue("destinationPortId", request.destinationPortId())
                 .lowCardinalityKeyValue("shipClass", request.shipClass())
-                .observe(() -> doplan(request));
+                .observe(() -> doPlan(request));
     }
 
-    private PlannedRoute doplan(RouteRequest request) {
+    private PlannedRoute doPlan(RouteRequest request) {
         validateFuelRange(request);
 
         double riskScore = ThreadLocalRandom.current().nextDouble(0.0, 1.0);
@@ -125,11 +130,11 @@ public class PlanRouteService implements PlanRouteUseCase {
     private double computeEta(RouteRequest request, double riskScore) {
         // Base ETA depends on ship class; higher risk = slightly longer journey
         double baseEta = switch (request.shipClass().toUpperCase()) {
-            case "SCOUT" -> 8.0;
-            case "FREIGHTER", "FREIGHTER_MK2" -> 18.0;
-            case "CRUISER" -> 12.0;
-            default -> 20.0;
+            case "SCOUT" -> BASE_ETA_SCOUT;
+            case "FREIGHTER", "FREIGHTER_MK2" -> BASE_ETA_FREIGHTER;
+            case "CRUISER" -> BASE_ETA_CRUISER;
+            default -> BASE_ETA_DEFAULT;
         };
-        return baseEta + (riskScore * 10.0);
+        return baseEta + (riskScore * RISK_ETA_MULTIPLIER);
     }
 }

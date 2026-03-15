@@ -14,13 +14,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.galactic.starport.service.Reservation;
 import io.micrometer.observation.tck.TestObservationRegistry;
 import io.micrometer.observation.tck.TestObservationRegistryAssert;
-import io.micrometer.tracing.CurrentTraceContext;
-import io.micrometer.tracing.Tracer;
-import io.micrometer.tracing.propagation.Propagator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @Execution(ExecutionMode.CONCURRENT)
 class OutboxAppenderObservabilityTest {
@@ -29,8 +27,6 @@ class OutboxAppenderObservabilityTest {
     private OutboxWriter outboxWriter;
     private ObjectMapper objectMapper;
     private ReservationEventMapper mapper;
-    private Tracer tracer;
-    private Propagator propagator;
     private OutboxAppender appender;
 
     @BeforeEach
@@ -39,15 +35,9 @@ class OutboxAppenderObservabilityTest {
         outboxWriter = mock(OutboxWriter.class);
         objectMapper = new ObjectMapper();
         mapper = mock(ReservationEventMapper.class);
-        tracer = mock(Tracer.class);
-        propagator = mock(Propagator.class);
 
-        appender = new OutboxAppender(outboxWriter, objectMapper, mapper, observationRegistry, tracer, propagator);
-        appender.reservationsBinding = "reservations-out";
-
-        CurrentTraceContext traceContext = mock(CurrentTraceContext.class);
-        when(traceContext.context()).thenReturn(null);
-        when(tracer.currentTraceContext()).thenReturn(traceContext);
+        appender = new OutboxAppender(outboxWriter, objectMapper, mapper, observationRegistry);
+        ReflectionTestUtils.setField(appender, "reservationsBinding", "reservations-out");
     }
 
     @Test

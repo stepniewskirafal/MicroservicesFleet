@@ -1,9 +1,14 @@
 package com.galactic.starport.controller;
 
-import com.galactic.starport.service.*;
+import com.galactic.starport.service.CustomerNotFoundException;
+import com.galactic.starport.service.InvalidReservationTimeException;
+import com.galactic.starport.service.NoDockingBaysAvailableException;
+import com.galactic.starport.service.ShipNotFoundException;
+import com.galactic.starport.service.StarportNotFoundException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,13 +29,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
-        ex.getMostSpecificCause();
+        String detail = Objects.toString(ex.getMostSpecificCause().getMessage(), "Invalid request body");
         return ResponseEntity.badRequest()
-                .body(Map.of(
-                        "error",
-                        "Malformed JSON",
-                        ERROR_DETAILS,
-                        ex.getMostSpecificCause().getMessage()));
+                .body(Map.of("error", "Malformed JSON", ERROR_DETAILS, detail));
     }
 
     @ExceptionHandler(NoDockingBaysAvailableException.class)
@@ -67,6 +68,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntime(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Internal server error", ERROR_DETAILS, ex.getMessage()));
+                .body(Map.of("error", "Internal server error"));
     }
 }

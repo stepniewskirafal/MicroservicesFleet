@@ -34,8 +34,8 @@ class InboxPublisher {
     private final StreamBridge streamBridge;
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
-    private final Integer batchSize;
-    private final Integer maxAttempts;
+    private final int batchSize;
+    private final int maxAttempts;
 
     InboxPublisher(
             OutboxEventJpaRepository repo,

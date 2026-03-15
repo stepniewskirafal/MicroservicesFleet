@@ -3,6 +3,7 @@ package com.galactic.traderoute.adapter.in.rest;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -28,13 +29,14 @@ class RoutePlannerExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
+        String detail = Objects.toString(ex.getMostSpecificCause().getMessage(), "Invalid request body");
         return ResponseEntity.badRequest()
-                .body(Map.of("error", "Malformed JSON", "details", ex.getMostSpecificCause().getMessage()));
+                .body(Map.of("error", "Malformed JSON", "details", detail));
     }
 
     @ExceptionHandler(RuntimeException.class)
     ResponseEntity<Map<String, String>> handleRuntime(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Internal server error", "details", ex.getMessage()));
+                .body(Map.of("error", "Internal server error"));
     }
 }
