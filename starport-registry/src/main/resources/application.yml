@@ -8,6 +8,9 @@ server:
     max-connections: 2000
 
 spring:
+  threads:
+    virtual:
+      enabled: true
   application:
     name: starport-registry
 
@@ -126,19 +129,23 @@ management:
   metrics:
     distribution:
       percentiles-histogram:
+        http.server.requests: true
         reservations.fees.calculated.amount: true
         reservations.fees.calculated.hours: true
         reservations.hold.allocate: true
         reservations.route.plan: true
         reservations.fees.calculate: true
       percentiles:
+        http.server.requests: 0.5,0.95,0.99
         reservations.fees.calculated.amount: 0.5,0.9,0.99
         reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
+        http.server.requests: 5ms
         reservations.hold.allocate: 5ms
         reservations.fees.calculate: 1ms
         reservations.route.plan: 50ms
       maximum-expected-value:
+        http.server.requests: 10s
         reservations.hold.allocate: 2s
         reservations.fees.calculate: 500ms
         reservations.route.plan: 10s

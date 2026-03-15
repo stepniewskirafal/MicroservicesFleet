@@ -2,6 +2,9 @@ server:
   port: ${PORT:8082}
 
 spring:
+  threads:
+    virtual:
+      enabled: true
   application:
     name: trade-route-planner
 
@@ -81,15 +84,19 @@ management:
   metrics:
     distribution:
       percentiles-histogram:
+        http.server.requests: true
         routes.risk.score: true
         routes.eta.hours: true
         routes.plan: true
       percentiles:
+        http.server.requests: 0.5,0.95,0.99
         routes.risk.score: 0.5,0.9,0.99
         routes.eta.hours: 0.5,0.9,0.99
       minimum-expected-value:
+        http.server.requests: 5ms
         routes.plan: 5ms
       maximum-expected-value:
+        http.server.requests: 10s
         routes.plan: 5s
       slo:
         routes.plan: 10ms,50ms,100ms,200ms,500ms,1s,2s,5s
