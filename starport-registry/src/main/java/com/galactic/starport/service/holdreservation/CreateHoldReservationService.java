@@ -3,6 +3,7 @@ package com.galactic.starport.service.holdreservation;
 import com.galactic.starport.repository.StarportPersistenceFacade;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ReserveBayCommand;
+import java.util.Objects;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -29,6 +30,7 @@ class CreateHoldReservationService implements HoldReservationFacade {
 
     @Override
     public Long createHoldReservation(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("starport", command.destinationStarportCode())
                 .lowCardinalityKeyValue("shipClass", command.shipClass().name())

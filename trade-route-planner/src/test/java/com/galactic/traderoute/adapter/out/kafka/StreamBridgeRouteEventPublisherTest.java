@@ -1,6 +1,7 @@
 package com.galactic.traderoute.adapter.out.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -69,13 +70,13 @@ class StreamBridgeRouteEventPublisherTest {
     }
 
     @Test
-    void should_not_throw_when_send_returns_false() {
+    void should_throw_when_send_returns_false() {
         when(streamBridge.send(any(), any())).thenReturn(false);
         RoutePlannedEvent event = anEvent("ROUTE-FAIL01");
 
-        publisher.publish(event);
-
-        verify(streamBridge).send(eq("routePlanned-out-0"), any(Message.class));
+        assertThatThrownBy(() -> publisher.publish(event))
+                .isInstanceOf(EventPublishingException.class)
+                .hasMessageContaining("ROUTE-FAIL01");
     }
 
     private static RoutePlannedEvent anEvent(String routeId) {

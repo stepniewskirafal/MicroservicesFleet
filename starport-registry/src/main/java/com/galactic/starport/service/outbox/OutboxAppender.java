@@ -9,6 +9,7 @@ import io.micrometer.observation.transport.Kind;
 import io.micrometer.observation.transport.SenderContext;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ class OutboxAppender {
     private String reservationsBinding;
 
     void publishReservationConfirmedEvent(Reservation reservation) {
+        Objects.requireNonNull(reservation, "reservation must not be null");
         SenderContext<Map<String, Object>> senderContext = new SenderContext<>(Map::put, Kind.PRODUCER);
         senderContext.setRemoteServiceName("kafka");
         Map<String, Object> headers = new HashMap<>();

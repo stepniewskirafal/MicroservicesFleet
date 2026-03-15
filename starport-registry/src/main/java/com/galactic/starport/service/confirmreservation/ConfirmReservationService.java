@@ -6,6 +6,7 @@ import com.galactic.starport.service.outbox.OutboxFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ class ConfirmReservationService implements ConfirmReservationFacade {
     @Override
     @Transactional
     public Reservation confirmReservation(ReservationCalculation calc, String destinationStarportCode) {
+        Objects.requireNonNull(calc, "calc must not be null");
         Observation obs = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry);
         if (destinationStarportCode != null) {
             obs.lowCardinalityKeyValue("starport", destinationStarportCode);

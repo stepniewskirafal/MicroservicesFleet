@@ -5,6 +5,7 @@ import com.galactic.starport.service.Route;
 import com.galactic.starport.service.feecalculator.FeeCalculator;
 import com.galactic.starport.service.routeplanner.RoutePlanner;
 import java.math.BigDecimal;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,8 @@ class ReservationCalculationService implements ReservationCalculationFacade {
 
     @Override
     public ReservationCalculation calculate(Long reservationId, ReserveBayCommand command) {
+        Objects.requireNonNull(reservationId, "reservationId must not be null");
+        Objects.requireNonNull(command, "command must not be null");
         BigDecimal calculatedFee = feeCalculator.calculateFee(command);
         Route route = routePlanner.calculateRoute(command);
         return new ReservationCalculation(reservationId, calculatedFee, route);

@@ -4,6 +4,7 @@ import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.Counter;
+import java.util.Objects;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -47,11 +48,13 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     @Override
     @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
     public Route calculateRoute(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         if (!command.requestRoute()) {
             return null;
         }
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("startStarport", command.startStarportCode())
+                .lowCardinalityKeyValue("startStarport",
+                        Objects.toString(command.startStarportCode(), "unknown"))
                 .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
                 .observe(() -> callTradeRoutePlanner(command));
     }

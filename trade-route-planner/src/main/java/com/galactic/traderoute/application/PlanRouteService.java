@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,7 @@ public class PlanRouteService implements PlanRouteUseCase {
 
     @Override
     public PlannedRoute planRoute(RouteRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("originPortId", request.originPortId())
                 .lowCardinalityKeyValue("destinationPortId", request.destinationPortId())

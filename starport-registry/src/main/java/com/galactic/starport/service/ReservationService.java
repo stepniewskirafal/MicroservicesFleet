@@ -8,6 +8,7 @@ import com.galactic.starport.service.reservationcalculation.ReservationCalculati
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class ReservationService {
     private final MeterRegistry meterRegistry;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
         reservationValidator.validate(command);
 
         String starport = command.destinationStarportCode();
