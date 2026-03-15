@@ -9,15 +9,16 @@ import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
- * Testy metryk serwisu rezerwacji.
+ * Reservation service metrics tests.
  *
- * <p>Uwaga: treść testów jest celowo zakomentowana tak jak w oryginalnej specyfikacji Groovy.
- * Pozostawiono konfigurację setup jako wzorzec.
+ * <p>Note: test bodies are intentionally commented out as in the original Groovy specification.
+ * The setup configuration is kept as a reference pattern.
  */
 @Execution(ExecutionMode.CONCURRENT)
 class ReservationServiceMetricsTest {
@@ -49,7 +50,8 @@ class ReservationServiceMetricsTest {
                 confirmReservationFacade,
                 validateReservationCommandService,
                 reservationCalculationFacade,
-                meterRegistry);
+                meterRegistry,
+                Tracer.NOOP);
     }
 
     /*
@@ -59,6 +61,6 @@ class ReservationServiceMetricsTest {
      * @Test
      * void recordsErrorWhenReservationFails() { ... }
      *
-     * Testy zakomentowane celowo – tak jak w oryginalnej specyfikacji Groovy.
+     * Tests intentionally commented out – as in the original Groovy specification.
      */
 }

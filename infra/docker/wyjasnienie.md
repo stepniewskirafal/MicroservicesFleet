@@ -1,29 +1,29 @@
-# Jak `telemetry-pipeline` komunikuje się z innymi modułami?
+# How does `telemetry-pipeline` communicate with other modules?
 
-## Schemat przepływu danych
+## Data flow diagram
 
 ```
-[Producent zewnętrzny]
+[External Producer]
         │
         │  JSON → topic: telemetry.raw
         ▼
   ┌─────────────────────────────────┐
   │       KAFKA BROKER (9092/9093)  │
   └────────────────┬────────────────┘
-                   │ konsumuje (group: telemetry-pipeline)
+                   │ consumes (group: telemetry-pipeline)
                    ▼
   ┌─────────────────────────────────────────────────────┐
   │              telemetry-pipeline                      │
   │  RawTelemetry                                        │
-  │     → ValidationFilter  (odrzuca NULL, złe typy)    │
-  │     → EnrichmentFilter  (dodaje shipClass, sector,  │
-  │                          progi z SensorThresholds)   │
-  │     → AggregationFilter (rolling avg, stdDev, max)  │
-  │     → AnomalyDetectionFilter (CRITICAL / WARNING)   │
+  │     → ValidationFilter  (rejects NULL, bad types)    │
+  │     → EnrichmentFilter  (adds shipClass, sector,     │
+  │                          thresholds from SensorThresholds) │
+  │     → AggregationFilter (rolling avg, stdDev, max)   │
+  │     → AnomalyDetectionFilter (CRITICAL / WARNING)    │
   │                                                      │
-  │  Wynik: AnomalyAlert (lub null → brak publikacji)   │
+  │  Result: AnomalyAlert (or null → nothing published)  │
   └────────────────┬────────────────────────────────────┘
-                   │ publikuje (jeśli anomalia)
+                   │ publishes (if anomaly)
                    │  JSON → topic: telemetry.alerts
                    ▼
   ┌─────────────────────────────────┐
@@ -31,38 +31,38 @@
   └─────────────────────────────────┘
         │
         ▼
-  [Konsumenci downstream: starport-registry, trade-route-planner, ...]
+  [Downstream consumers: starport-registry, trade-route-planner, ...]
 ```
 
 ---
 
-## 1. Komunikacja asynchroniczna — Kafka (główna)
+## 1. Asynchronous communication — Kafka (primary)
 
-| Kierunek | Topic Kafki | Format | Opis |
+| Direction | Kafka Topic | Format | Description |
 |---|---|---|---|
-| **Wejście** | `telemetry.raw` | JSON (`RawTelemetry`) | Surowe odczyty sensorów statków |
-| **Wyjście** | `telemetry.alerts` | JSON (`AnomalyAlert`) | Alerty anomalii (CRITICAL / WARNING) |
+| **Input** | `telemetry.raw` | JSON (`RawTelemetry`) | Raw sensor readings from ships |
+| **Output** | `telemetry.alerts` | JSON (`AnomalyAlert`) | Anomaly alerts (CRITICAL / WARNING) |
 
-- Mechanizm: **Spring Cloud Stream** z **Kafka binder**
-- Bean funkcyjny: `Function<RawTelemetry, AnomalyAlert> telemetryPipeline`
-- Spring Cloud Stream automatycznie binduje funkcję do obu topiców
-- Retry: 3 próby, backoff 1 s (`max-attempts: 3`, `back-off-initial-interval: 1000`)
-- `null` zwrócony z funkcji = **żadna wiadomość nie jest publikowana** (filtracja)
+- Mechanism: **Spring Cloud Stream** with **Kafka binder**
+- Functional bean: `Function<RawTelemetry, AnomalyAlert> telemetryPipeline`
+- Spring Cloud Stream automatically binds the function to both topics
+- Retry: 3 attempts, backoff 1 s (`max-attempts: 3`, `back-off-initial-interval: 1000`)
+- `null` returned from the function = **no message is published** (filtering)
 
 ---
 
 ## 2. Service Discovery — Eureka
 
-- Serwis **rejestruje się** w Eureka Server (`http://eureka:8761/eureka`)
-- Dzięki temu inne serwisy mogą go znaleźć po nazwie `telemetry-pipeline`
-- Heartbeat co 10 s, wygaśnięcie po 30 s
-- Przy skalowaniu uruchamiane są dwie instancje: `telemetry-pipeline-1:8090`, `telemetry-pipeline-2:8091` — obie w tej samej grupie konsumentów Kafki (load balancing na poziomie partycji)
+- The service **registers** with Eureka Server (`http://eureka:8761/eureka`)
+- This allows other services to find it by the name `telemetry-pipeline`
+- Heartbeat every 10 s, expiration after 30 s
+- When scaling, two instances are launched: `telemetry-pipeline-1:8090`, `telemetry-pipeline-2:8091` — both in the same Kafka consumer group (partition-level load balancing)
 
 ---
 
-## 3. Komunikacja z `starport-registry` — AKTUALNIE statyczna (TODO)
+## 3. Communication with `starport-registry` — CURRENTLY static (TODO)
 
-W `EnrichmentFilter` widnieje hardkodowany rejestr statków:
+In `EnrichmentFilter` there is a hardcoded ship registry:
 
 ```java
 // Static ship registry — in production this would come from Starport Registry via HTTP or cache
@@ -72,85 +72,85 @@ private static final Map<String, ShipInfo> SHIP_REGISTRY = Map.of(
 );
 ```
 
-> ⚠️ Komentarz w kodzie wprost mówi, że w produkcji dane o statkach powinny być pobierane z **`starport-registry` przez HTTP lub cache**. Teraz to dummy dane.
+> ⚠️ The comment in the code explicitly states that in production, ship data should be fetched from **`starport-registry` via HTTP or cache**. Currently this is dummy data.
 
 ---
 
-## 4. Obserwowalność — stos monitorowania
+## 4. Observability — monitoring stack
 
-| Komponent | Protokół | Co wysyła |
+| Component | Protocol | What it sends |
 |---|---|---|
-| **Prometheus** | HTTP scrape (`/actuator/prometheus`) | Metryki: `telemetry.messages.received`, `telemetry.messages.invalid`, `telemetry.anomalies.detected{severity=WARNING/CRITICAL}` |
-| **Tempo / Zipkin** | OTLP HTTP (`http://tempo:4318/v1/traces`) | Ślady rozproszone (distributed tracing) |
-| **Loki / Promtail** | Log scraping z Dockera | Logi aplikacji |
-| **Grafana** | UI | Wizualizacja metryk, logów i śladów |
+| **Prometheus** | HTTP scrape (`/actuator/prometheus`) | Metrics: `telemetry.messages.received`, `telemetry.messages.invalid`, `telemetry.anomalies.detected{severity=WARNING/CRITICAL}` |
+| **Tempo / Zipkin** | OTLP HTTP (`http://tempo:4318/v1/traces`) | Distributed traces |
+| **Loki / Promtail** | Log scraping from Docker | Application logs |
+| **Grafana** | UI | Visualization of metrics, logs, and traces |
 
 ---
 
-## Podsumowanie
+## Summary
 
 ```
-telemetry-pipeline NIE rozmawia przez HTTP z innymi serwisami biznesowymi.
-Cała komunikacja domenowa odbywa się przez Kafkę (event-driven).
+telemetry-pipeline does NOT communicate via HTTP with other business services.
+All domain communication happens through Kafka (event-driven).
 ```
 
-- **Kafka** → wejście/wyjście danych domenowych (asynchronicznie)
-- **Eureka** → rejestracja/discovery (synchronicznie przy starcie)
-- **Prometheus/Tempo/Loki** → metryki, tracing, logi (obserwowalność)
-- **`starport-registry`** → planowane HTTP/cache, teraz statyczny mock
+- **Kafka** → input/output of domain data (asynchronously)
+- **Eureka** → registration/discovery (synchronously at startup)
+- **Prometheus/Tempo/Loki** → metrics, tracing, logs (observability)
+- **`starport-registry`** → planned HTTP/cache, currently a static mock
 
 
 
-# Skąd wiadomo gdzie Kafka wysyła eventy i w jakiej kolejności filtry działają?
+# How do we know where Kafka sends events and in what order the filters operate?
 
 ---
 
-## CZĘŚĆ 1 — Skąd wiadomo, który topic Kafki jest wejściem?
+## PART 1 — How do we know which Kafka topic is the input?
 
-### Krok 1: `application.yml` — deklaracja funkcji i bindings
+### Step 1: `application.yml` — function declaration and bindings
 
 ```yaml
 spring:
   cloud:
     function:
-      definition: telemetryPipeline   # ← (1) mówi Spring Cloud Stream: "zarejestruj tę funkcję"
+      definition: telemetryPipeline   # ← (1) tells Spring Cloud Stream: "register this function"
 
     stream:
       bindings:
-        telemetryPipeline-in-0:       # ← (2) NAMING CONVENTION: {nazwaFunkcji}-in-{index}
-          destination: telemetry.raw  # ← (3) to jest topic Kafki, który jest CZYTANY
+        telemetryPipeline-in-0:       # ← (2) NAMING CONVENTION: {functionName}-in-{index}
+          destination: telemetry.raw  # ← (3) this is the Kafka topic that is READ from
           group: telemetry-pipeline   # ← (4) consumer group
           content-type: application/json
 
-        telemetryPipeline-out-0:      # ← {nazwaFunkcji}-out-{index}
-          destination: telemetry.alerts  # ← topic, do którego ZAPISYWANY jest wynik
+        telemetryPipeline-out-0:      # ← {functionName}-out-{index}
+          destination: telemetry.alerts  # ← topic to which the result is WRITTEN
           content-type: application/json
 ```
 
-### Klucz: konwencja nazewnicza Spring Cloud Stream
+### Key: Spring Cloud Stream naming convention
 
 ```
-{nazwaBeana}-in-{index}   → WEJŚCIE (subscribe na topic Kafki)
-{nazwaBeana}-out-{index}  → WYJŚCIE (publish na topic Kafki)
+{beanName}-in-{index}   → INPUT (subscribe to Kafka topic)
+{beanName}-out-{index}  → OUTPUT (publish to Kafka topic)
 ```
 
-**Bean `telemetryPipeline`** jest zdefiniowany w `PipelineConfiguration.java`:
+**Bean `telemetryPipeline`** is defined in `PipelineConfiguration.java`:
 ```java
 @Bean
 public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(...) { ... }
 //              ↑                ↑
-//        typ wejścia       typ wyjścia
+//        input type        output type
 ```
 
-Spring Cloud Stream widzi:
-- `telemetryPipeline-in-0` → czyta z `telemetry.raw`, deserializuje JSON → `RawTelemetry`
-- `telemetryPipeline-out-0` → serializuje `AnomalyAlert` do JSON → pisze do `telemetry.alerts`
+Spring Cloud Stream sees:
+- `telemetryPipeline-in-0` → reads from `telemetry.raw`, deserializes JSON → `RawTelemetry`
+- `telemetryPipeline-out-0` → serializes `AnomalyAlert` to JSON → writes to `telemetry.alerts`
 
 ---
 
-## CZĘŚĆ 2 — W jakiej kolejności wywoływane są filtry?
+## PART 2 — In what order are the filters invoked?
 
-Kolejność jest **jawna i twarda** — zakodowana bezpośrednio w lambdzie w `PipelineConfiguration.java`:
+The order is **explicit and hard-coded** — coded directly in the lambda in `PipelineConfiguration.java`:
 
 ```java
 @Bean
@@ -161,60 +161,60 @@ public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(
         AnomalyDetectionFilter anomalyDetectionFilter) {
 
     return raw -> {
-        // KROK 1 ──────────────────────────────────────────────
+        // STEP 1 ──────────────────────────────────────────────
         var validated = validationFilter.apply(raw);
         if (validated == null) {
-            return null;   // ← STOP: wiadomość jest porzucana, nic nie trafia na Kafkę
+            return null;   // ← STOP: message is dropped, nothing goes to Kafka
         }
 
-        // KROK 2 ──────────────────────────────────────────────
+        // STEP 2 ──────────────────────────────────────────────
         var enriched = enrichmentFilter.apply(validated);
 
-        // KROK 3 ──────────────────────────────────────────────
+        // STEP 3 ──────────────────────────────────────────────
         var aggregated = aggregationFilter.apply(enriched);
 
-        // KROK 4 ──────────────────────────────────────────────
+        // STEP 4 ──────────────────────────────────────────────
         return anomalyDetectionFilter.apply(aggregated);
-        // ↑ jeśli null (brak anomalii) → Spring Cloud Stream NIE publikuje nic
+        // ↑ if null (no anomaly) → Spring Cloud Stream does NOT publish anything
     };
 }
 ```
 
-### Wizualnie:
+### Visually:
 
 ```
 [Kafka: telemetry.raw]
          │
-         │  JSON deserializacja → RawTelemetry
+         │  JSON deserialization → RawTelemetry
          ▼
 ┌─────────────────────┐
-│  ValidationFilter   │  ← sprawdza: null? brak shipId? zły sensorType? NaN?
+│  ValidationFilter   │  ← checks: null? missing shipId? bad sensorType? NaN?
 └─────────┬───────────┘
-          │  null → PORZUĆ (żadnego publish na Kafkę)
+          │  null → DROP (no publish to Kafka)
           │  ok   → ValidatedTelemetry
           ▼
 ┌─────────────────────┐
-│  EnrichmentFilter   │  ← dodaje: shipClass, currentSector, progi (lower/upper threshold)
+│  EnrichmentFilter   │  ← adds: shipClass, currentSector, thresholds (lower/upper threshold)
 └─────────┬───────────┘
           │  EnrichedTelemetry
           ▼
 ┌─────────────────────┐
-│  AggregationFilter  │  ← oblicza: rollingAvg, rollingStdDev, max (okno 5 min, in-memory)
+│  AggregationFilter  │  ← computes: rollingAvg, rollingStdDev, max (5-min window, in-memory)
 └─────────┬───────────┘
           │  AggregatedTelemetry
           ▼
 ┌──────────────────────────┐
-│  AnomalyDetectionFilter  │  ← wykrywa: CRITICAL (przekroczone progi) / WARNING (3σ)
+│  AnomalyDetectionFilter  │  ← detects: CRITICAL (threshold exceeded) / WARNING (3σ)
 └─────────┬────────────────┘
-          │  null → brak anomalii, nic nie trafia na Kafkę
-          │  AnomalyAlert → serializacja do JSON
+          │  null → no anomaly, nothing goes to Kafka
+          │  AnomalyAlert → serialization to JSON
           ▼
 [Kafka: telemetry.alerts]
 ```
 
 ---
 
-## CZĘŚĆ 3 — Typy danych między filtrami (kontrakt)
+## PART 3 — Data types between filters (contract)
 
 ```
 RawTelemetry         → { shipId, sensorType(String), value, timestamp, metadata }
@@ -231,28 +231,28 @@ AnomalyAlert         → { shipId, sensorType, severity, description, currentVal
 
 ---
 
-## Skrótowe podsumowanie
+## Quick summary
 
-| Pytanie | Odpowiedź |
+| Question | Answer |
 |---|---|
-| Skąd Spring wie, który topic czytać? | Naming convention: `telemetryPipeline-in-0` → `destination: telemetry.raw` w YML |
-| Co decyduje o kolejności filtrów? | Jawna sekwencja `apply()` w lambdzie w `PipelineConfiguration.java` |
-| Co się dzieje przy złej wiadomości? | `ValidationFilter` zwraca `null` → funkcja zwraca `null` → Spring Cloud Stream nie publikuje nic |
-| Co się dzieje gdy nie ma anomalii? | `AnomalyDetectionFilter` zwraca `null` → j.w., brak publish |
+| How does Spring know which topic to read? | Naming convention: `telemetryPipeline-in-0` → `destination: telemetry.raw` in YML |
+| What determines the filter order? | Explicit sequence of `apply()` calls in the lambda in `PipelineConfiguration.java` |
+| What happens with a bad message? | `ValidationFilter` returns `null` → function returns `null` → Spring Cloud Stream publishes nothing |
+| What happens when there is no anomaly? | `AnomalyDetectionFilter` returns `null` → same as above, no publish |
 
 
-# Czy bean `telemetryPipeline` jest kluczowy? Czy można to zrobić inaczej?
-
----
-
-## Odpowiedź krótka
-
-**Tak — bean jest kluczowy**, ale nie musi być beanen `@Bean` w klasie `@Configuration`.
-Spring Cloud Stream akceptuje **kilka różnych sposobów** rejestracji funkcji.
+# Is the `telemetryPipeline` bean essential? Can it be done differently?
 
 ---
 
-## Sposób 1 (obecny) — `@Bean` w `@Configuration`
+## Short answer
+
+**Yes — the bean is essential**, but it does not have to be a `@Bean` in a `@Configuration` class.
+Spring Cloud Stream accepts **several different ways** to register a function.
+
+---
+
+## Approach 1 (current) — `@Bean` in `@Configuration`
 
 ```java
 @Configuration
@@ -271,15 +271,15 @@ public class PipelineConfiguration {
 }
 ```
 
-✅ **Zalety**: pełna kontrola nad kompozycją, łatwe testowanie jednostkowe lambdy, jawna kolejność.
-❌ **Wady**: wszystko w jednym miejscu — przy wielu pipeline'ach robi się tłoczno.
+✅ **Pros**: full control over composition, easy unit testing of the lambda, explicit order.
+❌ **Cons**: everything in one place — gets crowded with multiple pipelines.
 
 ---
 
-## Sposób 2 — `@Component` implementujący `Function<I, O>`
+## Approach 2 — `@Component` implementing `Function<I, O>`
 
 ```java
-@Component("telemetryPipeline")   // ← nazwa beana = klucz do bindingu w YML
+@Component("telemetryPipeline")   // ← bean name = key for binding in YML
 public class TelemetryPipelineFunction
         implements Function<RawTelemetry, AnomalyAlert> {
 
@@ -288,7 +288,7 @@ public class TelemetryPipelineFunction
     private final AggregationFilter     aggregationFilter;
     private final AnomalyDetectionFilter anomalyDetectionFilter;
 
-    // konstruktor z @Autowired / wstrzyknięcie przez konstruktor
+    // constructor with @Autowired / constructor injection
 
     @Override
     public AnomalyAlert apply(RawTelemetry raw) {
@@ -301,14 +301,14 @@ public class TelemetryPipelineFunction
 }
 ```
 
-✅ **Zalety**: bardziej obiektowy, OCP — każda klasa ma jedną odpowiedzialność.
-⚠️ **Uwaga**: nazwa `@Component("telemetryPipeline")` musi pasować do `definition: telemetryPipeline` w YML.
+✅ **Pros**: more object-oriented, OCP — each class has a single responsibility.
+⚠️ **Note**: the name `@Component("telemetryPipeline")` must match `definition: telemetryPipeline` in YML.
 
 ---
 
-## Sposób 3 — Kompozycja przez `andThen()` (funkcyjny styl)
+## Approach 3 — Composition via `andThen()` (functional style)
 
-Spring Cloud Stream wspiera **łańcuchowanie funkcji** przez `definition`:
+Spring Cloud Stream supports **function chaining** through `definition`:
 
 ```yaml
 spring:
@@ -330,18 +330,18 @@ spring:
 @Bean public Function<AggregatedTelemetry, AnomalyAlert>  detectAnomalies() { ... }
 ```
 
-Operator `|` (pipe) mówi Spring Cloud Stream: **skomponuj te funkcje w pipeline**.
-To jest odpowiednik `validate.andThen(enrich).andThen(aggregate).andThen(detectAnomalies)`.
+The `|` (pipe) operator tells Spring Cloud Stream: **compose these functions into a pipeline**.
+This is equivalent to `validate.andThen(enrich).andThen(aggregate).andThen(detectAnomalies)`.
 
-✅ **Zalety**: każda funkcja to osobny, testowalny bean. Czysto funkcyjny styl.
-❌ **Wady**: trudniej obsłużyć `null` (short-circuit) pomiędzy krokami — trzeba używać `Optional` lub osobnych mechanizmów filtrowania.
+✅ **Pros**: each function is a separate, testable bean. Purely functional style.
+❌ **Cons**: harder to handle `null` (short-circuit) between steps — requires using `Optional` or separate filtering mechanisms.
 
 ---
 
-## Sposób 4 — `StreamListener` (stary, przestarzały)
+## Approach 4 — `StreamListener` (old, deprecated)
 
 ```java
-// ❌ DEPRECATED od Spring Cloud Stream 3.x — NIE używaj w nowych projektach
+// ❌ DEPRECATED since Spring Cloud Stream 3.x — DO NOT use in new projects
 @StreamListener("telemetry.raw")
 @SendTo("telemetry.alerts")
 public AnomalyAlert handle(RawTelemetry raw) { ... }
@@ -349,70 +349,70 @@ public AnomalyAlert handle(RawTelemetry raw) { ... }
 
 ---
 
-## Porównanie wszystkich sposobów
+## Comparison of all approaches
 
-| Sposób | Rejestracja beana | Elastyczność null | Testowalność | Styl |
+| Approach | Bean registration | Null flexibility | Testability | Style |
 |---|---|---|---|---|
-| `@Bean` lambda (obecny) | `@Configuration` | ✅ pełna | ✅ łatwa | funkcyjny |
-| `@Component` implements `Function` | `@Component` | ✅ pełna | ✅ łatwa | obiektowy |
-| Pipe `validate\|enrich\|...` w YML | `@Bean` per krok | ⚠️ trudna | ✅ b. łatwa | czysto funkcyjny |
-| `@StreamListener` | adnotacja | ✅ pełna | ⚠️ trudna | ❌ deprecated |
+| `@Bean` lambda (current) | `@Configuration` | ✅ full | ✅ easy | functional |
+| `@Component` implements `Function` | `@Component` | ✅ full | ✅ easy | object-oriented |
+| Pipe `validate\|enrich\|...` in YML | `@Bean` per step | ⚠️ difficult | ✅ very easy | purely functional |
+| `@StreamListener` | annotation | ✅ full | ⚠️ difficult | ❌ deprecated |
 
 ---
 
-## Co jest NAPRAWDĘ kluczowe?
+## What is REALLY essential?
 
-Nie sam `@Bean` — kluczowe są **trzy rzeczy razem**:
+Not the `@Bean` itself — the essential things are **three things together**:
 
 ```
-1. Nazwa beana        →  musi pasować do klucza w application.yml
-                          (definition: telemetryPipeline)
+1. Bean name            →  must match the key in application.yml
+                            (definition: telemetryPipeline)
 
-2. Typ generyczny     →  Function<RawTelemetry, AnomalyAlert>
-                          Spring Cloud Stream używa typów do deserializacji/serializacji JSON
+2. Generic type         →  Function<RawTelemetry, AnomalyAlert>
+                            Spring Cloud Stream uses the types for JSON deserialization/serialization
 
-3. Binding w YML      →  telemetryPipeline-in-0 / telemetryPipeline-out-0
-                          łączy funkcję z fizycznym topicem Kafki
+3. Binding in YML       →  telemetryPipeline-in-0 / telemetryPipeline-out-0
+                            connects the function to the physical Kafka topic
 ```
 
-Bez któregokolwiek z tych trzech — binding nie zadziała.
+Without any of these three — the binding will not work.
 
 ---
 
-## Skrót decyzyjny
+## Decision shortcut
 
 ```
-Masz jeden pipeline z null-check między krokami?
-  → Sposób 1 lub 2 (obecny w projekcie) ✅
+Have a single pipeline with null-checks between steps?
+  → Approach 1 or 2 (current in the project) ✅
 
-Chcesz każdy krok testować zupełnie niezależnie?
-  → Sposób 3 (pipe w YML) ✅
+Want to test each step completely independently?
+  → Approach 3 (pipe in YML) ✅
 
-Piszesz nowy kod na starym projekcie Spring Cloud Stream 2.x?
-  → Sposób 2 (@Component) ✅
+Writing new code on an old Spring Cloud Stream 2.x project?
+  → Approach 2 (@Component) ✅
 
-Widzisz @StreamListener w kodzie?
-  → Zrefaktoruj do Function<I,O> ⚠️
+See @StreamListener in the code?
+  → Refactor to Function<I,O> ⚠️
 ```
 
 
-# Jak Spring Cloud Stream łączy YML z beanem Java?
+# How does Spring Cloud Stream connect YML with the Java bean?
 
 ---
 
-## Punkt wyjścia — dwa pliki muszą "rozmawiać" tym samym imieniem
+## Starting point — two files must "talk" using the same name
 
 ```yaml
 # application.yml
 spring:
   cloud:
     function:
-      definition: telemetryPipeline   # ← STRING: nazwa beana
+      definition: telemetryPipeline   # ← STRING: bean name
     stream:
       bindings:
-        telemetryPipeline-in-0:       # ← STRING: {ta sama nazwa}-in-0
+        telemetryPipeline-in-0:       # ← STRING: {same name}-in-0
           destination: telemetry.raw
-        telemetryPipeline-out-0:      # ← STRING: {ta sama nazwa}-out-0
+        telemetryPipeline-out-0:      # ← STRING: {same name}-out-0
           destination: telemetry.alerts
 ```
 
@@ -421,20 +421,20 @@ spring:
 @Bean
 public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(...) { ... }
 //                                          ↑
-//                             nazwa metody = nazwa beana w kontekście Springa
+//                             method name = bean name in the Spring context
 ```
 
-**Klucz: `@Bean` bez podanej nazwy = nazwa metody jest nazwą beana.**
-Spring rejestruje ten bean pod kluczem `"telemetryPipeline"` w `ApplicationContext`.
+**Key: `@Bean` without a specified name = the method name is the bean name.**
+Spring registers this bean under the key `"telemetryPipeline"` in the `ApplicationContext`.
 
 ---
 
-## Krok po kroku — co się dzieje przy starcie
+## Step by step — what happens at startup
 
-### KROK 1: Spring Boot skanuje kontekst i rejestruje beany
+### STEP 1: Spring Boot scans the context and registers beans
 
 ```
-ApplicationContext rejestruje:
+ApplicationContext registers:
   "validationFilter"       → ValidationFilter
   "enrichmentFilter"       → EnrichmentFilter
   "aggregationFilter"      → AggregationFilter
@@ -442,32 +442,32 @@ ApplicationContext rejestruje:
   "telemetryPipeline"      → Function<RawTelemetry, AnomalyAlert>  ← lambda
 ```
 
-Zależności są wstrzykiwane przez konstruktor beana:
+Dependencies are injected through the bean method's constructor parameters:
 
 ```java
 @Bean
 public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(
-        ValidationFilter validationFilter,      // ← Spring wstrzykuje bean "validationFilter"
-        EnrichmentFilter enrichmentFilter,      // ← Spring wstrzykuje bean "enrichmentFilter"
-        AggregationFilter aggregationFilter,    // ← Spring wstrzykuje bean "aggregationFilter"
-        AnomalyDetectionFilter anomalyDetectionFilter) { // ← j.w.
+        ValidationFilter validationFilter,      // ← Spring injects the "validationFilter" bean
+        EnrichmentFilter enrichmentFilter,      // ← Spring injects the "enrichmentFilter" bean
+        AggregationFilter aggregationFilter,    // ← Spring injects the "aggregationFilter" bean
+        AnomalyDetectionFilter anomalyDetectionFilter) { // ← same as above
     ...
 }
 ```
 
-**Kolejność tworzenia beanów:**
-Spring widzi że `telemetryPipeline` ZALEŻY od 4 filtrów → tworzy je NAJPIERW,
-dopiero potem tworzy `telemetryPipeline`. To jest standardowy DI.
+**Bean creation order:**
+Spring sees that `telemetryPipeline` DEPENDS on 4 filters → creates them FIRST,
+only then creates `telemetryPipeline`. This is standard DI.
 
 ---
 
-### KROK 2: `FunctionCatalog` skanuje beany i szuka Function/Consumer/Supplier
+### STEP 2: `FunctionCatalog` scans beans and looks for Function/Consumer/Supplier
 
-`FunctionCatalog` (spring-cloud-function) przegląda wszystkie beany w kontekście
-i zbiera te, których typ to `Function`, `Consumer` lub `Supplier`:
+`FunctionCatalog` (spring-cloud-function) iterates over all beans in the context
+and collects those whose type is `Function`, `Consumer`, or `Supplier`:
 
 ```
-Znalazł:
+Found:
   "validationFilter"       → Function<RawTelemetry, ValidatedTelemetry>
   "enrichmentFilter"       → Function<ValidatedTelemetry, EnrichedTelemetry>
   "aggregationFilter"      → Function<EnrichedTelemetry, AggregatedTelemetry>
@@ -477,7 +477,7 @@ Znalazł:
 
 ---
 
-### KROK 3: `definition: telemetryPipeline` — FunctionCatalog szuka po NAZWIE
+### STEP 3: `definition: telemetryPipeline` — FunctionCatalog looks up by NAME
 
 ```yaml
 spring:
@@ -486,69 +486,69 @@ spring:
       definition: telemetryPipeline
 ```
 
-`FunctionCatalog.lookup("telemetryPipeline")` robi dosłownie:
+`FunctionCatalog.lookup("telemetryPipeline")` does literally:
 
 ```java
-// uproszczony pseudokod z FunctionCatalog
+// simplified pseudocode from FunctionCatalog
 Object bean = applicationContext.getBean("telemetryPipeline");
 //                                        ↑
-//                          szuka po STRINGU z definition
+//                          looks up by the STRING from definition
 ```
 
-Znalazł bean → zapisuje go jako "aktywną funkcję" dla pipeline'u.
+Found the bean → stores it as the "active function" for the pipeline.
 
 ---
 
-### KROK 4: Parsowanie kluczy bindingów — konwencja `{nazwa}-in-{index}`
+### STEP 4: Parsing binding keys — the `{name}-in-{index}` convention
 
-`BindingServiceProperties` parsuje klucze z YML:
+`BindingServiceProperties` parses the keys from YML:
 
 ```
 "telemetryPipeline-in-0"
  └── split("-in-")  → ["telemetryPipeline", "0"]
-     funkcja: "telemetryPipeline"
-     kierunek: INPUT
+     function: "telemetryPipeline"
+     direction: INPUT
      index: 0
      destination: "telemetry.raw"
 
 "telemetryPipeline-out-0"
  └── split("-out-") → ["telemetryPipeline", "0"]
-     funkcja: "telemetryPipeline"
-     kierunek: OUTPUT
+     function: "telemetryPipeline"
+     direction: OUTPUT
      index: 0
      destination: "telemetry.alerts"
 ```
 
-Spring weryfikuje: czy funkcja `"telemetryPipeline"` istnieje w `FunctionCatalog`?
-→ TAK → binding jest prawidłowy.
+Spring verifies: does the function `"telemetryPipeline"` exist in `FunctionCatalog`?
+→ YES → the binding is valid.
 
 ---
 
-### KROK 5: KafkaMessageChannelBinder tworzy fizyczne kanały
+### STEP 5: KafkaMessageChannelBinder creates physical channels
 
 ```
 INPUT binding:
   KafkaConsumer(
-    topic         = "telemetry.raw",          ← z destination
-    consumerGroup = "telemetry-pipeline",     ← z group
-    maxAttempts   = 3,                        ← z consumer.max-attempts
+    topic         = "telemetry.raw",          ← from destination
+    consumerGroup = "telemetry-pipeline",     ← from group
+    maxAttempts   = 3,                        ← from consumer.max-attempts
     backoff       = 1000ms
   )
-  → podłącza się do wewnętrznego MessageChannel "telemetryPipeline-in-0"
+  → connects to internal MessageChannel "telemetryPipeline-in-0"
 
 OUTPUT binding:
   KafkaProducer(
-    topic = "telemetry.alerts"               ← z destination
+    topic = "telemetry.alerts"               ← from destination
   )
-  → podłącza się do wewnętrznego MessageChannel "telemetryPipeline-out-0"
+  → connects to internal MessageChannel "telemetryPipeline-out-0"
 ```
 
 ---
 
-### KROK 6: MessageConverter — JSON ↔ Java (skąd zna typy?)
+### STEP 6: MessageConverter — JSON ↔ Java (how does it know the types?)
 
 ```java
-// Spring robi przez refleksję na beanie "telemetryPipeline":
+// Spring does this via reflection on the "telemetryPipeline" bean:
 Method beanMethod = PipelineConfiguration.class
                         .getMethod("telemetryPipeline", ...);
 
@@ -560,67 +560,67 @@ Class<?> inputType  = resolvable.getGeneric(0).resolve(); // → RawTelemetry.cl
 Class<?> outputType = resolvable.getGeneric(1).resolve(); // → AnomalyAlert.class
 ```
 
-Jackson dostaje `RawTelemetry.class` i wie jak zdeserializować JSON:
+Jackson receives `RawTelemetry.class` and knows how to deserialize the JSON:
 
 ```
-Kafka bajty:
+Kafka bytes:
 {"shipId":"SHIP-001","sensorType":"TEMPERATURE","value":42.5,"timestamp":"..."}
                     ↓  Jackson.readValue(bytes, RawTelemetry.class)
 RawTelemetry { shipId="SHIP-001", sensorType="TEMPERATURE", value=42.5, ... }
                     ↓  telemetryPipeline.apply(raw)
 AnomalyAlert { shipId="SHIP-001", severity=CRITICAL, ... }
                     ↓  Jackson.writeValueAsBytes(anomalyAlert)
-Kafka bajty: {"shipId":"SHIP-001","severity":"CRITICAL",...}
+Kafka bytes: {"shipId":"SHIP-001","severity":"CRITICAL",...}
 ```
 
 ---
 
-## Cały łańcuch w jednym widoku
+## The entire chain in a single view
 
 ```
 application.yml                           Java / Spring
 ─────────────────────────────────────────────────────────────────────
 definition: telemetryPipeline    →  applicationContext.getBean("telemetryPipeline")
-                                     = @Bean metoda o nazwie telemetryPipeline()
+                                     = @Bean method named telemetryPipeline()
 
-telemetryPipeline-in-0           →  FunctionCatalog: funkcja="telemetryPipeline"
-  destination: telemetry.raw         kierunek=INPUT, index=0
+telemetryPipeline-in-0           →  FunctionCatalog: function="telemetryPipeline"
+  destination: telemetry.raw         direction=INPUT, index=0
   group: telemetry-pipeline      →  KafkaConsumer(topic="telemetry.raw",
   content-type: application/json      group="telemetry-pipeline")
-                                  →  Jackson deserializuje do RawTelemetry.class
-                                     (typ z Method.getGenericReturnType() generics[0])
+                                  →  Jackson deserializes to RawTelemetry.class
+                                     (type from Method.getGenericReturnType() generics[0])
 
-telemetryPipeline-out-0          →  FunctionCatalog: funkcja="telemetryPipeline"
-  destination: telemetry.alerts      kierunek=OUTPUT, index=0
+telemetryPipeline-out-0          →  FunctionCatalog: function="telemetryPipeline"
+  destination: telemetry.alerts      direction=OUTPUT, index=0
   content-type: application/json →  KafkaProducer(topic="telemetry.alerts")
-                                  →  Jackson serializuje AnomalyAlert do JSON
-                                     (typ z Method.getGenericReturnType() generics[1])
+                                  →  Jackson serializes AnomalyAlert to JSON
+                                     (type from Method.getGenericReturnType() generics[1])
 ```
 
 ---
 
-## Dlaczego bean `telemetryPipeline` jest tworzony jako ostatni?
+## Why is the `telemetryPipeline` bean created last?
 
-Spring automatycznie wykrywa graf zależności przez parametry metody `@Bean`:
+Spring automatically detects the dependency graph through the `@Bean` method parameters:
 
 ```java
 @Bean
 public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(
-        ValidationFilter validationFilter,       // ← zależy od tego beana
-        EnrichmentFilter enrichmentFilter,       // ← zależy od tego beana
-        AggregationFilter aggregationFilter,     // ← zależy od tego beana
-        AnomalyDetectionFilter anomalyDetectionFilter) { // ← zależy od tego beana
+        ValidationFilter validationFilter,       // ← depends on this bean
+        EnrichmentFilter enrichmentFilter,       // ← depends on this bean
+        AggregationFilter aggregationFilter,     // ← depends on this bean
+        AnomalyDetectionFilter anomalyDetectionFilter) { // ← depends on this bean
 ```
 
-Spring buduje DAG (directed acyclic graph) zależności:
+Spring builds a DAG (directed acyclic graph) of dependencies:
 
 ```
 telemetryPipeline
-    ├── validationFilter       (tworzy jako 1.)
-    ├── enrichmentFilter       (tworzy jako 2.)
-    ├── aggregationFilter      (tworzy jako 3.)
-    └── anomalyDetectionFilter (tworzy jako 4.)
-                               (telemetryPipeline tworzy jako 5.)
+    ├── validationFilter       (created as 1st)
+    ├── enrichmentFilter       (created as 2nd)
+    ├── aggregationFilter      (created as 3rd)
+    └── anomalyDetectionFilter (created as 4th)
+                               (telemetryPipeline created as 5th)
 ```
 
-Nie trzeba tego nigdzie deklarować ręcznie — Spring sam to rozgryza.
+There is no need to declare this manually anywhere — Spring figures it out on its own.

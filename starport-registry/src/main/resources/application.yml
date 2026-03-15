@@ -59,7 +59,7 @@ spring:
     stream:
       defaultBinder: kafka
 
-      # === BINDINGS (producenci) ===
+      # === BINDINGS (producers) ===
       bindings:
         reservationCreated-out-0:
           destination: starport.reservations
@@ -73,13 +73,13 @@ spring:
           destination: starport.route-changes
           contentType: application/json
 
-      # === KAFKA-SPECYFICZNE ===
+      # === KAFKA-SPECIFIC ===
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
-          # Binder może tworzyć tematy (niezależnie od ustawienia brokera).
+          # Binder can create topics (regardless of broker-side settings).
           autoCreateTopics: true
-          # Nie doda partycji, jeśli istniejący topic ma ich mniej niż oczekuje aplikacja.
+          # Will not add partitions if existing topic has fewer than the app expects.
           autoAddPartitions: false
           configuration:
             key.serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -91,7 +91,7 @@ spring:
     validate-on-migrate: false
 
 telemetry:
-  adapter: stream  # przełącznik adaptera TelemetryPort: stream | kafka
+  adapter: stream  # TelemetryPort adapter switch: stream | kafka
 
 eureka:
   client:
@@ -118,15 +118,11 @@ management:
       enabled: true
     readinessstate:
       enabled: true
-  opentelemetry:
+  otlp:
     tracing:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/traces
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/traces}
     logging:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/logs
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/logs}
   metrics:
     distribution:
       percentiles-histogram:
@@ -156,7 +152,15 @@ management:
         include: health,info,metrics,prometheus,liveness,readiness
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${TRACE_SAMPLING:1.0}
+    baggage:
+      remote-fields:
+        - reservationId
+        - routeId
+      correlation:
+        fields:
+          - reservationId
+          - routeId
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
@@ -169,7 +173,7 @@ app:
     base-url: http://trade-route-planner
   events:
     topics:
-      # To są NAZWY BINDINGÓW (do StreamBridge), nie tematy Kafki.
+      # These are BINDING NAMES (for StreamBridge), not Kafka topic names.
       reservations: reservationCreated-out-0
       tariffs:      tariffCalculated-out-0
       routeChanges: routeChanged-out-0
@@ -200,6 +204,8 @@ downstream:
     read-timeout-ms: 2000
 
 logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql.BasicBinder: trace

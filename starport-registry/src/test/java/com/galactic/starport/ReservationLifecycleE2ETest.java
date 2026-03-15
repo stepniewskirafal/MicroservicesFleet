@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
- * ATDD: obsługa błędów i cykl życia rezerwacji – scenariusze integracyjne.
+ * ATDD: error handling and reservation lifecycle – integration scenarios.
  */
 @ResourceLock(value = "DB_TRUNCATE", mode = ResourceAccessMode.READ)
 class ReservationLifecycleE2ETest extends BaseAcceptanceTest {

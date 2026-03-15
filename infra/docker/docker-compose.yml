@@ -109,17 +109,17 @@ services:
     image: apache/kafka:3.7.0
     container_name: kafka
     ports:
-      - "9092:9092"               # HOST listener – dostępny z localhost (Postman, IntelliJ)
+      - "9092:9092"               # HOST listener – accessible from localhost (Postman, IntelliJ)
     environment:
-      # KRaft – bez Zookeepera
+      # KRaft – no Zookeeper
       KAFKA_PROCESS_ROLES: controller,broker
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
 
-      # Broker nasłuchuje na 3 adresach:
-      #  PLAINTEXT_HOST   – klienci z hosta (localhost:9092)
-      #  PLAINTEXT_DOCKER – kontenery w sieci Compose (kafka:9093)
+      # Broker listens on 3 addresses:
+      #  PLAINTEXT_HOST   – host clients (localhost:9092)
+      #  PLAINTEXT_DOCKER – containers in Compose network (kafka:9093)
       #  CONTROLLER       – KRaft quorum
       KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_DOCKER://kafka:9093
@@ -131,7 +131,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_NUM_PARTITIONS: 2
     healthcheck:
-      # Broker jest gotowy, gdy odpowiada na API-versions request
+      # Broker is ready when it responds to API-versions request
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9093 > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s

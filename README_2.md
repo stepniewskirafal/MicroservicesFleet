@@ -1,26 +1,26 @@
 # Starport Reservation & Route Planning — Final Flow & Contracts (Confirmed)
 
-Poniżej opis przepływu wraz z kontraktami HTTP i eventami.
+Below is a description of the flow along with HTTP contracts and events.
 
 ---
 
 ## 🧭 End‑to‑End Flow (final)
 
-1. **Użytkownik → A**: `POST /starports/{id}/reservations` (z `Idempotency-Key`).
-2. **A (tx)**: walidacja → alokacja **HOLD** (wybór bay) → **wołanie B** (`/routes/plan`) z `originPortId` i `destinationPortId={id}`.
-3. **B**: planuje trasę → zwraca `200` z `etaHours`, `riskScore` (oraz emituje `RoutePlanned`).
-4. **A**: oblicza **ostateczną taryfę** (z uwzględnieniem **riskScore**) → **CONFIRM** rezerwację → emituje `StarportReservationCreated` i `TariffCalculated` → zwraca **201** do użytkownika (z `reservationId`, `eta`, `amount`).
-5. **Błąd trasy** (`422` lub `4xx/5xx` z B): **A zwalnia HOLD** → zwraca **409 ROUTE_UNAVAILABLE** do użytkownika (bez kompensacji).
+1. **User → A**: `POST /starports/{id}/reservations` (with `Idempotency-Key`).
+2. **A (tx)**: validation → **HOLD** allocation (bay selection) → **calling B** (`/routes/plan`) with `originPortId` and `destinationPortId={id}`.
+3. **B**: plans route → returns `200` with `etaHours`, `riskScore` (and emits `RoutePlanned`).
+4. **A**: calculates **final tariff** (taking **riskScore** into account) → **CONFIRM** reservation → emits `StarportReservationCreated` and `TariffCalculated` → returns **201** to user (with `reservationId`, `eta`, `amount`).
+5. **Route error** (`422` or `4xx/5xx` from B): **A releases HOLD** → returns **409 ROUTE_UNAVAILABLE** to user (no compensation).
 
-> *Krytyczne miejsca*: HOLD ma **TTL** (np. 2–5 min); retry do B z **exponential backoff**; wszystkie eventy przez **Outbox**.
+> *Critical points*: HOLD has a **TTL** (e.g. 2–5 min); retry to B with **exponential backoff**; all events via **Outbox**.
 
 ---
 
-## 🗺️ Flowchart (happy path + odrzucenia)
+## 🗺️ Flowchart (happy path + rejections)
 
 ```mermaid
 flowchart LR
-    U[Uzytkownik] -->|POST /starports/:id/reservations + Idempotency-Key| A_API[Service A API]
+    U[User] -->|POST /starports/:id/reservations + Idempotency-Key| A_API[Service A API]
     A_API --> A_APP[Service A Application]
     A_APP --> A_DOM[Service A Domain]
     A_DOM -->|check capacity tx and place HOLD| A_DB[(A Postgres)]
@@ -44,7 +44,7 @@ flowchart LR
 
 ---
 
-## 📜 Sequence Diagram (szczegółowy)
+## 📜 Sequence Diagram (detailed)
 
 ```mermaid
 sequenceDiagram
@@ -92,7 +92,7 @@ sequenceDiagram
 
 `POST /api/v1/starports/{starportId}/reservations`
 
-**Headers (wymagane)**
+**Headers (required)**
 
 * `Idempotency-Key: <uuid>`
 * `Content-Type: application/json`
@@ -125,14 +125,14 @@ sequenceDiagram
 }
 ```
 
-**409 Conflict** (brak miejsca lub trasy)
+**409 Conflict** (no available slot or route)
 
 ```json
 { "error": "ROUTE_UNAVAILABLE", "message": "Cannot plan route from SP-77-NARSHADDA to SP-02-TATOOINE-MOS" }
 ```
 
-**400 Bad Request** — walidacja (`from<to`, klasa statku, nagłówek idempotencji).
-**503 Service Unavailable** — gdy A nie może dotrzeć do B po retry/backoff.
+**400 Bad Request** — validation (`from<to`, ship class, idempotency header).
+**503 Service Unavailable** — when A cannot reach B after retry/backoff.
 
 ---
 
@@ -167,17 +167,17 @@ sequenceDiagram
 { "error": "ROUTE_REJECTED", "reason": "INSUFFICIENT_RANGE" }
 ```
 
-**4xx/5xx** — błędy domenowe lub chwilowa niedostępność (A stosuje retry/backoff z limitem).
+**4xx/5xx** — domain errors or temporary unavailability (A applies retry/backoff with a limit).
 
 ---
 
 ## 📣 Event Contracts (Kafka + Outbox/Inbox)
 
-### Meta (nagłówki wspólne)
+### Meta (common headers)
 
 * `eventType`, `schemaVersion`, `eventId` (UUID), `occurredAt` (UTC),
 * `reservationId`, `correlationId`, `traceId`.
-* **Message key**: `reservationId` (porządek w partycji).
+* **Message key**: `reservationId` (partition ordering).
 
 ### **B → routes.planned (RoutePlanned v1)**
 
@@ -263,43 +263,43 @@ Topic: `starport.billing`
 }
 ```
 
-> **Dlaczego v2?** Przenosimy kalkulację po udanym planie trasy (potrzebny `riskScore`) i dodajemy pole `riskDiscountPct`.
+> **Why v2?** We move the calculation after a successful route plan (requires `riskScore`) and add the `riskDiscountPct` field.
 
 ---
 
-## 💸 Formuła taryfy (konfigurowalna)
+## 💸 Tariff Formula (configurable)
 
-Niech:
+Let:
 
 * `base = portRate[starportId][baySize]` *(CR/h)*,
 * `duration = hours(from,to)`,
-* `riskDiscountPct = min(maxRiskDiscountPct, riskAlpha * riskScore * 100)` *(np. `maxRiskDiscountPct=20`, `riskAlpha=0.3` → dla `riskScore=1.0` zniżka 30%, przycięta do 20%)*.
-* **Kwota**: `amount = base * duration * baySizeMultiplier * (1 - riskDiscountPct/100)`.
+* `riskDiscountPct = min(maxRiskDiscountPct, riskAlpha * riskScore * 100)` *(e.g. `maxRiskDiscountPct=20`, `riskAlpha=0.3` → for `riskScore=1.0` discount is 30%, capped at 20%)*.
+* **Amount**: `amount = base * duration * baySizeMultiplier * (1 - riskDiscountPct/100)`.
 
-Parametry (`portRate`, `baySizeMultiplier`, `riskAlpha`, `maxRiskDiscountPct`) w tabelach konfiguracyjnych A.
-
----
-
-## 🔐 Idempotencja i FCFS
-
-* **Nagłówek** `Idempotency-Key` → tabela `reservation_requests` z unikalnym `(clientId, starportId, from, to, idempotencyKey)`. Duplikat zwraca ten sam wynik **201** (lub poprzedni błąd).
-* **FCFS**: `SELECT ... FOR UPDATE SKIP LOCKED` na wolnych bayach + **exclusion constraint** na `tstzrange(bay_id, [from,to))` w Postgres ograniczający nakładanie się rezerwacji.
-* **Optimistic locking** na `reservation.version`.
+Parameters (`portRate`, `baySizeMultiplier`, `riskAlpha`, `maxRiskDiscountPct`) are stored in configuration tables of A.
 
 ---
 
-## 📦 Inbox/Outbox (A i B)
+## 🔐 Idempotency and FCFS
+
+* **Header** `Idempotency-Key` → table `reservation_requests` with unique `(clientId, starportId, from, to, idempotencyKey)`. A duplicate returns the same **201** result (or the previous error).
+* **FCFS**: `SELECT ... FOR UPDATE SKIP LOCKED` on available bays + **exclusion constraint** on `tstzrange(bay_id, [from,to))` in Postgres preventing overlapping reservations.
+* **Optimistic locking** on `reservation.version`.
+
+---
+
+## 📦 Inbox/Outbox (A and B)
 
 * **Outbox**: `event_outbox(id, aggregate_id, type, payload, headers, created_at, published_at null)` + publisher batch.
-* **Inbox**: `event_inbox(event_id pk, type, processed_at, status, dedup_key)` dla idempotentnej konsumpcji.
-* Wszystkie emisje (`StarportReservationCreated`, `TariffCalculated`, `RoutePlanned`, `RouteRejected`) zapisujemy **w tej samej transakcji** co zmiany domenowe.
+* **Inbox**: `event_inbox(event_id pk, type, processed_at, status, dedup_key)` for idempotent consumption.
+* All emissions (`StarportReservationCreated`, `TariffCalculated`, `RoutePlanned`, `RouteRejected`) are saved **in the same transaction** as domain changes.
 
 ---
 
-## 🧱 Stany rezerwacji (A)
+## 🧱 Reservation States (A)
 
-* `HOLD` (z `expiresAt`) → `CONFIRMED` → `REJECTED` (zwolniony slot).
-* Cleanup job: wygaszanie przeterminowanych HOLD.
+* `HOLD` (with `expiresAt`) → `CONFIRMED` → `REJECTED` (released slot).
+* Cleanup job: expiring timed-out HOLDs.
 
 ```mermaid
 stateDiagram-v2
@@ -312,7 +312,7 @@ stateDiagram-v2
 
 ---
 
-## 🧩 Architektura i komponenty
+## 🧩 Architecture and Components
 
 **A (Layered)**
 
@@ -324,10 +324,10 @@ stateDiagram-v2
 **B (Hexagonal)**
 
 * **Port**: `PlanRouteUseCase.plan(originPortId, destinationPortId, shipProfile, departureAt)`
-* **Adapters**: REST (in), Postgres (astro/embargo data), HTTP (zewnętrzne źródła), OutboxPublisher (events)
+* **Adapters**: REST (in), Postgres (astro/embargo data), HTTP (external sources), OutboxPublisher (events)
 
 ---
 
-## 🧪 Kody błędów (A)
+## 🧪 Error Codes (A)
 
 * `NO_CAPACITY`, `INVALID_WINDOW`, `UNSUPPORTED_SHIP_CLASS`, `ROUTE_UNAVAILABLE`, `PLANNER_UNAVAILABLE`, `IDEMPOTENCY_REQUIRED`, `IDEMPOTENCY_CONFLICT`.

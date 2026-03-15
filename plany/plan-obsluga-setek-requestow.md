@@ -1,112 +1,112 @@
-# Plan: Obsługa setek równoczesnych requestów rezerwacji
+# Plan: Handling hundreds of concurrent reservation requests
 
-## Stan obecny (analiza bottlenecków)
+## Current state (bottleneck analysis)
 
-| Komponent | Obecna wartość | Problem |
+| Component | Current value | Problem |
 |-----------|---------------|---------|
-| HikariCP pool | **10 połączeń** (default) | 200 wątków Tomcat walczy o 10 połączeń DB |
-| Tomcat threads | **200** (default) | 190 wątków czeka bezczynnie na connection pool |
-| Indeksy na `reservation` | **brak** | `NOT EXISTS` w `findFreeBay` skanuje całą tabelę |
-| Outbox polling | **1 wątek / 30s / batch 50** | Opóźnienie eventów do 60s |
-| Health-check interval | **15s** | Failover trwa do 15s |
-| Rate limiting | **brak** | Brak ochrony przed przeciążeniem |
-| Circuit breaker | **brak** | Wolny trade-route-planner blokuje wątki |
+| HikariCP pool | **10 connections** (default) | 200 Tomcat threads competing for 10 DB connections |
+| Tomcat threads | **200** (default) | 190 threads waiting idle for connection pool |
+| Indexes on `reservation` | **none** | `NOT EXISTS` in `findFreeBay` scans the entire table |
+| Outbox polling | **1 thread / 30s / batch 50** | Event delay up to 60s |
+| Health-check interval | **15s** | Failover takes up to 15s |
+| Rate limiting | **none** | No protection against overload |
+| Circuit breaker | **none** | Slow trade-route-planner blocks threads |
 
-**Wąskie gardło nr 1**: 10 DB connections vs 200 HTTP wątków.
-Przy 100+ równoczesnych requestach, 90% wątków czeka na connection — response time rośnie wykładniczo.
+**Bottleneck #1**: 10 DB connections vs 200 HTTP threads.
+With 100+ concurrent requests, 90% of threads wait for a connection — response time grows exponentially.
 
-**Wąskie gardło nr 2**: Brak indeksów na tabeli `reservation`.
-Query `findFreeBay` z `NOT EXISTS` wykonuje full table scan po `reservation(docking_bay_id, start_at, end_at)`.
+**Bottleneck #2**: No indexes on the `reservation` table.
+The `findFreeBay` query with `NOT EXISTS` performs a full table scan on `reservation(docking_bay_id, start_at, end_at)`.
 
 ---
 
-## Plan zmian — krok po kroku
+## Change plan — step by step
 
-### Krok 1: Indeksy na tabeli `reservation` (krytyczne)
+### Step 1: Indexes on the `reservation` table (critical)
 
-**Plik:** nowa migracja `V4__reservation_indexes.sql`
+**File:** new migration `V4__reservation_indexes.sql`
 
 ```sql
 CREATE INDEX idx_reservation_bay_time
     ON reservation (docking_bay_id, start_at, end_at);
 ```
 
-**Dlaczego:** Query `findFreeBay` używa `NOT EXISTS (SELECT 1 FROM reservation WHERE docking_bay_id = ? AND start_at < ? AND end_at > ?)`. Bez indeksu każde wywołanie skanuje WSZYSTKIE rezerwacje. Z indeksem — index-only scan O(log n).
+**Why:** The `findFreeBay` query uses `NOT EXISTS (SELECT 1 FROM reservation WHERE docking_bay_id = ? AND start_at < ? AND end_at > ?)`. Without an index, each call scans ALL reservations. With an index — index-only scan O(log n).
 
-**Wpływ:** Największy pojedynczy zysk wydajnościowy. Przy 10 000 rezerwacji różnica 100-1000x.
+**Impact:** The single biggest performance gain. With 10,000 reservations the difference is 100-1000x.
 
 ---
 
-### Krok 2: Tuning connection pool HikariCP
+### Step 2: HikariCP connection pool tuning
 
-**Plik:** `application.yml`
+**File:** `application.yml`
 
 ```yaml
 spring:
   datasource:
     hikari:
-      maximum-pool-size: 30          # z 10 → 30
-      minimum-idle: 10               # utrzymuj 10 idle connections
-      connection-timeout: 5000       # 5s zamiast 30s — fail fast
-      leak-detection-threshold: 10000  # wykryj connection leaki >10s
+      maximum-pool-size: 30          # from 10 → 30
+      minimum-idle: 10               # keep 10 idle connections
+      connection-timeout: 5000       # 5s instead of 30s — fail fast
+      leak-detection-threshold: 10000  # detect connection leaks >10s
 ```
 
-**Reguła:** `pool_size ≈ (2 × CPU cores) + disk_spindles`.
-Dla 4 CPU + SSD: ~30 connections na instancję. Dwie instancje = 60 połączeń do PostgreSQL — daleko od limitu (default: 100).
+**Rule:** `pool_size ≈ (2 × CPU cores) + disk_spindles`.
+For 4 CPU + SSD: ~30 connections per instance. Two instances = 60 connections to PostgreSQL — well below the limit (default: 100).
 
-**Dlaczego 30, a nie 200?**
-Więcej connections ≠ więcej throughput. PostgreSQL zwalnia przy >50 aktywnych connections (context switching). Connection pool działa jak bufor — wątki czekają krótko, ale DB nie jest przeciążona.
+**Why 30, not 200?**
+More connections ≠ more throughput. PostgreSQL slows down at >50 active connections (context switching). The connection pool acts as a buffer — threads wait briefly, but the DB is not overloaded.
 
 ---
 
-### Krok 3: Tuning Tomcat — zmniejszenie wątków do proporcji pool
+### Step 3: Tomcat tuning — reducing threads to match pool ratio
 
-**Plik:** `application.yml`
+**File:** `application.yml`
 
 ```yaml
 server:
   tomcat:
     threads:
-      max: 60        # z 200 → 60 (2x pool size)
+      max: 60        # from 200 → 60 (2x pool size)
       min-spare: 15
-    accept-count: 200  # queue dla nadmiarowych requestów
+    accept-count: 200  # queue for excess requests
     max-connections: 2000
 ```
 
-**Dlaczego zmniejszamy wątki?**
-60 wątków z 30 DB connections oznacza max 30 czekających — akceptowalny queue. 200 wątków z 30 connections = 170 czekających = OOM i thread starvation.
+**Why reduce threads?**
+60 threads with 30 DB connections means at most 30 waiting — an acceptable queue. 200 threads with 30 connections = 170 waiting = OOM and thread starvation.
 
-**accept-count: 200** — OS-level queue; requestów nie odrzucamy od razu, kolejkujemy na poziomie TCP.
+**accept-count: 200** — OS-level queue; requests are not rejected immediately, they are queued at the TCP level.
 
 ---
 
-### Krok 4: Indeks na `docking_bay` dla szybszego join
+### Step 4: Index on `docking_bay` for faster join
 
-**Plik:** migracja `V4__reservation_indexes.sql` (ten sam plik)
+**File:** migration `V4__reservation_indexes.sql` (same file)
 
 ```sql
 CREATE INDEX idx_docking_bay_starport_class
     ON docking_bay (starport_id, ship_class, status);
 ```
 
-**Dlaczego:** Query `findFreeBay` joinuje `starport → docking_bay` po `starport_id` + filtruje po `ship_class` i `status`. Compound index pokrywa cały WHERE.
+**Why:** The `findFreeBay` query joins `starport → docking_bay` on `starport_id` and filters by `ship_class` and `status`. A compound index covers the entire WHERE clause.
 
 ---
 
-### Krok 5: Circuit breaker na wywołanie trade-route-planner
+### Step 5: Circuit breaker for trade-route-planner calls
 
-**Biblioteka:** `resilience4j-spring-boot3` (już w ekosystemie Spring Cloud)
+**Library:** `resilience4j-spring-boot3` (already in the Spring Cloud ecosystem)
 
-**Plik:** nowy `ResilienceConfig.java` + zmiana `application.yml`
+**File:** new `ResilienceConfig.java` + changes to `application.yml`
 
 ```yaml
 resilience4j:
   circuitbreaker:
     instances:
       trade-route-planner:
-        failure-rate-threshold: 50        # otwórz po 50% błędów
-        wait-duration-in-open-state: 10s  # próbuj ponownie po 10s
-        sliding-window-size: 10           # okno 10 requestów
+        failure-rate-threshold: 50        # open after 50% failures
+        wait-duration-in-open-state: 10s  # retry after 10s
+        sliding-window-size: 10           # window of 10 requests
         permitted-number-of-calls-in-half-open-state: 3
   timelimiter:
     instances:
@@ -114,66 +114,66 @@ resilience4j:
         timeout-duration: 2s
 ```
 
-**Zastosowanie w `TradeRoutePlannerHttpAdapter`:**
+**Usage in `TradeRoutePlannerHttpAdapter`:**
 ```java
 @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailable")
 public RoutePlan planRoute(String origin, String destination, ShipClass shipClass) { ... }
 ```
 
-**Dlaczego:** Bez circuit breakera wolny/padnięty trade-route-planner blokuje wątki starport-registry przez 2s (read timeout) × setki requestów = wyczerpanie wątków. Z CB — po 5 błędach circuit się otwiera i natychmiast zwraca fallback.
+**Why:** Without a circuit breaker, a slow/crashed trade-route-planner blocks starport-registry threads for 2s (read timeout) × hundreds of requests = thread exhaustion. With CB — after 5 failures the circuit opens and immediately returns a fallback.
 
 ---
 
-### Krok 6: Zwiększenie przepustowości outbox polling
+### Step 6: Increasing outbox polling throughput
 
-**Plik:** `application.yml`
+**File:** `application.yml`
 
 ```yaml
 app:
-  poll-interval-ms: 5000   # z 30s → 5s
-  batch-size: 200           # z 50 → 200
+  poll-interval-ms: 5000   # from 30s → 5s
+  batch-size: 200           # from 50 → 200
 
 spring:
   task:
     scheduling:
       pool:
-        size: 2             # z 1 → 2 wątki schedulera
+        size: 2             # from 1 → 2 scheduler threads
 ```
 
-**Dlaczego:**
-Obecny throughput: 50 eventów / 30s ≈ 1.6 evt/s.
-Po zmianie: 200 eventów / 5s ≈ 40 evt/s — 25x poprawa.
+**Why:**
+Current throughput: 50 events / 30s ≈ 1.6 evt/s.
+After change: 200 events / 5s ≈ 40 evt/s — 25x improvement.
 
 ---
 
-### Krok 7: Health-check interval — szybszy failover
+### Step 7: Health-check interval — faster failover
 
-**Plik:** `application.yml`
+**File:** `application.yml`
 
 ```yaml
 spring:
   cloud:
     loadbalancer:
       health-check:
-        interval: 5s   # z 15s → 5s
+        interval: 5s   # from 15s → 5s
 ```
 
-**Dlaczego:** Failover z 15s → 5s. Przy dwóch instancjach, padnięcie jednej powoduje 5s niedostępności zamiast 15s.
+**Why:** Failover from 15s → 5s. With two instances, if one goes down it causes 5s of unavailability instead of 15s.
 
 ---
 
-### Krok 8: Monitoring bottlenecków — nowe metryki
+### Step 8: Bottleneck monitoring — new metrics
 
-**Plik:** nowy `ConnectionPoolMetricsConfig.java`
+**File:** new `ConnectionPoolMetricsConfig.java`
 
-HikariCP automatycznie eksponuje metryki do Micrometer:
-- `hikaricp_connections_active` — ile connections w użyciu
-- `hikaricp_connections_pending` — ile wątków czeka na connection
-- `hikaricp_connections_timeout_total` — ile timeoutów
+HikariCP automatically exposes metrics to Micrometer:
+- `hikaricp_connections_active` — how many connections are in use
+- `hikaricp_connections_pending` — how many threads are waiting for a connection
+- `hikaricp_connections_timeout_total` — how many timeouts occurred
 
-**Dodać do Grafana dashboardu:**
+**Add to the Grafana dashboard:**
 ```promql
-# Alarm: pending connections > 50% pool size
+# Alert: pending connections > 50% pool size
 hikaricp_connections_pending{pool="HikariPool-1"} > 15
 ```
 
@@ -187,9 +187,9 @@ management:
 
 ---
 
-### Krok 9: PostgreSQL — tuning po stronie bazy
+### Step 9: PostgreSQL — database-side tuning
 
-**Plik:** `docker-compose.yml` — PostgreSQL command/config
+**File:** `docker-compose.yml` — PostgreSQL command/config
 
 ```yaml
 postgres:
@@ -202,18 +202,18 @@ postgres:
     -c random_page_cost=1.1
 ```
 
-**Dlaczego:**
-- `max_connections=200` — 2 instancje × 30 pool + outbox + monitoring = ~80. Default 100 wystarczy, ale 200 daje margines.
-- `shared_buffers=256MB` — cache dla często odpytywanych tabel.
-- `random_page_cost=1.1` — SSD; zachęca planner do używania indeksów.
+**Why:**
+- `max_connections=200` — 2 instances × 30 pool + outbox + monitoring = ~80. Default 100 is enough, but 200 provides headroom.
+- `shared_buffers=256MB` — cache for frequently queried tables.
+- `random_page_cost=1.1` — SSD; encourages the planner to use indexes.
 
 ---
 
-### Krok 10: (Opcjonalnie) Rate limiting z Bucket4j
+### Step 10: (Optional) Rate limiting with Bucket4j
 
-**Kiedy wdrożyć:** Gdy system jest publicznie dostępny lub potrzebna ochrona przed DDoS/abuse.
+**When to implement:** When the system is publicly accessible or protection against DDoS/abuse is needed.
 
-**Biblioteka:** `bucket4j-spring-boot-starter`
+**Library:** `bucket4j-spring-boot-starter`
 
 ```yaml
 bucket4j:
@@ -227,44 +227,44 @@ bucket4j:
               unit: seconds
 ```
 
-**Efekt:** Max 100 req/s na endpoint. Nadmiarowe dostają HTTP 429 Too Many Requests.
+**Effect:** Max 100 req/s per endpoint. Excess requests receive HTTP 429 Too Many Requests.
 
 ---
 
-## Kolejność wdrożenia (priorytet)
+## Implementation order (priority)
 
-| Priorytet | Krok | Czas | Wpływ |
-|-----------|------|------|-------|
-| **P0** | 1. Indeksy na `reservation` | 15 min | Ogromny — eliminuje full table scan |
-| **P0** | 2. HikariCP pool 10→30 | 5 min | Duży — 3x więcej równoczesnych transakcji |
-| **P1** | 3. Tomcat threads 200→60 | 5 min | Średni — eliminuje thread starvation |
-| **P1** | 4. Indeks na `docking_bay` | 5 min | Średni — szybszy join w findFreeBay |
-| **P1** | 5. Circuit breaker | 1h | Duży — ochrona przed kaskadową awarią |
-| **P2** | 6. Outbox polling tuning | 5 min | Średni — 25x szybsze publikowanie eventów |
-| **P2** | 7. Health-check 15s→5s | 2 min | Mały — szybszy failover |
-| **P2** | 8. Monitoring connection pool | 30 min | Średni — widoczność bottlenecków |
-| **P3** | 9. PostgreSQL tuning | 10 min | Mały — margines bezpieczeństwa |
-| **P3** | 10. Rate limiting | 1h | Mały — ochrona, nie wydajność |
+| Priority | Step | Time | Impact |
+|----------|------|------|--------|
+| **P0** | 1. Indexes on `reservation` | 15 min | Huge — eliminates full table scan |
+| **P0** | 2. HikariCP pool 10→30 | 5 min | Large — 3x more concurrent transactions |
+| **P1** | 3. Tomcat threads 200→60 | 5 min | Medium — eliminates thread starvation |
+| **P1** | 4. Index on `docking_bay` | 5 min | Medium — faster join in findFreeBay |
+| **P1** | 5. Circuit breaker | 1h | Large — protection against cascading failure |
+| **P2** | 6. Outbox polling tuning | 5 min | Medium — 25x faster event publishing |
+| **P2** | 7. Health-check 15s→5s | 2 min | Small — faster failover |
+| **P2** | 8. Connection pool monitoring | 30 min | Medium — bottleneck visibility |
+| **P3** | 9. PostgreSQL tuning | 10 min | Small — safety margin |
+| **P3** | 10. Rate limiting | 1h | Small — protection, not performance |
 
 ---
 
-## Oczekiwany efekt
+## Expected outcome
 
-| Metryka | Przed | Po |
-|---------|-------|-----|
+| Metric | Before | After |
+|--------|--------|-------|
 | Max concurrent reservations | ~10/s | **~100-200/s** |
 | Avg response time (p50) | ~200ms | **~30-50ms** |
 | p99 response time | ~5s (connection wait) | **~200ms** |
 | Failover time | 15s | **5s** |
-| Outbox event latency | do 60s | **do 5s** |
-| findFreeBay query time (10k rezerwacji) | ~50ms (full scan) | **~1ms (index scan)** |
+| Outbox event latency | up to 60s | **up to 5s** |
+| findFreeBay query time (10k reservations) | ~50ms (full scan) | **~1ms (index scan)** |
 
 ---
 
-## Czego NIE robimy (i dlaczego)
+## What we are NOT doing (and why)
 
-1. **Reactive stack (WebFlux)** — wymaga przepisania całej aplikacji; ROI zbyt niski dla obecnej skali.
-2. **CQRS / Event Sourcing** — overengineering; aktualna architektura z outbox pattern wystarcza.
-3. **Redis cache na bay availability** — `FOR UPDATE SKIP LOCKED` jest już optymalny; cache wprowadziłby problemy z consistency.
-4. **Sharding bazy** — przy setkach req/s PostgreSQL single-node z indeksami daje radę.
-5. **Kafka partitioning tuning** — bottleneck jest po stronie producenta (outbox polling), nie konsumenta.
+1. **Reactive stack (WebFlux)** — requires rewriting the entire application; ROI too low for the current scale.
+2. **CQRS / Event Sourcing** — overengineering; the current architecture with the outbox pattern is sufficient.
+3. **Redis cache for bay availability** — `FOR UPDATE SKIP LOCKED` is already optimal; a cache would introduce consistency issues.
+4. **Database sharding** — at hundreds of req/s, a single-node PostgreSQL with indexes can handle the load.
+5. **Kafka partitioning tuning** — the bottleneck is on the producer side (outbox polling), not the consumer.

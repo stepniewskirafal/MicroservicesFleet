@@ -8,6 +8,8 @@ import com.galactic.starport.service.reservationcalculation.ReservationCalculati
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.BaggageInScope;
+import io.micrometer.tracing.Tracer;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class ReservationService {
     private final ReserveBayValidator reservationValidator;
     private final ReservationCalculationFacade reservationCalculationFacade;
     private final MeterRegistry meterRegistry;
+    private final Tracer tracer;
 
     public Optional<Reservation> reserveBay(ReserveBayCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -37,11 +40,15 @@ public class ReservationService {
 
         try {
             Long reservationId = holdReservationFacade.createHoldReservation(command);
-            ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
-            Reservation reservation = confirmReservationFacade.confirmReservation(calc, starport);
 
-            incrementReservationCounter(starport, shipClass, "confirmed");
-            return Optional.of(reservation);
+            try (BaggageInScope ignored = tracer.createBaggageInScope("reservationId",
+                    String.valueOf(reservationId))) {
+                ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
+                Reservation reservation = confirmReservationFacade.confirmReservation(calc, starport);
+
+                incrementReservationCounter(starport, shipClass, "confirmed");
+                return Optional.of(reservation);
+            }
 
         } catch (NoDockingBaysAvailableException ex) {
             incrementReservationCounter(starport, shipClass, "no_capacity");

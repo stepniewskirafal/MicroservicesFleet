@@ -113,15 +113,11 @@ management:
       enabled: true
     readinessstate:
       enabled: true
-  opentelemetry:
+  otlp:
     tracing:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/traces
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/traces}
     logging:
-      export:
-        otlp:
-          endpoint: http://tempo:4318/v1/logs
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/logs}
   metrics:
     distribution:
       percentiles-histogram:
@@ -140,12 +136,14 @@ management:
         include: health,info,metrics,prometheus,liveness,readiness
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${TRACE_SAMPLING:1.0}
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
 
 logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   level:
     com.galactic.telemetry: DEBUG
     org.springframework.cloud.stream: INFO
