@@ -49,8 +49,7 @@ class AggregationFilterEdgeCaseTest {
         filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 2.0, t));
         filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 4.0, t.plusSeconds(1)));
         filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 4.0, t.plusSeconds(2)));
-        AggregatedTelemetry result = filter.apply(
-                enriched("SHIP-1", SensorType.TEMPERATURE, 4.0, t.plusSeconds(3)));
+        AggregatedTelemetry result = filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 4.0, t.plusSeconds(3)));
 
         // Values: [2, 4, 4, 4], mean = 3.5
         // Sample stddev = sqrt(((2-3.5)^2 + 3*(4-3.5)^2) / 3) = sqrt((2.25 + 0.75)/3) = sqrt(1.0) = 1.0
@@ -64,8 +63,7 @@ class AggregationFilterEdgeCaseTest {
 
         filter.apply(enriched("SHIP-1", SensorType.FUEL_LEVEL, 100.0, t));
         filter.apply(enriched("SHIP-1", SensorType.FUEL_LEVEL, 80.0, t.plusSeconds(1)));
-        AggregatedTelemetry result = filter.apply(
-                enriched("SHIP-1", SensorType.FUEL_LEVEL, 60.0, t.plusSeconds(2)));
+        AggregatedTelemetry result = filter.apply(enriched("SHIP-1", SensorType.FUEL_LEVEL, 60.0, t.plusSeconds(2)));
 
         assertThat(result.rollingMax()).isEqualTo(100.0);
     }
@@ -75,8 +73,7 @@ class AggregationFilterEdgeCaseTest {
         Instant t = Instant.parse("2026-01-01T00:00:00Z");
 
         filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, -50.0, t));
-        AggregatedTelemetry result = filter.apply(
-                enriched("SHIP-1", SensorType.TEMPERATURE, -30.0, t.plusSeconds(1)));
+        AggregatedTelemetry result = filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, -30.0, t.plusSeconds(1)));
 
         assertThat(result.rollingAvg()).isCloseTo(-40.0, within(0.01));
         assertThat(result.rollingMax()).isEqualTo(-30.0);
@@ -89,8 +86,7 @@ class AggregationFilterEdgeCaseTest {
         Instant t1 = Instant.parse("2026-01-01T00:05:00Z");
 
         filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 10.0, t0));
-        AggregatedTelemetry result = filter.apply(
-                enriched("SHIP-1", SensorType.TEMPERATURE, 20.0, t1));
+        AggregatedTelemetry result = filter.apply(enriched("SHIP-1", SensorType.TEMPERATURE, 20.0, t1));
 
         // Window should NOT have expired at exactly 5 minutes
         assertThat(result.windowSampleCount()).isEqualTo(2);
@@ -101,8 +97,7 @@ class AggregationFilterEdgeCaseTest {
         Instant t = Instant.parse("2026-01-01T00:00:00Z");
 
         filter.apply(enriched("SHIP-1", SensorType.RADIATION, 10.0, t));
-        AggregatedTelemetry result = filter.apply(
-                enriched("SHIP-1", SensorType.RADIATION, 20.0, t.plusSeconds(1)));
+        AggregatedTelemetry result = filter.apply(enriched("SHIP-1", SensorType.RADIATION, 20.0, t.plusSeconds(1)));
 
         assertThat(result.windowSampleCount()).isEqualTo(2);
         assertThat(result.rollingStdDev()).isGreaterThan(0.0);

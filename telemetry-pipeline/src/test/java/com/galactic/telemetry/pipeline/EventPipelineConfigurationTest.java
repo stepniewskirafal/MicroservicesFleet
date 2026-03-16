@@ -98,8 +98,15 @@ class EventPipelineConfigurationTest {
                     config.reservationPipeline(meterRegistry);
 
             ReservationCreatedEvent event = new ReservationCreatedEvent(
-                    42L, "CONFIRMED", "SP-01", "BAY-A", "CUST-01", "SHIP-01", "ROUTE-01",
-                    Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-02T00:00:00Z"),
+                    42L,
+                    "CONFIRMED",
+                    "SP-01",
+                    "BAY-A",
+                    "CUST-01",
+                    "SHIP-01",
+                    "ROUTE-01",
+                    Instant.parse("2026-01-01T00:00:00Z"),
+                    Instant.parse("2026-01-02T00:00:00Z"),
                     new BigDecimal("100.00"));
 
             EnrichedReservationEvent result = pipeline.apply(event);
@@ -199,13 +206,11 @@ class EventPipelineConfigurationTest {
 
     private static ReservationCreatedEvent aReservationEvent(Instant start, Instant end) {
         return new ReservationCreatedEvent(
-                1L, "CONFIRMED", "SP-01", "BAY-1", "CUST-01", "SHIP-01", "ROUTE-01",
-                start, end, BigDecimal.TEN);
+                1L, "CONFIRMED", "SP-01", "BAY-1", "CUST-01", "SHIP-01", "ROUTE-01", start, end, BigDecimal.TEN);
     }
 
     private static RoutePlannedEvent aRouteEvent(double riskScore) {
         return new RoutePlannedEvent(
-                "ROUTE-01", "SP-A", "SP-B", "SCOUT", 10.0, riskScore,
-                Instant.parse("2026-01-01T00:00:00Z"));
+                "ROUTE-01", "SP-A", "SP-B", "SCOUT", 10.0, riskScore, Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

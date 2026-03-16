@@ -22,8 +22,8 @@ class EnrichmentFilterTest {
 
     @Test
     void knownShip_enrichedWithClassAndSector() {
-        ValidatedTelemetry input = new ValidatedTelemetry(
-                "SHIP-001", SensorType.TEMPERATURE, 42.5, Instant.now(), Map.of());
+        ValidatedTelemetry input =
+                new ValidatedTelemetry("SHIP-001", SensorType.TEMPERATURE, 42.5, Instant.now(), Map.of());
 
         EnrichedTelemetry result = filter.apply(input);
 
@@ -36,8 +36,8 @@ class EnrichmentFilterTest {
 
     @Test
     void unknownShip_defaultShipInfo() {
-        ValidatedTelemetry input = new ValidatedTelemetry(
-                "SHIP-999", SensorType.RADIATION, 100.0, Instant.now(), Map.of());
+        ValidatedTelemetry input =
+                new ValidatedTelemetry("SHIP-999", SensorType.RADIATION, 100.0, Instant.now(), Map.of());
 
         EnrichedTelemetry result = filter.apply(input);
 
@@ -47,8 +47,8 @@ class EnrichmentFilterTest {
 
     @Test
     void temperatureSensor_hasCorrectThresholds() {
-        ValidatedTelemetry input = new ValidatedTelemetry(
-                "SHIP-001", SensorType.TEMPERATURE, 42.5, Instant.now(), Map.of());
+        ValidatedTelemetry input =
+                new ValidatedTelemetry("SHIP-001", SensorType.TEMPERATURE, 42.5, Instant.now(), Map.of());
 
         EnrichedTelemetry result = filter.apply(input);
 
@@ -58,8 +58,8 @@ class EnrichmentFilterTest {
 
     @Test
     void fuelLevelSensor_hasCorrectThresholds() {
-        ValidatedTelemetry input = new ValidatedTelemetry(
-                "SHIP-002", SensorType.FUEL_LEVEL, 75.0, Instant.now(), Map.of());
+        ValidatedTelemetry input =
+                new ValidatedTelemetry("SHIP-002", SensorType.FUEL_LEVEL, 75.0, Instant.now(), Map.of());
 
         EnrichedTelemetry result = filter.apply(input);
 
@@ -70,8 +70,8 @@ class EnrichmentFilterTest {
     @Test
     void metadata_isPreserved() {
         Map<String, String> meta = Map.of("deck", "3", "zone", "aft");
-        ValidatedTelemetry input = new ValidatedTelemetry(
-                "SHIP-003", SensorType.HULL_INTEGRITY, 95.0, Instant.now(), meta);
+        ValidatedTelemetry input =
+                new ValidatedTelemetry("SHIP-003", SensorType.HULL_INTEGRITY, 95.0, Instant.now(), meta);
 
         EnrichedTelemetry result = filter.apply(input);
 

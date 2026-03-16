@@ -4,10 +4,10 @@ import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.Counter;
-import java.util.Objects;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatusCode;
@@ -53,18 +53,18 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
             return null;
         }
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("startStarport",
-                        Objects.toString(command.startStarportCode(), "unknown"))
+                .lowCardinalityKeyValue("startStarport", Objects.toString(command.startStarportCode(), "unknown"))
                 .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
                 .observe(() -> callTradeRoutePlanner(command));
     }
 
     private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
         incrementErrorCounter("circuit_open");
-        log.warn("Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
-                command.startStarportCode(), command.destinationStarportCode());
-        throw new RouteUnavailableException(
-                command.startStarportCode(), command.destinationStarportCode(), t);
+        log.warn(
+                "Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
+                command.startStarportCode(),
+                command.destinationStarportCode());
+        throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), t);
     }
 
     private Route callTradeRoutePlanner(ReserveBayCommand command) {
@@ -91,8 +91,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
             if (response == null) {
                 incrementErrorCounter("empty_response");
-                throw new RouteUnavailableException(
-                        command.startStarportCode(), command.destinationStarportCode());
+                throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode());
             }
 
             routePlanSuccessCounter.increment();
@@ -123,8 +122,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     command.destinationStarportCode(),
                     e.getMessage(),
                     e);
-            throw new RouteUnavailableException(
-                    command.startStarportCode(), command.destinationStarportCode(), e);
+            throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), e);
         }
     }
 

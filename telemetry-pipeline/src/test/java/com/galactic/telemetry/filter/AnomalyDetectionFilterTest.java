@@ -127,14 +127,26 @@ class AnomalyDetectionFilterTest {
     }
 
     private AggregatedTelemetry aggregated(
-            double currentValue, double rollingAvg, double rollingMax,
-            double rollingStdDev, long sampleCount,
-            double lowerThreshold, double upperThreshold) {
+            double currentValue,
+            double rollingAvg,
+            double rollingMax,
+            double rollingStdDev,
+            long sampleCount,
+            double lowerThreshold,
+            double upperThreshold) {
         return new AggregatedTelemetry(
-                "SHIP-001", "Corvette", "Alpha-Centauri",
-                SensorType.TEMPERATURE, currentValue,
-                rollingAvg, rollingMax, rollingStdDev,
-                sampleCount, Instant.now().minusSeconds(300), Instant.now(),
-                lowerThreshold, upperThreshold);
+                "SHIP-001",
+                "Corvette",
+                "Alpha-Centauri",
+                SensorType.TEMPERATURE,
+                currentValue,
+                rollingAvg,
+                rollingMax,
+                rollingStdDev,
+                sampleCount,
+                Instant.now().minusSeconds(300),
+                Instant.now(),
+                lowerThreshold,
+                upperThreshold);
     }
 }

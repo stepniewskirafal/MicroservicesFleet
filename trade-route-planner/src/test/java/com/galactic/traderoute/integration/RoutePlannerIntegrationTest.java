@@ -66,9 +66,7 @@ class RoutePlannerIntegrationTest {
     @ParameterizedTest(name = "shipClass={0} → 200 OK")
     @ValueSource(strings = {"SCOUT", "FREIGHTER", "FREIGHTER_MK2", "CRUISER", "DESTROYER"})
     void should_accept_all_ship_classes(String shipClass) throws Exception {
-        mvc.perform(post(URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request("SP-A", "SP-B", shipClass, 20.0)))
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(request("SP-A", "SP-B", shipClass, 20.0)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.routeId").isString());
     }
@@ -87,10 +85,12 @@ class RoutePlannerIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        String corr1 = objectMapper.readTree(r1.getResponse().getContentAsString())
+        String corr1 = objectMapper
+                .readTree(r1.getResponse().getContentAsString())
                 .get("correlationId")
                 .asText();
-        String corr2 = objectMapper.readTree(r2.getResponse().getContentAsString())
+        String corr2 = objectMapper
+                .readTree(r2.getResponse().getContentAsString())
                 .get("correlationId")
                 .asText();
 
@@ -101,9 +101,7 @@ class RoutePlannerIntegrationTest {
 
     @Test
     void should_return_422_with_route_rejected_when_fuel_is_below_minimum() throws Exception {
-        mvc.perform(post(URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request("SP-A", "SP-B", "SCOUT", 0.5)))
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(request("SP-A", "SP-B", "SCOUT", 0.5)))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error").value("ROUTE_REJECTED"))
                 .andExpect(jsonPath("$.reason").value("INSUFFICIENT_RANGE"))
@@ -112,9 +110,7 @@ class RoutePlannerIntegrationTest {
 
     @Test
     void should_accept_request_with_exactly_minimum_fuel_range() throws Exception {
-        mvc.perform(post(URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request("SP-A", "SP-B", "SCOUT", 1.0)))
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(request("SP-A", "SP-B", "SCOUT", 1.0)))
                 .andExpect(status().isOk());
     }
 
@@ -178,8 +174,7 @@ class RoutePlannerIntegrationTest {
 
     @Test
     void actuator_health_endpoint_should_be_available() throws Exception {
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
-                        "/actuator/health"))
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
     }

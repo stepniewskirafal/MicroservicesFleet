@@ -54,7 +54,7 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
                 .endAt(Instant.parse("2002-01-01T01:00:00Z"))
                 .requestRoute(true)
                 .build();
-        
+
         Long reservationID = holdReservationFacade.createHoldReservation(cmd);
 
         assertTrue(starportPersistenceFacade.reservationExistsById(reservationID));
@@ -83,9 +83,7 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
                 .requestRoute(true)
                 .build();
 
-        assertThrows(
-                StarportNotFoundException.class,
-                () -> holdReservationFacade.createHoldReservation(cmd));
+        assertThrows(StarportNotFoundException.class, () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -111,9 +109,7 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
                 .requestRoute(true)
                 .build();
 
-        assertThrows(
-                CustomerNotFoundException.class,
-                () -> holdReservationFacade.createHoldReservation(cmd));
+        assertThrows(CustomerNotFoundException.class, () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -139,8 +135,7 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
                 .requestRoute(true)
                 .build();
 
-        assertThrows(
-                ShipNotFoundException.class, () -> holdReservationFacade.createHoldReservation(cmd));
+        assertThrows(ShipNotFoundException.class, () -> holdReservationFacade.createHoldReservation(cmd));
     }
 
     @Test
@@ -151,8 +146,7 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
         String shipCode = "SS-Enterprise-NO-BAY";
 
         seedDefaultReservationFixture(
-                destinationCode,
-                Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
+                destinationCode, Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
 
         ReserveBayCommand cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(destinationCode)
@@ -167,8 +161,6 @@ class CreateHoldReservationServiceRepositoryTest extends BaseAcceptanceTest {
 
         holdReservationFacade.createHoldReservation(cmd);
 
-        assertThrows(
-                NoDockingBaysAvailableException.class,
-                () -> holdReservationFacade.createHoldReservation(cmd));
+        assertThrows(NoDockingBaysAvailableException.class, () -> holdReservationFacade.createHoldReservation(cmd));
     }
 }

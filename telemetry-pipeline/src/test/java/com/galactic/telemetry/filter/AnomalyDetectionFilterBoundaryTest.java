@@ -130,13 +130,25 @@ class AnomalyDetectionFilterBoundaryTest {
     }
 
     private static AggregatedTelemetry aggregated(
-            double currentValue, double lowerThreshold, double rollingAvg,
-            double upperThreshold, long sampleCount, double stdDev) {
+            double currentValue,
+            double lowerThreshold,
+            double rollingAvg,
+            double upperThreshold,
+            long sampleCount,
+            double stdDev) {
         return new AggregatedTelemetry(
-                "SHIP-001", "CRUISER", "Sector-7",
-                SensorType.TEMPERATURE, currentValue, rollingAvg,
-                currentValue, stdDev, sampleCount,
-                Instant.now(), Instant.now(),
-                lowerThreshold, upperThreshold);
+                "SHIP-001",
+                "CRUISER",
+                "Sector-7",
+                SensorType.TEMPERATURE,
+                currentValue,
+                rollingAvg,
+                currentValue,
+                stdDev,
+                sampleCount,
+                Instant.now(),
+                Instant.now(),
+                lowerThreshold,
+                upperThreshold);
     }
 }

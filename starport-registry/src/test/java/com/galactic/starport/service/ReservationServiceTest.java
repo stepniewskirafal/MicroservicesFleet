@@ -105,10 +105,11 @@ class ReservationServiceTest {
     @Test
     void should_propagate_starport_not_found_exception() {
         ReserveBayCommand cmd = aCommand();
-        willThrow(new StarportNotFoundException("DEF")).given(reservationValidator).validate(cmd);
+        willThrow(new StarportNotFoundException("DEF"))
+                .given(reservationValidator)
+                .validate(cmd);
 
-        assertThatThrownBy(() -> reservationService.reserveBay(cmd))
-                .isInstanceOf(StarportNotFoundException.class);
+        assertThatThrownBy(() -> reservationService.reserveBay(cmd)).isInstanceOf(StarportNotFoundException.class);
     }
 
     @Test

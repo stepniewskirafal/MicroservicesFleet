@@ -23,71 +23,59 @@ class ReservationTimeValidationRuleTest {
 
     @Test
     void should_pass_when_start_is_before_end() {
-        
-        ReserveBayCommand cmd = aCommand(
-                Instant.parse("2027-01-01T08:00:00Z"), Instant.parse("2027-01-01T09:00:00Z"));
+
+        ReserveBayCommand cmd = aCommand(Instant.parse("2027-01-01T08:00:00Z"), Instant.parse("2027-01-01T09:00:00Z"));
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isFalse();
     }
 
     @Test
     void should_reject_when_start_equals_end() {
-        
+
         Instant same = Instant.parse("2027-01-01T08:00:00Z");
         ReserveBayCommand cmd = aCommand(same, same);
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(ReservationTimeValidationRule.ERROR_CODE);
     }
 
     @Test
     void should_reject_when_start_is_after_end() {
-        
-        ReserveBayCommand cmd = aCommand(
-                Instant.parse("2027-01-01T10:00:00Z"), Instant.parse("2027-01-01T09:00:00Z"));
+
+        ReserveBayCommand cmd = aCommand(Instant.parse("2027-01-01T10:00:00Z"), Instant.parse("2027-01-01T09:00:00Z"));
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(ReservationTimeValidationRule.ERROR_CODE);
     }
 
     @Test
     void should_reject_when_start_is_null() {
-        
+
         ReserveBayCommand cmd = aCommand(null, Instant.parse("2027-01-01T09:00:00Z"));
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
     }
 
     @Test
     void should_reject_when_end_is_null() {
-        
+
         ReserveBayCommand cmd = aCommand(Instant.parse("2027-01-01T08:00:00Z"), null);
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
     }
 

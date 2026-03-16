@@ -51,8 +51,7 @@ class RouteRequestTest {
         assertThat(a).isNotEqualTo(b);
     }
 
-    private static RouteRequest aRequest(
-            String origin, String dest, String shipClass, double fuel) {
+    private static RouteRequest aRequest(String origin, String dest, String shipClass, double fuel) {
         return RouteRequest.builder()
                 .originPortId(origin)
                 .destinationPortId(dest)

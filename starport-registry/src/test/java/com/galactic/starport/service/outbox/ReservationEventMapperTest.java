@@ -27,7 +27,7 @@ class ReservationEventMapperTest {
 
     @Test
     void should_map_full_reservation_to_payload() {
-        
+
         Instant start = Instant.parse("2027-01-01T08:00:00Z");
         Instant end = Instant.parse("2027-01-01T09:00:00Z");
         Reservation reservation = Reservation.builder()
@@ -43,10 +43,8 @@ class ReservationEventMapperTest {
                 .feeCharged(BigDecimal.valueOf(300))
                 .build();
 
-        
         ReservationEventPayload payload = mapper.toPayload(reservation);
 
-        
         assertThat(payload.getReservationId()).isEqualTo(42L);
         assertThat(payload.getStatus()).isEqualTo("CONFIRMED");
         assertThat(payload.getStarportCode()).isEqualTo("DEF");
@@ -61,7 +59,7 @@ class ReservationEventMapperTest {
 
     @Test
     void should_map_reservation_without_optional_fields_to_payload() {
-        
+
         Reservation reservation = Reservation.builder()
                 .id(10L)
                 .status(Reservation.ReservationStatus.HOLD)
@@ -72,10 +70,8 @@ class ReservationEventMapperTest {
                 .route(null)
                 .build();
 
-        
         ReservationEventPayload payload = mapper.toPayload(reservation);
 
-        
         assertThat(payload.getReservationId()).isEqualTo(10L);
         assertThat(payload.getStatus()).isEqualTo("HOLD");
         assertThat(payload.getStarportCode()).isNull();

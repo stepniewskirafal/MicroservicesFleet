@@ -32,7 +32,7 @@ class OutboxAppender {
         Map<String, Object> headers = new HashMap<>();
         senderContext.setCarrier(headers);
 
-        Observation.createNotStarted("reservations.outbox.append", () -> senderContext, observationRegistry )
+        Observation.createNotStarted("reservations.outbox.append", () -> senderContext, observationRegistry)
                 .lowCardinalityKeyValue("binding", reservationsBinding)
                 .lowCardinalityKeyValue("eventType", EventType.RESERVATION_CONFIRMED.getEventName())
                 .highCardinalityKeyValue("reservationId", String.valueOf(reservation.getId()))

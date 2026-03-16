@@ -62,14 +62,12 @@ class FeeCalculatorServiceTest {
 
     @Test
     void should_charge_minimum_one_hour_when_start_equals_end() {
-        
+
         Instant start = Instant.parse("2004-01-01T00:00:00Z");
         ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.SCOUT, start, start);
 
-        
         BigDecimal fee = feeCalculator.calculateFee(cmd);
 
-        
         assertThat(fee).isEqualByComparingTo(BigDecimal.valueOf(50));
     }
 
@@ -79,8 +77,7 @@ class FeeCalculatorServiceTest {
         Instant end = Instant.parse("2004-01-01T00:00:00Z");
         ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.SCOUT, start, end);
 
-        assertThatThrownBy(() -> feeCalculator.calculateFee(cmd))
-                .isInstanceOf(InvalidReservationTimeException.class);
+        assertThatThrownBy(() -> feeCalculator.calculateFee(cmd)).isInstanceOf(InvalidReservationTimeException.class);
     }
 
     private static ReserveBayCommand aCommand(ReserveBayCommand.ShipClass shipClass, Instant start, Instant end) {

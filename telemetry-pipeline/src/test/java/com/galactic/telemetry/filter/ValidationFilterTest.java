@@ -24,8 +24,8 @@ class ValidationFilterTest {
 
     @Test
     void validMessage_returnsValidatedTelemetry() {
-        RawTelemetry raw = new RawTelemetry(
-                "SHIP-001", "TEMPERATURE", 42.5, Instant.now(), Map.of("location", "engine-room"));
+        RawTelemetry raw =
+                new RawTelemetry("SHIP-001", "TEMPERATURE", 42.5, Instant.now(), Map.of("location", "engine-room"));
 
         ValidatedTelemetry result = filter.apply(raw);
 

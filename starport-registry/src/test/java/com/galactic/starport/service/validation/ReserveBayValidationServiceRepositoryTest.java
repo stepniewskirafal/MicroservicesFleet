@@ -116,8 +116,7 @@ class ReserveBayValidationServiceRepositoryTest extends BaseAcceptanceTest {
         String shipCode = "SS-Enterprise-ROUTE-FALSE";
 
         seedDefaultReservationFixture(
-                destinationCode,
-                Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
+                destinationCode, Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
 
         ReserveBayCommand cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(destinationCode)
@@ -135,28 +134,21 @@ class ReserveBayValidationServiceRepositoryTest extends BaseAcceptanceTest {
 
     static Stream<Arguments> invalidTimeRanges() {
         return Stream.of(
-                Arguments.of(
-                        Instant.parse("2027-02-09T08:00:00Z"),
-                        Instant.parse("2027-02-09T08:00:00Z"),
-                        "EQ"),
-                Arguments.of(
-                        Instant.parse("2027-02-09T10:00:00Z"),
-                        Instant.parse("2027-02-09T09:00:00Z"),
-                        "GT"));
+                Arguments.of(Instant.parse("2027-02-09T08:00:00Z"), Instant.parse("2027-02-09T08:00:00Z"), "EQ"),
+                Arguments.of(Instant.parse("2027-02-09T10:00:00Z"), Instant.parse("2027-02-09T09:00:00Z"), "GT"));
     }
 
     @ParameterizedTest(name = "rejects invalid time range [{2}]: startAt={0}, endAt={1}")
     @MethodSource("invalidTimeRanges")
     void rejectsInvalidTimeRanges(Instant startAt, Instant endAt, String suffix) {
-        
+
         String originCode = "ALPHA-BASE-TIME-" + suffix;
         String destinationCode = "DEF-TIME-" + suffix;
         String customerCode = "CUST-TIME-" + suffix;
         String shipCode = "SS-Enterprise-TIME-" + suffix;
 
         seedDefaultReservationFixture(
-                destinationCode,
-                Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
+                destinationCode, Map.of("originCode", originCode, "customerCode", customerCode, "shipCode", shipCode));
 
         ReserveBayCommand cmd = ReserveBayCommand.builder()
                 .destinationStarportCode(destinationCode)

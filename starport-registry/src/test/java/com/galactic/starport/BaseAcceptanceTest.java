@@ -44,12 +44,14 @@ public abstract class BaseAcceptanceTest {
     }
 
     static void stubDefaultRoutePlan() {
-        wireMock.stubFor(WireMock.post(WireMock.urlEqualTo("/routes/plan"))
-                .willReturn(WireMock.aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(
-                                """
+        wireMock.stubFor(
+                WireMock.post(WireMock.urlEqualTo("/routes/plan"))
+                        .willReturn(
+                                WireMock.aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                """
                                 {
                                   "routeId": "ROUTE-TEST-1234",
                                   "etaHours": 18.7,

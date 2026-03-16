@@ -38,8 +38,7 @@ class OutboxAppenderRepositoryTest extends BaseAcceptanceTest {
 
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
 
-        Long reservationId =
-                jdbc.queryForObject("select id from reservation order by id desc limit 1", Long.class);
+        Long reservationId = jdbc.queryForObject("select id from reservation order by id desc limit 1", Long.class);
         assertEquals(
                 "CONFIRMED",
                 jdbc.queryForObject("select status from reservation where id = ?", String.class, reservationId));
@@ -78,8 +77,7 @@ class OutboxAppenderRepositoryTest extends BaseAcceptanceTest {
 
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
 
-        Long reservationId =
-                jdbc.queryForObject("select id from reservation order by id desc limit 1", Long.class);
+        Long reservationId = jdbc.queryForObject("select id from reservation order by id desc limit 1", Long.class);
         assertEquals(
                 0,
                 jdbc.queryForObject(

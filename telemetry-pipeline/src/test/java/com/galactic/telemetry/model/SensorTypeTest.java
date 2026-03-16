@@ -12,7 +12,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 class SensorTypeTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"TEMPERATURE", "RADIATION", "FUEL_LEVEL", "ENGINE_VIBRATION", "HULL_INTEGRITY", "OXYGEN_LEVEL"})
+    @ValueSource(
+            strings = {"TEMPERATURE", "RADIATION", "FUEL_LEVEL", "ENGINE_VIBRATION", "HULL_INTEGRITY", "OXYGEN_LEVEL"})
     void isValid_should_return_true_for_all_known_types(String type) {
         assertThat(SensorType.isValid(type)).isTrue();
     }

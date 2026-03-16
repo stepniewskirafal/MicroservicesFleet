@@ -3,7 +3,6 @@ package com.galactic.telemetry.filter;
 import com.galactic.telemetry.config.SensorThresholdProperties;
 import com.galactic.telemetry.config.SensorThresholdProperties.ThresholdRange;
 import com.galactic.telemetry.model.EnrichedTelemetry;
-import com.galactic.telemetry.model.SensorType;
 import com.galactic.telemetry.model.ValidatedTelemetry;
 import java.util.Map;
 import java.util.function.Function;

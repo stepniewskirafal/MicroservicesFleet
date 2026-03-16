@@ -74,8 +74,13 @@ public class PlanRouteService implements PlanRouteUseCase {
         double etaHours = computeEta(request, riskScore);
         String routeId = generateRouteId();
 
-        log.info("Route planned: {} from {} to {} — eta={}h risk={}",
-                routeId, request.originPortId(), request.destinationPortId(), etaHours, riskScore);
+        log.info(
+                "Route planned: {} from {} to {} — eta={}h risk={}",
+                routeId,
+                request.originPortId(),
+                request.destinationPortId(),
+                etaHours,
+                riskScore);
 
         recordMetrics(request, riskScore, etaHours);
 
@@ -91,7 +96,11 @@ public class PlanRouteService implements PlanRouteUseCase {
     }
 
     private String generateRouteId() {
-        return ROUTE_ID_PREFIX + UUID.randomUUID().toString().substring(0, ROUTE_ID_SUFFIX_LENGTH).toUpperCase();
+        return ROUTE_ID_PREFIX
+                + UUID.randomUUID()
+                        .toString()
+                        .substring(0, ROUTE_ID_SUFFIX_LENGTH)
+                        .toUpperCase();
     }
 
     private void recordMetrics(RouteRequest request, double riskScore, double etaHours) {
@@ -129,19 +138,20 @@ public class PlanRouteService implements PlanRouteUseCase {
                     .increment();
             throw new RouteRejectionException(
                     "INSUFFICIENT_RANGE",
-                    "Required minimum fuel range is " + MIN_FUEL_RANGE_LY
-                            + " LY, but ship only has " + request.fuelRangeLY() + " LY");
+                    "Required minimum fuel range is " + MIN_FUEL_RANGE_LY + " LY, but ship only has "
+                            + request.fuelRangeLY() + " LY");
         }
     }
 
     private double computeEta(RouteRequest request, double riskScore) {
         // Base ETA depends on ship class; higher risk = slightly longer journey
-        double baseEta = switch (request.shipClass().toUpperCase()) {
-            case "SCOUT" -> BASE_ETA_SCOUT;
-            case "FREIGHTER", "FREIGHTER_MK2" -> BASE_ETA_FREIGHTER;
-            case "CRUISER" -> BASE_ETA_CRUISER;
-            default -> BASE_ETA_DEFAULT;
-        };
+        double baseEta =
+                switch (request.shipClass().toUpperCase()) {
+                    case "SCOUT" -> BASE_ETA_SCOUT;
+                    case "FREIGHTER", "FREIGHTER_MK2" -> BASE_ETA_FREIGHTER;
+                    case "CRUISER" -> BASE_ETA_CRUISER;
+                    default -> BASE_ETA_DEFAULT;
+                };
         return baseEta + (riskScore * RISK_ETA_MULTIPLIER);
     }
 }

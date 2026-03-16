@@ -2,7 +2,6 @@ package com.galactic.telemetry.filter;
 
 import com.galactic.telemetry.model.AggregatedTelemetry;
 import com.galactic.telemetry.model.EnrichedTelemetry;
-import com.galactic.telemetry.model.SensorType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -122,8 +121,14 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
         }
 
         private WindowState(
-                double avg, double max, double currentValue, double stdDev, long count,
-                Instant windowStart, Instant windowEnd, double m2) {
+                double avg,
+                double max,
+                double currentValue,
+                double stdDev,
+                long count,
+                Instant windowStart,
+                Instant windowEnd,
+                double m2) {
             this.avg = avg;
             this.max = max;
             this.currentValue = currentValue;

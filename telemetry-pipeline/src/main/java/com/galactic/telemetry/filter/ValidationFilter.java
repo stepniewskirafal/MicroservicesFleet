@@ -5,6 +5,7 @@ import com.galactic.telemetry.model.SensorType;
 import com.galactic.telemetry.model.ValidatedTelemetry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.Nullable;
 import java.util.Map;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ public class ValidationFilter implements Function<RawTelemetry, ValidatedTelemet
     }
 
     @Override
+    @Nullable
     public ValidatedTelemetry apply(RawTelemetry raw) {
         receivedCounter.increment();
 
@@ -43,8 +45,11 @@ public class ValidationFilter implements Function<RawTelemetry, ValidatedTelemet
         }
 
         if (Double.isNaN(raw.value()) || Double.isInfinite(raw.value())) {
-            return reject("Invalid value {} for sensor {} on ship {} — dropping",
-                    raw.value(), raw.sensorType(), raw.shipId());
+            return reject(
+                    "Invalid value {} for sensor {} on ship {} — dropping",
+                    raw.value(),
+                    raw.sensorType(),
+                    raw.shipId());
         }
 
         if (raw.timestamp() == null) {
@@ -61,7 +66,7 @@ public class ValidationFilter implements Function<RawTelemetry, ValidatedTelemet
                 raw.metadata() != null ? raw.metadata() : Map.of());
     }
 
-    private ValidatedTelemetry reject(String message, Object... args) {
+    private @Nullable ValidatedTelemetry reject(String message, Object... args) {
         log.warn(message, args);
         invalidCounter.increment();
         return null;

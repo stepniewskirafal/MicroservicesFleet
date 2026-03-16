@@ -43,8 +43,7 @@ class InboxPublisher {
             ObservationRegistry observationRegistry,
             MeterRegistry meterRegistry,
             @Value("${outbox.batch-size:50}") int batchSize,
-            @Value("${outbox.max-attempts:10}") int maxAttempts
-    ) {
+            @Value("${outbox.max-attempts:10}") int maxAttempts) {
         this.repo = repo;
         this.streamBridge = streamBridge;
         this.observationRegistry = observationRegistry;

@@ -123,8 +123,8 @@ class SensorThresholdPropertiesTest {
     void getSensors_should_return_unmodifiable_map() {
         Map<SensorType, SensorThresholdProperties.ThresholdRange> sensors = properties.getSensors();
 
-        assertThatThrownBy(() -> sensors.put(SensorType.TEMPERATURE,
-                new SensorThresholdProperties.ThresholdRange(0, 0)))
+        assertThatThrownBy(
+                        () -> sensors.put(SensorType.TEMPERATURE, new SensorThresholdProperties.ThresholdRange(0, 0)))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 }

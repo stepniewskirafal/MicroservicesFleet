@@ -16,8 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 class ReservationCalculationService implements ReservationCalculationFacade {
 
-    private static final ExecutorService VIRTUAL_EXECUTOR =
-            Executors.newVirtualThreadPerTaskExecutor();
+    private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final FeeCalculator feeCalculator;
     private final RoutePlanner routePlanner;
@@ -27,11 +26,11 @@ class ReservationCalculationService implements ReservationCalculationFacade {
         Objects.requireNonNull(reservationId, "reservationId must not be null");
         Objects.requireNonNull(command, "command must not be null");
 
-        CompletableFuture<BigDecimal> feeFuture = CompletableFuture.supplyAsync(
-                () -> feeCalculator.calculateFee(command), VIRTUAL_EXECUTOR);
+        CompletableFuture<BigDecimal> feeFuture =
+                CompletableFuture.supplyAsync(() -> feeCalculator.calculateFee(command), VIRTUAL_EXECUTOR);
 
-        CompletableFuture<Route> routeFuture = CompletableFuture.supplyAsync(
-                () -> routePlanner.calculateRoute(command), VIRTUAL_EXECUTOR);
+        CompletableFuture<Route> routeFuture =
+                CompletableFuture.supplyAsync(() -> routePlanner.calculateRoute(command), VIRTUAL_EXECUTOR);
 
         BigDecimal calculatedFee = feeFuture.join();
         Route route = routeFuture.join();

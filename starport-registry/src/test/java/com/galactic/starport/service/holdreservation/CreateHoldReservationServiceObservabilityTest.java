@@ -43,7 +43,6 @@ class CreateHoldReservationServiceObservabilityTest {
                 .requestRoute(true)
                 .build();
 
-        
         service.createHoldReservation(cmd);
 
         verify(persistenceFacade).createHoldReservation(cmd);

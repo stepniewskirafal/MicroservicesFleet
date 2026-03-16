@@ -48,14 +48,12 @@ class ReserveBayValidationServiceObservabilityTest {
                 .requestRoute(true)
                 .build();
 
-        
         composite.validate(cmd);
 
         verify(rule1).validate(eq(cmd), any(Errors.class));
         verify(rule2).validate(eq(cmd), any(Errors.class));
 
-        TestObservationRegistryAssert obsAssert =
-                TestObservationRegistryAssert.assertThat(observationRegistry);
+        TestObservationRegistryAssert obsAssert = TestObservationRegistryAssert.assertThat(observationRegistry);
         obsAssert
                 .hasObservationWithNameEqualTo("validation.reserve-bay")
                 .that()

@@ -9,6 +9,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
@@ -16,11 +17,14 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "docking_bay")
+@Table(
+        name = "docking_bay",
+        indexes = {@Index(name = "idx_docking_bay_starport_class", columnList = "starport_id, ship_class, status")})
 @Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 class DockingBayEntity {
@@ -74,6 +78,18 @@ class DockingBayEntity {
         FREIGHTER,
         CRUISER,
         UNKNOWN
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof DockingBayEntity that)) return false;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 
     @PrePersist

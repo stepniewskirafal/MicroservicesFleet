@@ -89,7 +89,8 @@ class PlanRouteServiceEventPublishingTest {
     void should_record_eta_hours_distribution_summary() {
         service.planRoute(aRequest("FREIGHTER", 10.0));
 
-        DistributionSummary summary = meterRegistry.get("routes.eta.hours")
+        DistributionSummary summary = meterRegistry
+                .get("routes.eta.hours")
                 .tag("shipClass", "FREIGHTER")
                 .summary();
 

@@ -48,19 +48,21 @@ class OutboxAppenderObservabilityTest {
                 .status(Reservation.ReservationStatus.CONFIRMED)
                 .build();
 
-        when(mapper.toPayload(any(Reservation.class))).thenReturn(ReservationEventPayload.builder()
-                .reservationId(reservationId)
-                .status("CONFIRMED")
-                .build());
+        when(mapper.toPayload(any(Reservation.class)))
+                .thenReturn(ReservationEventPayload.builder()
+                        .reservationId(reservationId)
+                        .status("CONFIRMED")
+                        .build());
 
         appender.publishReservationConfirmedEvent(reservation);
 
-        verify(outboxWriter).save(
-                eq("reservations-out"),
-                eq("ReservationConfirmed"),
-                eq(String.valueOf(reservationId)),
-                anyMap(),
-                anyMap());
+        verify(outboxWriter)
+                .save(
+                        eq("reservations-out"),
+                        eq("ReservationConfirmed"),
+                        eq(String.valueOf(reservationId)),
+                        anyMap(),
+                        anyMap());
 
         TestObservationRegistryAssert.assertThat(observationRegistry)
                 .hasObservationWithNameEqualTo("reservations.outbox.append")
@@ -79,10 +81,11 @@ class OutboxAppenderObservabilityTest {
                 .status(Reservation.ReservationStatus.CONFIRMED)
                 .build();
 
-        when(mapper.toPayload(any(Reservation.class))).thenReturn(ReservationEventPayload.builder()
-                .reservationId(reservationId)
-                .status("CONFIRMED")
-                .build());
+        when(mapper.toPayload(any(Reservation.class)))
+                .thenReturn(ReservationEventPayload.builder()
+                        .reservationId(reservationId)
+                        .status("CONFIRMED")
+                        .build());
 
         RuntimeException boom = new RuntimeException("boom");
         doThrow(boom).when(outboxWriter).save(any(), any(), any(), anyMap(), anyMap());

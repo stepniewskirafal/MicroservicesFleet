@@ -32,8 +32,7 @@ class RestClientConfig {
 
     @Bean
     RestClient tradeRoutePlannerRestClient(
-            @Value("${app.trade-route-planner.base-url}") String baseUrl,
-            RestClient.Builder restClientBuilder) {
+            @Value("${app.trade-route-planner.base-url}") String baseUrl, RestClient.Builder restClientBuilder) {
         return restClientBuilder.baseUrl(baseUrl).build();
     }
 

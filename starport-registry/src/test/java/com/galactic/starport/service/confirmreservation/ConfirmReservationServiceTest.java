@@ -38,7 +38,10 @@ class ConfirmReservationServiceTest {
 
     @Test
     void should_return_confirmed_reservation_on_success() {
-        Reservation expected = Reservation.builder().id(1L).status(Reservation.ReservationStatus.CONFIRMED).build();
+        Reservation expected = Reservation.builder()
+                .id(1L)
+                .status(Reservation.ReservationStatus.CONFIRMED)
+                .build();
         when(persistenceFacade.confirmReservation(eq(1L), any(), any())).thenReturn(Optional.of(expected));
         ReservationCalculation calc = new ReservationCalculation(1L, BigDecimal.TEN, null);
 

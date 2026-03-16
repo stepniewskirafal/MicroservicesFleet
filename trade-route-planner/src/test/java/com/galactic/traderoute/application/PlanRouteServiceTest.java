@@ -80,8 +80,7 @@ class PlanRouteServiceTest {
         assertThat(freighterEta).isBetween(18.0, 28.0);
     }
 
-    private static RouteRequest aRequest(
-            String origin, String destination, String shipClass, double fuelRangeLY) {
+    private static RouteRequest aRequest(String origin, String destination, String shipClass, double fuelRangeLY) {
         return RouteRequest.builder()
                 .originPortId(origin)
                 .destinationPortId(destination)

@@ -3,10 +3,10 @@ package com.galactic.starport.service.holdreservation;
 import com.galactic.starport.repository.StarportPersistenceFacade;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ReserveBayCommand;
-import java.util.Objects;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -47,9 +47,13 @@ class CreateHoldReservationService implements HoldReservationFacade {
                                 command.endAt());
                         return reservationId;
                     } catch (NoDockingBaysAvailableException e) {
-                        meterRegistry.counter(METRIC_CAPACITY_REJECTED,
-                                "starport", command.destinationStarportCode(),
-                                "shipClass", command.shipClass().name())
+                        meterRegistry
+                                .counter(
+                                        METRIC_CAPACITY_REJECTED,
+                                        "starport",
+                                        command.destinationStarportCode(),
+                                        "shipClass",
+                                        command.shipClass().name())
                                 .increment();
                         throw e;
                     }

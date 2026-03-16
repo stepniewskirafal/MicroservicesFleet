@@ -41,8 +41,7 @@ public class ReservationService {
         try {
             Long reservationId = holdReservationFacade.createHoldReservation(command);
 
-            try (BaggageInScope ignored = tracer.createBaggageInScope("reservationId",
-                    String.valueOf(reservationId))) {
+            try (BaggageInScope ignored = tracer.createBaggageInScope("reservationId", String.valueOf(reservationId))) {
                 ReservationCalculation calc = reservationCalculationFacade.calculate(reservationId, command);
                 Reservation reservation = confirmReservationFacade.confirmReservation(calc, starport);
 
@@ -56,10 +55,15 @@ public class ReservationService {
 
         } catch (RouteUnavailableException ex) {
             incrementReservationCounter(starport, shipClass, "route_unavailable");
-            meterRegistry.counter(METRIC_HOLD_RELEASED,
-                    "starport", starport,
-                    "shipClass", shipClass,
-                    "reason", "route_unavailable")
+            meterRegistry
+                    .counter(
+                            METRIC_HOLD_RELEASED,
+                            "starport",
+                            starport,
+                            "shipClass",
+                            shipClass,
+                            "reason",
+                            "route_unavailable")
                     .increment();
             throw ex;
 
@@ -70,10 +74,8 @@ public class ReservationService {
     }
 
     private void incrementReservationCounter(String starport, String shipClass, String outcome) {
-        meterRegistry.counter(METRIC_CREATED,
-                "starport", starport,
-                "shipClass", shipClass,
-                "outcome", outcome)
+        meterRegistry
+                .counter(METRIC_CREATED, "starport", starport, "shipClass", shipClass, "outcome", outcome)
                 .increment();
     }
 }

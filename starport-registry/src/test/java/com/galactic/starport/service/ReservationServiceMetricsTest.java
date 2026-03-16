@@ -41,9 +41,7 @@ class ReservationServiceMetricsTest {
 
         meterRegistry = new SimpleMeterRegistry();
         observationRegistry = ObservationRegistry.create();
-        observationRegistry
-                .observationConfig()
-                .observationHandler(new DefaultMeterObservationHandler(meterRegistry));
+        observationRegistry.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry));
 
         reservationService = new ReservationService(
                 holdReservationFacade,

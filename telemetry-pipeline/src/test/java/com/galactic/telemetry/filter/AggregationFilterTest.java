@@ -73,9 +73,15 @@ class AggregationFilterTest {
     @Test
     void preservesEnrichedFields() {
         EnrichedTelemetry input = new EnrichedTelemetry(
-                "SHIP-003", "Cruiser", "Proxima-B",
-                SensorType.HULL_INTEGRITY, 95.0, Instant.now(),
-                20.0, 100.0, Map.of());
+                "SHIP-003",
+                "Cruiser",
+                "Proxima-B",
+                SensorType.HULL_INTEGRITY,
+                95.0,
+                Instant.now(),
+                20.0,
+                100.0,
+                Map.of());
 
         AggregatedTelemetry result = filter.apply(input);
 
@@ -87,8 +93,6 @@ class AggregationFilterTest {
 
     private EnrichedTelemetry enriched(String shipId, SensorType sensorType, double value) {
         return new EnrichedTelemetry(
-                shipId, "TestClass", "TestSector",
-                sensorType, value, Instant.now(),
-                0.0, 1000.0, Map.of());
+                shipId, "TestClass", "TestSector", sensorType, value, Instant.now(), 0.0, 1000.0, Map.of());
     }
 }

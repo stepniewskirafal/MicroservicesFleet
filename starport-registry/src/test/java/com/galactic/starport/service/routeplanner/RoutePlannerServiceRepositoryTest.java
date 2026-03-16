@@ -81,12 +81,14 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
     void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
         wireMock.resetAll();
-        wireMock.stubFor(post(urlEqualTo("/routes/plan"))
-                .willReturn(aResponse()
-                        .withStatus(422)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(
-                                """
+        wireMock.stubFor(
+                post(urlEqualTo("/routes/plan"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(422)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                """
                                 {"error":"ROUTE_REJECTED","reason":"INSUFFICIENT_RANGE","details":"Fuel too low"}
                                 """)));
 

@@ -38,66 +38,56 @@ class StartStarportValidationRuleTest {
         Errors errors = errorsFor(cmd);
         given(persistenceFacade.starportExistsByCode("ALPHA-BASE")).willReturn(true);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isFalse();
     }
 
     @Test
     void should_reject_when_route_requested_and_start_starport_does_not_exist() {
-        
+
         ReserveBayCommand cmd = aCommand("MISSING", true);
         Errors errors = errorsFor(cmd);
         given(persistenceFacade.starportExistsByCode("MISSING")).willReturn(false);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(StartStarportValidationRule.ERROR_CODE);
     }
 
     @Test
     void should_skip_validation_when_route_not_requested() {
-        
+
         ReserveBayCommand cmd = aCommand("ANYTHING", false);
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isFalse();
         then(persistenceFacade).should(never()).starportExistsByCode("ANYTHING");
     }
 
     @Test
     void should_reject_when_route_requested_and_start_starport_code_is_null() {
-        
+
         ReserveBayCommand cmd = aCommand(null, true);
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(StartStarportValidationRule.ERROR_CODE);
     }
 
     @Test
     void should_reject_when_route_requested_and_start_starport_code_is_blank() {
-        
+
         ReserveBayCommand cmd = aCommand("   ", true);
         Errors errors = errorsFor(cmd);
 
-        
         rule.validate(cmd, errors);
 
-        
         assertThat(errors.hasErrors()).isTrue();
         assertThat(errors.getGlobalError().getCode()).isEqualTo(StartStarportValidationRule.ERROR_CODE);
     }
