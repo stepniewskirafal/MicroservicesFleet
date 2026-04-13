@@ -78,9 +78,6 @@ management:
         fields:
           - reservationId
           - routeId
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
   metrics:
     distribution:
       percentiles-histogram:

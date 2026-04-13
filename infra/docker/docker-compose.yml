@@ -15,18 +15,6 @@ services:
       retries: 30
       start_period: 60s
 
-  zipkin:
-    image: openzipkin/zipkin:2.24
-    container_name: zipkin
-    ports:
-      - "9411:9411"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9411/health | grep -q 'UP'"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-
   tempo:
     image: grafana/tempo:2.4.1
     container_name: tempo
@@ -187,7 +175,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8081
@@ -196,7 +184,6 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8081:8081"
@@ -219,7 +206,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8084
@@ -228,7 +215,6 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8084:8084"
@@ -249,13 +235,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8082:8082"
@@ -276,13 +261,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8083
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8083:8083"
@@ -303,13 +287,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8090
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8090:8090"
@@ -330,13 +313,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      zipkin:
+      tempo:
         condition: service_healthy
     environment:
       PORT: 8091
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      ZIPKIN_URL: http://zipkin:9411/api/v2/spans
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
     ports:
       - "8091:8091"
