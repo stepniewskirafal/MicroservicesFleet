@@ -123,9 +123,9 @@ management:
       enabled: true
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/traces}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318}
     logging:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/logs}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318}
   metrics:
     distribution:
       percentiles-histogram:

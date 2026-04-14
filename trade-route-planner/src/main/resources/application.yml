@@ -62,7 +62,7 @@ management:
       enabled: true
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318/v1/traces}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318}
   endpoints:
     web:
       exposure:

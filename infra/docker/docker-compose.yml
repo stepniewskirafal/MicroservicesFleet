@@ -184,7 +184,7 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8081:8081"
     healthcheck:
@@ -215,7 +215,7 @@ services:
       DB_USER: postgres
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8084:8084"
     healthcheck:
@@ -241,7 +241,7 @@ services:
       PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8082:8082"
     healthcheck:
@@ -267,7 +267,7 @@ services:
       PORT: 8083
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8083:8083"
     healthcheck:
@@ -293,7 +293,7 @@ services:
       PORT: 8090
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8090:8090"
     healthcheck:
@@ -319,7 +319,7 @@ services:
       PORT: 8091
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     ports:
       - "8091:8091"
     healthcheck:
