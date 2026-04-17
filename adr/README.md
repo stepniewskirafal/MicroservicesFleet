@@ -55,13 +55,19 @@ when replaced, but their content remains to explain why the older choice existed
 | [0017](0017-tracing-propagation.md) | Distributed Tracing Propagation (W3C + OTel Baggage + Outbox) | Accepted                 | 2026-04-17 |
 | [0018](0018-flyway-migration-policy.md) | Flyway Migration Policy & No-Foreign-Keys-by-Design       | Accepted                 | 2026-04-17 |
 | [0019](0019-kafka-programming-model.md) | StreamBridge for Producers, Functional Beans for Consumers | Accepted                | 2026-04-17 |
+| [0020](0020-concurrent-reservation-safety.md) | Concurrent Reservation Safety (Pessimistic Lock + SKIP LOCKED) | Accepted          | 2026-04-17 |
+| [0021](0021-hexagonal-conventions.md)    | Hexagonal (Ports & Adapters) Implementation Conventions      | Accepted                 | 2026-04-17 |
+| [0022](0022-pipes-and-filters-conventions.md) | Pipes & Filters Implementation Conventions              | Accepted                 | 2026-04-17 |
+| [0023](0023-validation-strategy.md)      | Validation Strategy (Jakarta + Chain of Responsibility)      | Accepted                 | 2026-04-17 |
+| [0024](0024-dto-domain-entity-mapping.md) | DTO / Domain / Entity Separation with Manual Mapping        | Accepted                 | 2026-04-17 |
 
 ---
 
 ## Map: ADRs by concern
 
 **Architecture & service boundaries**
-ADR-0001 (styles), ADR-0002 (discovery), ADR-0008 (topology).
+ADR-0001 (styles), ADR-0002 (discovery), ADR-0008 (topology),
+ADR-0021 (Hexagonal conventions), ADR-0022 (Pipes & Filters conventions).
 
 **Inter-service communication**
 ADR-0003 (HTTP LB), ADR-0004 (messaging vs HTTP), ADR-0014 (HTTP resilience),
@@ -69,16 +75,23 @@ ADR-0015 (error model), ADR-0016 (Kafka topics), ADR-0019 (Kafka programming mod
 
 **Data layer**
 ADR-0007 (PostgreSQL), ADR-0010 (outbox), ADR-0013 (OSIV off),
-ADR-0018 (Flyway policy + no-FK).
+ADR-0018 (Flyway policy + no-FK), ADR-0020 (pessimistic lock + SKIP LOCKED),
+ADR-0024 (DTO / domain / entity mapping).
 
 **Concurrency & performance**
-ADR-0012 (virtual threads), ADR-0013 (OSIV off — pool sizing).
+ADR-0012 (virtual threads), ADR-0013 (OSIV off — pool sizing),
+ADR-0020 (concurrent reservation safety).
 
 **Observability & operations**
 ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration).
 
 **Quality & process**
-ADR-0006 (testing strategy), ADR-0011 (ArchUnit + Spotless + PIT).
+ADR-0006 (testing strategy), ADR-0011 (ArchUnit + Spotless + PIT),
+ADR-0023 (validation strategy).
+
+**Code conventions**
+ADR-0021 (Hexagonal), ADR-0022 (Pipes & Filters), ADR-0023 (validation),
+ADR-0024 (DTO / domain / entity).
 
 ---
 
@@ -87,14 +100,16 @@ ADR-0006 (testing strategy), ADR-0011 (ArchUnit + Spotless + PIT).
 **starport-registry (Layered — Service A)**
 ADR-0007 (PostgreSQL), ADR-0010 (outbox), ADR-0012 (virtual threads), ADR-0013 (OSIV off),
 ADR-0014 (HTTP resilience → B), ADR-0015 (error model), ADR-0018 (Flyway + no-FK),
-ADR-0019 (StreamBridge producer).
+ADR-0019 (StreamBridge producer), ADR-0020 (concurrent reservation safety),
+ADR-0023 (validation strategy), ADR-0024 (DTO / domain / entity mapping).
 
 **trade-route-planner (Hexagonal — Service B)**
 ADR-0014 (inbound resilience contract), ADR-0015 (RouteRejectedResponse),
-ADR-0019 (StreamBridge producer).
+ADR-0019 (StreamBridge producer), ADR-0021 (Hexagonal conventions).
 
 **telemetry-pipeline (Pipes & Filters — Service C)**
-ADR-0016 (consumer retry), ADR-0019 (functional consumers).
+ADR-0016 (consumer retry), ADR-0019 (functional consumers),
+ADR-0022 (Pipes & Filters conventions).
 
 **Cross-cutting**
 ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0008, ADR-0009, ADR-0011,
@@ -122,6 +137,17 @@ here so they are not forgotten:
   ADR-0008) covering broker HA.
 - **Idempotency keys on HTTP POSTs.** Not implemented. Reservation creation is idempotent
   per `reservationId` at the DB level, but no `Idempotency-Key` header contract exists.
+  See ADR-0020 for the consequences under client retry.
+- **HOLD reservation expiry.** No scheduler cancels `HOLD` reservations whose `confirm`
+  step never ran (e.g. circuit breaker open during route planning). The `CANCELLED`
+  enum value exists but is unused. See ADR-0020 § "Trade-offs and known gaps".
+- **Clock injection.** All timestamp creation uses `Instant.now()` directly in entities'
+  `@PrePersist` / `@PreUpdate` hooks. This works but makes time-dependent logic harder
+  to test deterministically. A `Clock` bean + injection would be the idiomatic fix; not
+  done today.
+- **ArchUnit rule classes.** ADR-0011 declares the dependency (archunit-junit5) and the
+  intended rules, but the test classes per service are not yet authored. Until they
+  land, the structural rules in ADR-0021 / ADR-0022 / ADR-0024 are enforced by review.
 
 ---
 
