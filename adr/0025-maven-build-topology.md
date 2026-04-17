@@ -228,11 +228,14 @@ Three plugins are **not** in root `pluginManagement` — each module opts in:
 
 ### Trade-offs and known inconsistencies
 
-- **`eureka-server` breaks the pattern.** Its `<parent>` is `spring-boot-starter-parent`
-  directly, not `gt-parent`. Consequence: Error Prone + NullAway are *not* enforced on
-  Eureka code. Rationale when made: Eureka is a thin passthrough with almost no custom
-  code; the pragmatic choice was to keep its POM minimal. Cost: if someone adds real
-  business logic to Eureka, they bypass the guardrails. Flagged as a known gap.
+- **`eureka-server` and `api-gateway` break the pattern.** Their `<parent>` is
+  `spring-boot-starter-parent` directly, not `gt-parent`. Consequence: Error Prone +
+  NullAway are *not* enforced on either module. Rationale when made: both are thin
+  framework-configuration apps (`@EnableEurekaServer` / `@EnableDiscoveryClient` +
+  YAML routes) with no business logic worth static-analysing; the pragmatic choice
+  was to keep their POMs minimal. Cost: if someone adds real business logic to
+  either module, they bypass the guardrails. Flagged as a known gap — consolidation
+  into `gt-parent` is a simple follow-up.
 - **Spotless duplicated across modules.** Not in root `pluginManagement` today. Four
   POMs can drift silently. Candidate for consolidation.
 - **`-Pfast` tempts developers to skip quality locally.** If a dev never runs the full

@@ -224,10 +224,16 @@ the gateway's internal LoadBalancer picks a replica per request.
    Compose but not Eureka-native; would force every service to carry both Eureka
    registration and Traefik labels — two sources of truth. Rejected.
 3. **Netflix Zuul / Spring Cloud Gateway MVC (servlet) instead of reactive Gateway.**
-   Zuul 1 is EOL; Gateway MVC is a viable alternative on Tomcat, but loses streaming
-   support. Picked reactive Gateway — it handles SSE, WebSockets, and streaming
-   natively, and the team is already on Java 21 virtual threads which cushion the
-   reactive cognitive cost for most cases.
+   Zuul 1 is EOL. Gateway MVC (Spring Cloud Gateway Server MVC) is a genuine option
+   — it runs on Tomcat and would benefit from ADR-0012 virtual threads, since the
+   gateway's work is mostly I/O (wait for backend response). Picked reactive Gateway
+   because a proxy is the archetypal use case for the reactive model: a request
+   enters, is held as a `Mono`, proxied downstream, and the response streams back
+   without any business logic that would benefit from imperative code. The gateway
+   contains no domain code, so the cognitive cost of Reactor (`Mono`/`Flux`,
+   `Schedulers`) is paid once, in a small and contained codebase, not diffused
+   across business services. Note: `spring.threads.virtual.enabled` has no effect
+   here because Reactor Netty does not use a thread-per-request model.
 4. **`docker compose --scale`** without named replicas. Would fully randomise ports
    and names. Cleaner in some ways, but Compose scales lose `container_name`, making
    Prometheus scraping and log labels much harder to reason about. Rejected — named

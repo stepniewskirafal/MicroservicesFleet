@@ -59,8 +59,11 @@ behind it, no client ever learns an instance-specific URL.
 | Component              | URL                                               | Notes                                                   |
 |---|---|---|
 | **api-gateway** (public ingress) | http://localhost:8080                         | Routes `/api/v1/starports/**` → starport-registry, `/routes/**` → trade-route-planner (ADR-0031) |
+| Gateway actuator routes          | http://localhost:8080/actuator/gateway/routes | List active routing rules — useful when a call 404s     |
 | Eureka dashboard       | http://localhost:8761                             | Service registry UI; shows live replicas per service     |
 | Kafka UI               | http://localhost:8085                             | Topic / consumer-group browser                          |
+| Kafka bootstrap        | `localhost:9092` (TCP)                            | For Postman / IDE / `kafka-console-consumer.sh`          |
+| PostgreSQL             | `localhost:5432` (DB `starports`, user `postgres`/`postgres`) | Dev-convenience DB access for `psql`, IDE tools |
 | Prometheus             | http://localhost:9090                             | Metrics scrape                                          |
 | Grafana                | http://localhost:3000 (`admin` / `admin`)         | Unified dashboards (Prom + Tempo + Loki)                |
 | Tempo                  | http://localhost:3200                             | Distributed traces API                                  |
@@ -205,7 +208,7 @@ falls back to the defaults suited for local `localhost`.
 
 | Variable                              | Default                                             | Scope                    |
 |---|---|---|
-| `PORT`                                | `8081` / `8082` / `8090` / `8761`                   | All services             |
+| `PORT`                                | `8080` (api-gateway) / `8081` (starport-registry) / `8082` (trade-route-planner) / `8090` (telemetry-pipeline) / `8761` (eureka-server) | All services |
 | `DB_URL`                              | `jdbc:postgresql://localhost:5432/starports`        | starport-registry only   |
 | `DB_USER` / `DB_PASS`                 | `postgres` / `postgres`                             | starport-registry only   |
 | `KAFKA_BROKERS`                       | `localhost:9092`                                    | All app services         |
