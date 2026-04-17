@@ -60,6 +60,12 @@ when replaced, but their content remains to explain why the older choice existed
 | [0022](0022-pipes-and-filters-conventions.md) | Pipes & Filters Implementation Conventions              | Accepted                 | 2026-04-17 |
 | [0023](0023-validation-strategy.md)      | Validation Strategy (Jakarta + Chain of Responsibility)      | Accepted                 | 2026-04-17 |
 | [0024](0024-dto-domain-entity-mapping.md) | DTO / Domain / Entity Separation with Manual Mapping        | Accepted                 | 2026-04-17 |
+| [0025](0025-maven-build-topology.md)     | Maven Build Topology, BOM Pinning, Static Analysis           | Accepted                 | 2026-04-17 |
+| [0026](0026-container-build-strategy.md) | Container Build Strategy (multi-stage Dockerfile + JVM tuning) | Accepted              | 2026-04-17 |
+| [0027](0027-actuator-exposure.md)        | Spring Boot Actuator Exposure & Security Posture             | Accepted (dev)           | 2026-04-17 |
+| [0028](0028-eureka-operational-tuning.md) | Eureka Operational Tuning (standalone, self-preservation off) | Accepted (dev)          | 2026-04-17 |
+| [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
+| [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted                 | 2026-04-17 |
 
 ---
 
@@ -71,7 +77,8 @@ ADR-0021 (Hexagonal conventions), ADR-0022 (Pipes & Filters conventions).
 
 **Inter-service communication**
 ADR-0003 (HTTP LB), ADR-0004 (messaging vs HTTP), ADR-0014 (HTTP resilience),
-ADR-0015 (error model), ADR-0016 (Kafka topics), ADR-0019 (Kafka programming model).
+ADR-0015 (error model), ADR-0016 (Kafka topics), ADR-0019 (Kafka programming model),
+ADR-0028 (Eureka operational tuning).
 
 **Data layer**
 ADR-0007 (PostgreSQL), ADR-0010 (outbox), ADR-0013 (OSIV off),
@@ -83,11 +90,16 @@ ADR-0012 (virtual threads), ADR-0013 (OSIV off — pool sizing),
 ADR-0020 (concurrent reservation safety).
 
 **Observability & operations**
-ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration).
+ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration),
+ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality).
+
+**Build, packaging, deployment**
+ADR-0008 (Compose topology), ADR-0025 (Maven multi-module build),
+ADR-0026 (container build strategy).
 
 **Quality & process**
 ADR-0006 (testing strategy), ADR-0011 (ArchUnit + Spotless + PIT),
-ADR-0023 (validation strategy).
+ADR-0023 (validation strategy), ADR-0029 (acceptance test fixtures).
 
 **Code conventions**
 ADR-0021 (Hexagonal), ADR-0022 (Pipes & Filters), ADR-0023 (validation),
@@ -101,19 +113,25 @@ ADR-0024 (DTO / domain / entity).
 ADR-0007 (PostgreSQL), ADR-0010 (outbox), ADR-0012 (virtual threads), ADR-0013 (OSIV off),
 ADR-0014 (HTTP resilience → B), ADR-0015 (error model), ADR-0018 (Flyway + no-FK),
 ADR-0019 (StreamBridge producer), ADR-0020 (concurrent reservation safety),
-ADR-0023 (validation strategy), ADR-0024 (DTO / domain / entity mapping).
+ADR-0023 (validation strategy), ADR-0024 (DTO / domain / entity mapping),
+ADR-0029 (acceptance test fixtures), ADR-0030 (metrics naming).
 
 **trade-route-planner (Hexagonal — Service B)**
 ADR-0014 (inbound resilience contract), ADR-0015 (RouteRejectedResponse),
-ADR-0019 (StreamBridge producer), ADR-0021 (Hexagonal conventions).
+ADR-0019 (StreamBridge producer), ADR-0021 (Hexagonal conventions),
+ADR-0030 (metrics naming).
 
 **telemetry-pipeline (Pipes & Filters — Service C)**
 ADR-0016 (consumer retry), ADR-0019 (functional consumers),
-ADR-0022 (Pipes & Filters conventions).
+ADR-0022 (Pipes & Filters conventions), ADR-0030 (metrics naming).
+
+**eureka-server**
+ADR-0002 (why Eureka), ADR-0028 (operational tuning: standalone, self-preservation, eviction),
+ADR-0027 (actuator exposure).
 
 **Cross-cutting**
-ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0008, ADR-0009, ADR-0011,
-ADR-0017.
+ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0008, ADR-0009, ADR-0011,
+ADR-0017, ADR-0025 (Maven build), ADR-0026 (container build), ADR-0027 (actuator).
 
 ---
 
@@ -122,9 +140,10 @@ ADR-0017.
 These decisions are implemented implicitly or are unresolved questions. They are tracked
 here so they are not forgotten:
 
-- **No authentication / authorisation on REST endpoints.** All endpoints are public.
-  Acceptable for a demo; a production-targeted ADR would document the chosen security
-  model (JWT, OAuth2, mTLS).
+- **No authentication / authorisation.** No Spring Security on any service. All
+  endpoints and actuator endpoints are public within the Compose network. ADR-0027
+  scopes this for dev and lists the production-hardening checklist; a future ADR would
+  document the chosen auth model (JWT, OAuth2, mTLS).
 - **No OpenAPI publishing.** Springdoc is not configured. The REST contract is implicit in
   controller signatures; a future ADR would cover API documentation generation.
 - **Kafka DLQ topics are not yet enabled** (only consumer-side `max-attempts`). ADR-0016
@@ -135,6 +154,9 @@ here so they are not forgotten:
 - **Production-grade Kafka broker replication.** Single-broker Compose runs use
   replication factor 1. Production deployment needs a separate ADR (or extension of
   ADR-0008) covering broker HA.
+- **Production-grade Eureka HA.** Single Eureka instance, no peer replication. ADR-0028
+  documents the dev configuration and the production-readiness checklist (≥3 peers,
+  re-enable self-preservation, zone awareness, TLS on replication).
 - **Idempotency keys on HTTP POSTs.** Not implemented. Reservation creation is idempotent
   per `reservationId` at the DB level, but no `Idempotency-Key` header contract exists.
   See ADR-0020 for the consequences under client retry.
@@ -148,6 +170,15 @@ here so they are not forgotten:
 - **ArchUnit rule classes.** ADR-0011 declares the dependency (archunit-junit5) and the
   intended rules, but the test classes per service are not yet authored. Until they
   land, the structural rules in ADR-0021 / ADR-0022 / ADR-0024 are enforced by review.
+- **Non-root container user and `.dockerignore`.** ADR-0026 documents both gaps; blockers
+  for internet-reachable deployment.
+- **`eureka-server` does not inherit `gt-parent`.** It skips Error Prone + NullAway.
+  Harmless today (thin passthrough); tracked in ADR-0025 as a known inconsistency.
+- **Spotless duplicated across module POMs** instead of the root `pluginManagement` —
+  ADR-0025 consolidation candidate.
+- **jqwik property-based tests not yet written.** Dependency declared in ADR-0006;
+  `*Properties.java` suffix reserved in the surefire include list but empty in practice.
+  `@ParameterizedTest` + `@MethodSource` covers most cases today.
 
 ---
 
