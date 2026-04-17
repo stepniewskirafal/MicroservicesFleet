@@ -10,8 +10,11 @@
 # ScriptId 1-5 gives each script a separate time window so dates
 # never overlap between scripts. Each reservation = 1h, spaced +1 day.
 # ------------------------------------------------------------------
+# Default target is the api-gateway (ADR-0031). Individual instance ports are
+# no longer host-bound in docker-compose — traffic must go through the gateway
+# so the load balancer can rotate between replicas.
 param(
-    [string]$Base = "http://localhost:8081",
+    [string]$Base = "http://localhost:8080",
     [ValidateRange(1,5)][int]$ScriptId = 1,
     [switch]$WithRoutes
 )

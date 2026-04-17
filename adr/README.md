@@ -66,6 +66,7 @@ when replaced, but their content remains to explain why the older choice existed
 | [0028](0028-eureka-operational-tuning.md) | Eureka Operational Tuning (standalone, self-preservation off) | Accepted (dev)          | 2026-04-17 |
 | [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
 | [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted                 | 2026-04-17 |
+| [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Accepted          | 2026-04-17 |
 
 ---
 
@@ -78,7 +79,7 @@ ADR-0021 (Hexagonal conventions), ADR-0022 (Pipes & Filters conventions).
 **Inter-service communication**
 ADR-0003 (HTTP LB), ADR-0004 (messaging vs HTTP), ADR-0014 (HTTP resilience),
 ADR-0015 (error model), ADR-0016 (Kafka topics), ADR-0019 (Kafka programming model),
-ADR-0028 (Eureka operational tuning).
+ADR-0028 (Eureka operational tuning), ADR-0031 (API gateway ingress).
 
 **Data layer**
 ADR-0007 (PostgreSQL), ADR-0010 (outbox), ADR-0013 (OSIV off),
@@ -95,7 +96,7 @@ ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality).
 
 **Build, packaging, deployment**
 ADR-0008 (Compose topology), ADR-0025 (Maven multi-module build),
-ADR-0026 (container build strategy).
+ADR-0026 (container build strategy), ADR-0031 (API gateway + no host-bound instance ports).
 
 **Quality & process**
 ADR-0006 (testing strategy), ADR-0011 (ArchUnit + Spotless + PIT),
@@ -128,6 +129,10 @@ ADR-0022 (Pipes & Filters conventions), ADR-0030 (metrics naming).
 **eureka-server**
 ADR-0002 (why Eureka), ADR-0028 (operational tuning: standalone, self-preservation, eviction),
 ADR-0027 (actuator exposure).
+
+**api-gateway**
+ADR-0031 (single public ingress + no host-bound instance ports + unified internal ports),
+ADR-0003 (LoadBalancer), ADR-0027 (actuator exposure).
 
 **Cross-cutting**
 ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0008, ADR-0009, ADR-0011,

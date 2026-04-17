@@ -10,9 +10,10 @@ architecture style**:
 Plus `eureka-server` for service discovery.
 
 > **Status — implemented.** All three services are running, registered in Eureka,
+> fronted by a Spring Cloud Gateway (single public ingress on :8080 — ADR-0031),
 > producing / consuming Kafka events, wired into a Prometheus + Grafana + Tempo + Loki
 > observability stack, covered by a multi-layer test pyramid, and documented by
-> **31 ADRs** in [`adr/`](adr/README.md).
+> **32 ADRs** in [`adr/`](adr/README.md).
 
 **Stack:** Java 21 (Project Loom / Virtual Threads), Spring Boot 3.5.6, Spring Cloud 2025,
 Spring Cloud Stream + Kafka (KRaft), Spring Data JPA + Flyway + PostgreSQL 16,
@@ -30,8 +31,8 @@ docker compose up --build -d
 # Wait for healthchecks (roughly 60-90 s on first run).
 docker compose ps
 
-# Smoke test — create a reservation
-curl -X POST http://localhost:8081/api/v1/starports/ABC/reservations \
+# Smoke test — create a reservation (via api-gateway on :8080)
+curl -X POST http://localhost:8080/api/v1/starports/ABC/reservations \
   -H "Content-Type: application/json" \
   -d '{
     "customerCode": "CUST-001",
@@ -50,22 +51,44 @@ Tear down with `docker compose down` (add `-v` to also wipe Grafana / Prometheus
 
 ## 🔗 URL Reference
 
-All addresses assume the default Compose topology (`infra/docker/docker-compose.yml`):
+**Only the api-gateway binds a host port for business traffic** — application instances
+live on the internal Docker network and are reached through Eureka-resolved `lb://`
+URIs (ADR-0031). This matches a production topology: one ingress, many replicas
+behind it, no client ever learns an instance-specific URL.
 
-| Component                     | URL                                         | Notes                                                    |
+| Component              | URL                                               | Notes                                                   |
 |---|---|---|
-| Eureka dashboard              | http://localhost:8761                       | Service registry UI                                      |
-| starport-registry API (inst 1) | http://localhost:8081/api/v1/starports      | Layered service, main entry point                        |
-| starport-registry API (inst 2) | http://localhost:8084/api/v1/starports      | Same service, second replica                             |
-| trade-route-planner API       | http://localhost:8082/routes                | Hexagonal service (plus :8083 second replica)            |
-| telemetry-pipeline (Kafka)    | *(no HTTP API)*                              | Runs on :8090 / :8091 for actuator only                  |
-| Kafka UI                      | http://localhost:8085                       | Topic / consumer-group browser                           |
-| Prometheus                    | http://localhost:9090                       | Metrics scrape                                           |
-| Grafana                       | http://localhost:3000 (`admin` / `admin`)   | Unified dashboards (Prom + Tempo + Loki)                 |
-| Tempo                         | http://localhost:3200                       | Distributed traces API                                   |
-| Loki                          | http://localhost:3100                       | Log aggregation                                          |
-| Actuator health (any service) | http://localhost:<port>/actuator/health     | Compose healthchecks hit this                            |
-| Prometheus endpoint           | http://localhost:<port>/actuator/prometheus | Custom metrics (ADR-0030)                                |
+| **api-gateway** (public ingress) | http://localhost:8080                         | Routes `/api/v1/starports/**` → starport-registry, `/routes/**` → trade-route-planner (ADR-0031) |
+| Eureka dashboard       | http://localhost:8761                             | Service registry UI; shows live replicas per service     |
+| Kafka UI               | http://localhost:8085                             | Topic / consumer-group browser                          |
+| Prometheus             | http://localhost:9090                             | Metrics scrape                                          |
+| Grafana                | http://localhost:3000 (`admin` / `admin`)         | Unified dashboards (Prom + Tempo + Loki)                |
+| Tempo                  | http://localhost:3200                             | Distributed traces API                                  |
+| Loki                   | http://localhost:3100                             | Log aggregation                                         |
+
+**Application instances** (`starport-registry-1/2`, `trade-route-planner-1/2`,
+`telemetry-pipeline-1/2`) have **no host port binding** — they listen only on the
+Compose network. Every replica of a given service uses the same internal port
+(starport-registry on 8081, trade-route-planner on 8082, telemetry-pipeline on 8090)
+— uniqueness comes from container / hostname, not port (ADR-0031).
+
+**Why?** With `:8081` and `:8084` both exposed, a client could hard-code an
+instance URL and bypass the load balancer. The gateway + Eureka setup forces every
+request to go through discovery → LB → pick a live replica. That is the production
+shape.
+
+**Debugging a single instance** (without re-exposing ports):
+
+```bash
+docker compose exec starport-registry-1 wget -qO- http://localhost:8081/actuator/health
+docker compose exec starport-registry-2 wget -qO- http://localhost:8081/actuator/health
+# Or from the gateway container:
+docker compose exec api-gateway wget -qO- http://starport-registry-1:8081/actuator/health
+```
+
+Instance health is also visible in Eureka (http://localhost:8761) and in the Prometheus
+`up{job="starport-registry"}` metric, which scrapes both replicas over the Compose
+network.
 
 ---
 
@@ -73,7 +96,8 @@ All addresses assume the default Compose topology (`infra/docker/docker-compose.
 
 ```
 MicroservicesFleet/
-├── adr/                            # 31 Architecture Decision Records + template + index
+├── adr/                            # 32 Architecture Decision Records + template + index
+├── api-gateway/                    # Spring Cloud Gateway — single public ingress (port 8080, ADR-0031)
 ├── eureka-server/                  # Netflix Eureka service registry (port 8761)
 ├── starport-registry/              # Layered — reservations, billing, outbox publisher
 │   └── src/main/java/com/galactic/starport/
@@ -124,7 +148,8 @@ MicroservicesFleet/
 3. ✅ Observability (PLG + Tempo) from day zero (ADR-0005, 0017, 0030).
 4. ✅ Test pyramid: unit + contract + repository + E2E + architecture (ADR-0006, 0029).
 5. ✅ ≥2 instances of each service in Docker Compose (ADR-0008, 0026).
-6. ✅ **31 ADRs** covering every non-trivial decision (see [`adr/README.md`](adr/README.md)).
+6. ✅ Single public ingress via Spring Cloud Gateway; no host-bound instance ports (ADR-0031).
+7. ✅ **32 ADRs** covering every non-trivial decision (see [`adr/README.md`](adr/README.md)).
 
 ---
 
@@ -154,6 +179,7 @@ Processes real-time starship telemetry: enrich, aggregate, detect anomalies.
 | Language / Runtime    | Java 21 (virtual threads enabled)                                  | ADR-0012            |
 | Framework             | Spring Boot 3.5.6 + Spring Cloud 2025.0.0                          | ADR-0025            |
 | Service discovery     | Netflix Eureka (standalone for dev)                                | ADR-0002, 0028      |
+| Public ingress        | Spring Cloud Gateway + Eureka (`lb://`) — single host-bound port   | ADR-0031            |
 | HTTP load balancing   | Spring Cloud LoadBalancer (client-side, `lb://...`)                | ADR-0003            |
 | Sync HTTP resilience  | Resilience4j circuit breaker + short timeouts                      | ADR-0014            |
 | Messaging             | Apache Kafka 3.7 (KRaft) via Spring Cloud Stream                   | ADR-0004, 0016, 0019 |
@@ -530,7 +556,7 @@ All three pipelines are `@Bean Function<IN, OUT>` registered via
 - Security Clearance Check
 
 ```
-POST http://localhost:8081/api/v1/starports/ABC/reservations
+POST http://localhost:8080/api/v1/starports/ABC/reservations
 Content-Type: application/json
 Accept: application/json
 
@@ -677,7 +703,8 @@ dependency):
 
 ```powershell
 # Single script: 100 interleaved requests (50 "good" + 50 "bad") at one time-band
-powershell -ExecutionPolicy Bypass -File scripts/load-test.ps1 -Base http://localhost:8081 -ScriptId 1
+# Default -Base is http://localhost:8080 (the gateway; ADR-0031)
+powershell -ExecutionPolicy Bypass -File scripts/load-test.ps1 -ScriptId 1
 
 # Fanout: runs 5 scripts in parallel with non-overlapping time bands (500 total requests)
 powershell -ExecutionPolicy Bypass -File scripts/load-test-all.ps1
@@ -710,7 +737,7 @@ Expected: ~250 `201 Created` (good requests) + ~250 client errors (`400/404/409/
 - [x] Services run with ≥2 instances and discover each other via Eureka.
 - [x] Metrics, traces, and logs available in Grafana dashboards (auto-provisioned).
 - [x] Unit, contract, repository, and E2E tests pass; mutation testing configured.
-- [x] 31 ADRs written, versioned, and indexed.
+- [x] 32 ADRs written, versioned, and indexed.
 - [x] Demo flow (reservation create → route plan → Kafka publish → telemetry enrichment)
       working end-to-end under Compose.
 - [ ] *Production-readiness items tracked in `adr/README.md` § "Known gaps" — out of

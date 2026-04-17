@@ -6,11 +6,14 @@
 # without date collisions.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\load-test-all.ps1
-#         powershell -ExecutionPolicy Bypass -File scripts\load-test-all.ps1 -Base http://localhost:8084
+#         powershell -ExecutionPolicy Bypass -File scripts\load-test-all.ps1 -Base http://localhost:8080
 #         powershell -ExecutionPolicy Bypass -File scripts\load-test-all.ps1 -WithRoutes
+#
+# Default target is the api-gateway on :8080 (ADR-0031). Individual instance
+# ports are not host-bound — the gateway is the only public HTTP entry.
 # ------------------------------------------------------------------
 param(
-    [string]$Base = "http://localhost:8081",
+    [string]$Base = "http://localhost:8080",
     [switch]$WithRoutes
 )
 

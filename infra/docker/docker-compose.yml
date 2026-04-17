@@ -1,4 +1,29 @@
 name: microservices_fleet
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Topology
+#
+# Public ingress (host-bound):
+#   - api-gateway       :8080   — single public entry for business APIs
+#   - eureka dashboard  :8761   — service registry UI
+#   - kafka             :9092   — external bootstrap (for local Postman / IDE)
+#   - postgres          :5432   — external DB access (dev convenience)
+#   - grafana           :3000   — observability UI
+#   - prometheus        :9090   - metrics UI
+#   - kafka-ui          :8085   — topic browser
+#   - tempo             :3200   — trace API
+#   - loki              :3100   — log API
+#
+# Application instances (starport-registry, trade-route-planner,
+# telemetry-pipeline) do NOT bind host ports — they are reachable only on
+# the internal Docker network via Eureka-resolved names (lb://...).
+# This matches a production topology where the gateway/load balancer is the
+# only externally reachable surface (ADR-0031).
+#
+# To debug a single instance locally you can temporarily add a port mapping
+# or use `docker compose exec <container> /bin/sh`.
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
 
   eureka:
@@ -160,7 +185,38 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────────
-  # APPLICATION SERVICES
+  # PUBLIC INGRESS — the only app-layer host-bound port
+  # ─────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      eureka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      EUREKA_URL: http://eureka:8761/eureka
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  # ─────────────────────────────────────────────
+  # APPLICATION INSTANCES — internal network only
+  # Each service has ≥2 replicas (ADR-0008). They share one container port per
+  # service (uniqueness comes from container_name / Eureka instance-id, not
+  # from host-side port mapping). Gateway + Eureka decide which replica serves
+  # a given request (ADR-0003, 0031).
   # ─────────────────────────────────────────────
 
   starport-registry-1:
@@ -186,8 +242,8 @@ services:
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
@@ -210,7 +266,7 @@ services:
       tempo:
         condition: service_healthy
     environment:
-      PORT: 8084
+      PORT: 8081
       EUREKA_URL: http://eureka:8761/eureka
       DB_URL: jdbc:postgresql://postgres:5432/starports
       DB_USER: postgres
@@ -218,10 +274,10 @@ services:
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8084:8084"
+    expose:
+      - "8081"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -245,8 +301,8 @@ services:
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8082:8082"
+    expose:
+      - "8082"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
@@ -267,15 +323,15 @@ services:
       tempo:
         condition: service_healthy
     environment:
-      PORT: 8083
+      PORT: 8082
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8083:8083"
+    expose:
+      - "8082"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -299,8 +355,8 @@ services:
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8090:8090"
+    expose:
+      - "8090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
@@ -321,15 +377,15 @@ services:
       tempo:
         condition: service_healthy
     environment:
-      PORT: 8091
+      PORT: 8090
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
-    ports:
-      - "8091:8091"
+    expose:
+      - "8090"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12

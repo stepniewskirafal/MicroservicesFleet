@@ -1,0 +1,60 @@
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      enabled: true
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          # Explicit routes below — we do NOT auto-expose every registered service.
+          enabled: false
+      routes:
+        - id: starport-registry
+          uri: lb://starport-registry
+          predicates:
+            - Path=/api/v1/starports/**
+          # No rewrite — backend expects the full /api/v1/starports/** path.
+        - id: trade-route-planner
+          uri: lb://trade-route-planner
+          predicates:
+            - Path=/routes/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    instance-id: ${spring.application.name}:${HOSTNAME:unknown}:${server.port}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,liveness,readiness,gateway
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLING:1.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  pattern:
+    level: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
