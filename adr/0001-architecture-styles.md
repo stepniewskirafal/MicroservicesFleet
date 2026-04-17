@@ -1,6 +1,6 @@
 # 0001 — Architecture Styles per Service
 
-**Status:** Proposed — 2025-09-29
+**Status:** Accepted — 2025-09-29 (ratified 2026-02-28 — all three services now implement their assigned style)
 
 ## Context
 
