@@ -5,9 +5,9 @@ server:
 spring:
   application:
     name: api-gateway
-  threads:
-    virtual:
-      enabled: true
+  # NOTE: no `threads.virtual.enabled` here — Spring Cloud Gateway is reactive
+  # (Reactor Netty event loops, not thread-per-request), so the virtual-threads
+  # knob from ADR-0012 does not apply. Scaling comes from the event-loop model.
   cloud:
     gateway:
       discovery:
