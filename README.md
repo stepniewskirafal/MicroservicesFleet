@@ -69,6 +69,54 @@ All addresses assume the default Compose topology (`infra/docker/docker-compose.
 
 ---
 
+## 🗂️ Project Structure
+
+```
+MicroservicesFleet/
+├── adr/                            # 31 Architecture Decision Records + template + index
+├── eureka-server/                  # Netflix Eureka service registry (port 8761)
+├── starport-registry/              # Layered — reservations, billing, outbox publisher
+│   └── src/main/java/com/galactic/starport/
+│       ├── controller/             # REST + DTO records + GlobalExceptionHandler
+│       ├── service/                # Domain + use-case services
+│       │   ├── holdreservation/    # TX1: pessimistic-lock bay + insert HOLD
+│       │   ├── confirmreservation/ # TX2: finalise CONFIRMED + publish events
+│       │   ├── feecalculator/      # Fee computation (DistributionSummary)
+│       │   ├── routeplanner/       # Resilience4j-wrapped HTTP client → Service B
+│       │   ├── reservationcalculation/  # Virtual-thread fee+route parallelism
+│       │   ├── validation/         # Chain of Responsibility rules (ADR-0023)
+│       │   └── outbox/             # Outbox appender + inbox publisher (ADR-0010)
+│       ├── repository/             # JPA entities + ReservationMapper (ADR-0024)
+│       └── config/                 # @Configuration beans (RestClient, Aspects)
+├── trade-route-planner/            # Hexagonal — route planning (ports 8082/8083)
+│   └── src/main/java/com/galactic/traderoute/
+│       ├── domain/model/           # Pure records (ADR-0021)
+│       ├── port/{in,out}/          # Driving + driven ports
+│       ├── application/            # Use-case services (implement in-ports)
+│       └── adapter/{in/rest,out/kafka}/  # Framework code lives here only
+├── telemetry-pipeline/             # Pipes & Filters (ports 8090/8091)
+│   └── src/main/java/com/galactic/telemetry/
+│       ├── model/                  # Records — one per pipeline stage (ADR-0022)
+│       ├── filter/                 # Function<IN,OUT> filters (stateless + 1 stateful)
+│       ├── pipeline/               # @Configuration composing the function chain
+│       └── config/                 # Threshold properties (@ConfigurationProperties)
+├── infra/docker/                   # Compose stack
+│   ├── docker-compose.yml          # 15+ services (app × 2 each + observability)
+│   ├── grafana/                    # Auto-provisioned datasources + dashboards
+│   ├── prometheus/                 # Scrape config
+│   ├── tempo.yml / loki.yml / promtail-config.yml
+├── scripts/                        # Load-test PowerShell scripts
+├── plany/                          # Throughput / concurrency design notes
+├── pom.xml                         # Aggregator (BOMs + plugins — ADR-0025)
+├── README.md                       # You are here
+├── README_2.md                     # HOLD/CONFIRM flow + HTTP/event contracts
+└── readme3.md                      # Load-balancing + service-discovery deep-dive
+```
+
+`eureka-server` has no business code — it's a thin `@EnableEurekaServer` wrapper.
+
+---
+
 ## 🎯 Mission Goals (all met)
 
 1. ✅ Three independent microservices with style-appropriate internals (ADR-0001, 0021, 0022).
@@ -123,11 +171,34 @@ Processes real-time starship telemetry: enrich, aggregate, detect anomalies.
 
 ---
 
+## ⚙️ Environment Variables
+
+All services follow the `${ENV_VAR:default}` pattern (ADR-0009). Compose
+(`infra/docker/docker-compose.yml`) sets these per container; `./mvnw spring-boot:run`
+falls back to the defaults suited for local `localhost`.
+
+| Variable                              | Default                                             | Scope                    |
+|---|---|---|
+| `PORT`                                | `8081` / `8082` / `8090` / `8761`                   | All services             |
+| `DB_URL`                              | `jdbc:postgresql://localhost:5432/starports`        | starport-registry only   |
+| `DB_USER` / `DB_PASS`                 | `postgres` / `postgres`                             | starport-registry only   |
+| `KAFKA_BROKERS`                       | `localhost:9092`                                    | All app services         |
+| `EUREKA_URL`                          | `http://localhost:8761/eureka`                      | All app services         |
+| `EUREKA_SELF_PRESERVATION`            | `false` (dev) — set `true` for prod (ADR-0028)      | eureka-server            |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`  | `http://tempo:4318/v1/traces`                       | All app services         |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`    | `http://tempo:4318/v1/logs`                         | All app services         |
+| `TRACE_SAMPLING`                      | `1.0` (dev; drop to `0.1` in prod — ADR-0017)       | All app services         |
+
+Secrets (DB password, broker credentials) must **never** be committed to YAML; pass them
+only through environment variables.
+
+---
+
 ## 📐 Architecture Style Requirements
 
 ### Starport Registry — **Layered**
 - REST controllers → service layer → domain → Spring Data JPA
-- Example: `POST /starports/{id}/reserve-bay`
+- Example: `POST /api/v1/starports/{code}/reservations` (see HTTP Contracts below)
 
 ### Trade Route Planner — **Hexagonal**
 - Core domain with **ports** (use cases) and **adapters**
@@ -373,6 +444,57 @@ Namespaces — `starport.*` (owned by starport-registry + trade-route-planner) a
 
 ---
 
+## 🗃️ Database Schema (starport-registry)
+
+Only `starport-registry` has a database (ADR-0018). All DDL lives in
+`starport-registry/src/main/resources/db/migration/` as Flyway versioned migrations:
+
+| Migration                                      | Purpose                                           |
+|---|---|
+| `V1__starport_basic_model.sql`                 | Core aggregates                                   |
+| `V2__test_data.sql`                            | Baseline seed (2 starports, 1 customer / ship / bay) |
+| `V3__create_event_outbox.sql`                  | Outbox table + `(status, created_at)` index      |
+| `V4__reservation_indexes.sql`                  | Composite indexes for `findFreeBay` hot path     |
+| `V5__expand_test_data.sql`                     | Larger idempotent seed for load tests            |
+| `V6__lookup_indexes.sql`                       | Indexes on `code` columns (starport, customer, ship) |
+
+Core tables (all IDs `BIGINT GENERATED BY DEFAULT AS IDENTITY`):
+
+- **`starport`** — `code`, `name`, `description`, `created_at`, `updated_at`.
+- **`docking_bay`** — `starport_id`, `bay_label`, `ship_class`, `status`. Target of the
+  `SELECT ... FOR UPDATE SKIP LOCKED` pessimistic lock (ADR-0020).
+- **`customer`** — `customer_code`, `name`, timestamps.
+- **`ship`** — `customer_id`, `ship_code`, `ship_class`.
+- **`reservation`** — `starport_id`, `docking_bay_id`, `customer_id`, `ship_id`,
+  `start_at`, `end_at`, `fee_charged`, `status` (`HOLD` / `CONFIRMED` / `CANCELLED`),
+  `route_id`, timestamps. The overlap-check query runs against `(start_at, end_at)`.
+- **`route`** — one-to-one with reservation when `requestRoute=true`.
+- **`event_outbox`** — `event_type`, `binding`, `message_key`, `payload_json` (JSONB),
+  `headers_json` (JSONB), `status`, `attempts`, timestamps. Drained by
+  `InboxPublisher` (ADR-0010).
+
+**No foreign keys by design** — every `*_id` column is a plain `BIGINT` with a
+`-- references X.id (no FK by design)` comment. Trade-off explained in ADR-0018:
+insert-order-independent test seeding at the cost of losing DB-level referential
+integrity. The application layer (`ReserveBayValidationService` — ADR-0023) enforces
+existence before any write.
+
+```sql
+-- The one query that makes reservation concurrency safe (ADR-0020)
+SELECT db.* FROM docking_bay db
+WHERE db.starport_id = :starportId
+  AND db.class = :shipClass
+  AND NOT EXISTS (
+      SELECT 1 FROM reservation r
+      WHERE db.id = r.docking_bay_id
+        AND r.start_at < :endAt AND r.end_at > :startAt
+  )
+LIMIT 1
+FOR UPDATE SKIP LOCKED;
+```
+
+---
+
 ## Service C — Pipes & Filters (as-built)
 
 Filter chain (telemetry-pipeline, ADR-0022):
@@ -407,20 +529,21 @@ All three pipelines are `@Bean Function<IN, OUT>` registered via
 - Maintenance Scheduling
 - Security Clearance Check
 
-<code>
+```
 POST http://localhost:8081/api/v1/starports/ABC/reservations
 Content-Type: application/json
 Accept: application/json
 
 {
-"shipId": "SS-Enterprise-01",
-"shipClass": "FREIGHTER",
-"startAt": "2025-11-05T07:00:00Z",
-"endAt":   "2025-11-05T08:30:00Z",
-"requestRoute": false,
-"destinationPortCode": null
+  "customerCode": "CUST-001",
+  "shipCode": "SHIP-001",
+  "shipClass": "C",
+  "startAt": "2026-05-01T10:00:00Z",
+  "endAt":   "2026-05-01T11:00:00Z",
+  "requestRoute": false,
+  "originPortId": null
 }
-</code>
+```
 
 ### Service B (Hexagonal)
 - Plan Legal Route
@@ -452,6 +575,98 @@ Accept: application/json
   ADR-0013 (OSIV off) + HikariCP sizing.
 - [`starport-registry/inbox_outbox_pattern_15_minute_spring_boot_talk.md`](starport-registry/inbox_outbox_pattern_15_minute_spring_boot_talk.md)
   — supplementary learning notes on the Outbox pattern (ADR-0010).
+
+---
+
+## 👨‍💻 Development Workflow
+
+**Iterate on a single service** without rebuilding the whole stack:
+
+```bash
+# Rebuild + redeploy only starport-registry (both replicas)
+cd infra/docker
+docker compose up --build -d starport-registry-1 starport-registry-2
+
+# Or run one service outside Compose against the Compose infra
+# (Postgres, Kafka, Eureka stay up; kill only the app you want to debug):
+docker compose stop starport-registry-1 starport-registry-2
+cd ../../starport-registry
+./mvnw spring-boot:run    # picks up localhost:* defaults → Compose services
+```
+
+**Tail logs for one service**:
+
+```bash
+docker compose logs -f starport-registry-1
+docker compose logs -f --tail=100 trade-route-planner-1 telemetry-pipeline-1
+```
+
+**Inspect live state** (useful during debugging):
+
+- Eureka-registered instances — http://localhost:8761
+- Kafka topic contents — http://localhost:8085 (Kafka UI)
+- Outbox backlog — `docker compose exec postgres psql -U postgres -d starports -c "SELECT status, COUNT(*) FROM event_outbox GROUP BY status;"`
+- Live traces — http://localhost:3000 → Explore → Tempo → latest 20 traces
+- Live metrics — http://localhost:3000 → pre-provisioned dashboards
+
+**Reset local state** (nukes DBs, Kafka topics, Grafana prefs):
+
+```bash
+cd infra/docker
+docker compose down -v
+```
+
+---
+
+## 📊 Grafana Dashboards
+
+Pre-provisioned under `infra/docker/grafana/dashboards/`:
+
+- **`distributed_tracing.json`** — end-to-end request tracing. Panels: total request
+  rate, average latency, HTTP error rate, P50/P95/P99 histograms, circuit-breaker state
+  for `trade-route-planner`, async outbox/inbox event tracing, Tempo trace explorer,
+  service dependency graph.
+- **`logs_traces_metrics.json`** — unified business + infrastructure view. Panels:
+  fee revenue rate (cr/hour), reservation conversion rate, failure rate, JVM heap,
+  CPU / memory, reservation HTTP duration, fee amount distribution, outbox dead-letter
+  counter, inbox throughput.
+
+Open http://localhost:3000 (admin / admin) → Dashboards → Browse.
+
+---
+
+## 🩺 Troubleshooting
+
+**"Services don't appear in Eureka for ~30 s"**
+Not a bug — ADR-0028 keeps eviction aggressive (5 s) in dev, but client lease renewal
+is still 10 s. First registration after `docker compose up` typically takes 15–20 s;
+dependent services wait on `service_healthy` by design.
+
+**"A `lb://` HTTP call returns 5xx right after a restart"**
+The local registry cache may hold a dead instance for up to `registry-fetch-interval-seconds`
+(5 s in dev). Spring Cloud LoadBalancer will rotate to another instance on the next
+call. If it keeps failing, check http://localhost:8761 — the dead instance should be
+gone within ~30 s (lease expiration).
+
+**"Kafka topic doesn't exist"**
+`autoCreateTopics: true` is on for all services — topics are created on first
+publish. If you scrape a topic that no producer has touched yet, Kafka UI shows it
+empty/missing; produce a message or check the producer logs.
+
+**"Reservation returns 409 `NO_DOCKING_BAYS_AVAILABLE` on the first request"**
+The seed data (V2 / V5 migrations) includes a bounded set of bays. Under load test,
+send non-overlapping time windows (ADR-0020 pessimistic lock returns empty if every
+bay is reserved during the requested window). The load-test script handles this with
+`$dayBase = $ScriptId * 100`.
+
+**"Tests fail with `Testcontainers could not start Postgres`"**
+Docker Desktop must be running. On low-RAM machines, close the Compose stack first
+(`docker compose down`) — Testcontainers + full Compose can exceed 8 GB RAM.
+
+**"Outbox events stuck in `PENDING`"**
+Check `InboxPublisher` logs — Kafka broker unreachable is the usual cause. Query
+the `attempts` column; after `max-attempts: 10` the event is marked `FAILED`
+and the `reservations.outbox.dead.letter` counter increments (dashboard panel).
 
 ---
 
