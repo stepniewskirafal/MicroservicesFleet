@@ -5,6 +5,7 @@ WORKDIR /build
 # Copy root POM and all module POMs for dependency caching
 COPY pom.xml ./
 COPY eureka-server/pom.xml ./eureka-server/
+COPY api-gateway/pom.xml ./api-gateway/
 COPY starport-registry/pom.xml ./starport-registry/
 COPY trade-route-planner/pom.xml ./trade-route-planner/
 COPY telemetry-pipeline/pom.xml ./telemetry-pipeline/
