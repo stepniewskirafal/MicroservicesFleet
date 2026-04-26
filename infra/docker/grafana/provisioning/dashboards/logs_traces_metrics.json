@@ -3049,6 +3049,345 @@
             ],
             "title": "Event Flow Totals",
             "type": "stat"
+        },
+        {
+            "collapsed": false,
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 95 },
+            "id": 500,
+            "panels": [],
+            "title": "Starport Registry — Resources (USE)",
+            "type": "row"
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Hikari Pool Utilization (active / max)",
+            "description": "Database connection pool saturation. > 0.8 sustained = pool sizing too small or query slowdown.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 0, "y": 96 },
+            "id": 501,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 0.7 },
+                            { "color": "red", "value": 0.9 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "hikaricp_connections_active{job=\"starport-registry\"} / hikaricp_connections_max{job=\"starport-registry\"}",
+                    "legendFormat": "{{instance}} · {{pool}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Outbox Pending Events (saturation)",
+            "description": "Rows in event_outbox with status=PENDING. Sustained > 1000 = publisher cannot keep up.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 8, "y": 96 },
+            "id": 502,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "always" },
+                    "unit": "short",
+                    "min": 0,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 100 },
+                            { "color": "red", "value": 1000 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "max(reservations_outbox_pending_events)",
+                    "legendFormat": "pending",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Hikari Pool Pending Threads (saturation) + timeouts",
+            "description": "Threads waiting for a free DB connection. Any sustained > 0 = pool exhaustion.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 16, "y": 96 },
+            "id": 503,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "auto" },
+                    "unit": "short",
+                    "min": 0,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "red", "value": 1 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "hikaricp_connections_pending{job=\"starport-registry\"}",
+                    "legendFormat": "pending · {{instance}}",
+                    "range": true
+                },
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "rate(hikaricp_connections_timeout_total{job=\"starport-registry\"}[$__rate_interval])",
+                    "legendFormat": "timeout/s · {{instance}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "collapsed": false,
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 104 },
+            "id": 510,
+            "panels": [],
+            "title": "Trade Route Planner — Resources (USE)",
+            "type": "row"
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Tomcat Thread Utilization (busy / max)",
+            "description": "Webserver thread saturation. > 0.8 sustained = sizing too small or downstream blocking.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 0, "y": 105 },
+            "id": 511,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 0.7 },
+                            { "color": "red", "value": 0.9 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "tomcat_threads_busy_threads{job=\"trade-route-planner\"} / tomcat_threads_config_max_threads{job=\"trade-route-planner\"}",
+                    "legendFormat": "{{instance}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Kafka Producer Queue Time (avg) [ms]",
+            "description": "Time records spend buffered before being sent. Rising = broker slow / network slow.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 8, "y": 105 },
+            "id": 512,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "ms"
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "max by (instance, client_id) (kafka_producer_record_queue_time_avg{job=\"trade-route-planner\"})",
+                    "legendFormat": "{{instance}} · {{client_id}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "JVM Heap Utilization (%)",
+            "description": "Used heap / max heap. > 90% sustained = consider raising -Xmx or investigating leak.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 16, "y": 105 },
+            "id": 513,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "percent",
+                    "min": 0,
+                    "max": 100,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 70 },
+                            { "color": "red", "value": 90 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "100 * sum by (instance) (jvm_memory_used_bytes{job=\"trade-route-planner\",area=\"heap\"}) / sum by (instance) (jvm_memory_max_bytes{job=\"trade-route-planner\",area=\"heap\"})",
+                    "legendFormat": "{{instance}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "collapsed": false,
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 113 },
+            "id": 520,
+            "panels": [],
+            "title": "Telemetry Pipeline — Resources (USE)",
+            "type": "row"
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Kafka Consumer Records Lag (max per topic)",
+            "description": "How far behind the consumer is. Sustained > 10000 = consumer not keeping up with producer.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 0, "y": 114 },
+            "id": 521,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "short",
+                    "min": 0,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 1000 },
+                            { "color": "red", "value": 10000 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "max by (topic, client_id) (kafka_consumer_fetch_manager_records_lag_max{job=\"telemetry-pipeline\"})",
+                    "legendFormat": "{{topic}} · {{client_id}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "Kafka Producer Queue Time (avg) [ms]",
+            "description": "Output back-pressure on enriched-event topics.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 8, "y": 114 },
+            "id": 522,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "ms"
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "max by (instance, client_id) (kafka_producer_record_queue_time_avg{job=\"telemetry-pipeline\"})",
+                    "legendFormat": "{{instance}} · {{client_id}}",
+                    "range": true
+                }
+            ]
+        },
+        {
+            "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+            "title": "JVM Heap Utilization (%)",
+            "description": "Used heap / max heap. > 90% sustained = consider raising -Xmx or investigating leak.",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 8, "x": 16, "y": 114 },
+            "id": 523,
+            "fieldConfig": {
+                "defaults": {
+                    "color": { "mode": "palette-classic" },
+                    "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+                    "unit": "percent",
+                    "min": 0,
+                    "max": 100,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "#EAB839", "value": 70 },
+                            { "color": "red", "value": 90 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+                "tooltip": { "mode": "multi", "sort": "desc" }
+            },
+            "targets": [
+                {
+                    "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+                    "expr": "100 * sum by (instance) (jvm_memory_used_bytes{job=\"telemetry-pipeline\",area=\"heap\"}) / sum by (instance) (jvm_memory_max_bytes{job=\"telemetry-pipeline\",area=\"heap\"})",
+                    "legendFormat": "{{instance}}",
+                    "range": true
+                }
+            ]
         }
     ],
     "refresh": "",
