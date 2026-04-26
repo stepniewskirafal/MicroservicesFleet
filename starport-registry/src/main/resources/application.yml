@@ -127,18 +127,20 @@ management:
     logging:
       endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://tempo:4318/v1/logs}
   metrics:
+    enable:
+      kafka: true
     distribution:
       percentiles-histogram:
         http.server.requests: true
-        reservations.fees.calculated.amount: true
-        reservations.fees.calculated.hours: true
         reservations.hold.allocate: true
         reservations.route.plan: true
         reservations.fees.calculate: true
+        reservations.confirm: true
+        reservations.outbox.append: true
+        reservations.inbox.publish: true
+        reservations.inbox.poll.duration: true
       percentiles:
         http.server.requests: 0.5,0.95,0.99
-        reservations.fees.calculated.amount: 0.5,0.9,0.99
-        reservations.fees.calculated.hours: 0.5,0.9,0.99
       minimum-expected-value:
         http.server.requests: 5ms
         reservations.hold.allocate: 5ms
@@ -146,13 +148,17 @@ management:
         reservations.route.plan: 50ms
       maximum-expected-value:
         http.server.requests: 10s
-        reservations.hold.allocate: 2s
+        reservations.hold.allocate: 1s
         reservations.fees.calculate: 500ms
         reservations.route.plan: 10s
       slo:
-        reservations.hold.allocate: 10ms,50ms,100ms,500ms,1s,2s
+        reservations.hold.allocate: 5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s
         reservations.fees.calculate: 1ms,5ms,10ms,50ms,100ms
         reservations.route.plan: 50ms,100ms,200ms,500ms,1s,2s,5s
+        reservations.confirm: 5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s,2s
+        reservations.outbox.append: 1ms,5ms,10ms,25ms,50ms,100ms,250ms,500ms
+        reservations.inbox.publish: 10ms,25ms,50ms,100ms,250ms,500ms,1s,2s,5s
+        reservations.inbox.poll.duration: 5ms,10ms,50ms,100ms,500ms,1s,5s
   endpoints:
     web:
       exposure:

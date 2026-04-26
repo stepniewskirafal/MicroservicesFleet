@@ -20,4 +20,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
         """,
             nativeQuery = true)
     List<OutboxEventEntity> lockBatchPending(@Param("limit") int limit);
+
+    @Query(value = "select count(*) from event_outbox where status = 'PENDING'", nativeQuery = true)
+    long countPending();
 }

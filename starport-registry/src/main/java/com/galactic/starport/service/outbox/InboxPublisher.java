@@ -4,6 +4,7 @@ import com.galactic.starport.repository.OutboxEventEntity;
 import com.galactic.starport.repository.OutboxEventJpaRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.observation.Observation;
@@ -12,6 +13,7 @@ import io.micrometer.observation.transport.Kind;
 import io.micrometer.observation.transport.ReceiverContext;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,12 +32,14 @@ class InboxPublisher {
     private static final String METRIC_POLL_DURATION = "reservations.inbox.poll.duration";
     private static final String METRIC_BATCH_SIZE = "reservations.inbox.poll.batch.size";
     private static final String METRIC_DEAD_LETTER = "reservations.outbox.dead.letter";
+    private static final String METRIC_PENDING_EVENTS = "reservations.outbox.pending.events";
     private final OutboxEventJpaRepository repo;
     private final StreamBridge streamBridge;
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
     private final int batchSize;
     private final int maxAttempts;
+    private final AtomicLong pendingEventsCount = new AtomicLong(0);
 
     InboxPublisher(
             OutboxEventJpaRepository repo,
@@ -50,6 +54,10 @@ class InboxPublisher {
         this.meterRegistry = meterRegistry;
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
+        Gauge.builder(METRIC_PENDING_EVENTS, pendingEventsCount, AtomicLong::doubleValue)
+                .description("Outbox events with status=PENDING — saturation indicator for the publish pipeline")
+                .baseUnit("events")
+                .register(meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:10000}")
@@ -88,6 +96,11 @@ class InboxPublisher {
                     .tag("outcome", outcome)
                     .tag("batchSize", String.valueOf(actualBatchSize))
                     .register(meterRegistry));
+            try {
+                pendingEventsCount.set(repo.countPending());
+            } catch (Exception ex) {
+                log.debug("Failed to refresh outbox pending count gauge", ex);
+            }
         }
     }
 
