@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 public class ReservationService {
 
     private static final String METRIC_CREATED = "reservations.created.total";
+    private static final String METRIC_REQUESTS_TOTAL = "reservations.create.requests.total";
     private static final String METRIC_HOLD_RELEASED = "reservations.hold.released";
 
     private final HoldReservationFacade holdReservationFacade;
@@ -74,8 +75,13 @@ public class ReservationService {
     }
 
     private void incrementReservationCounter(String starport, String shipClass, String outcome) {
+        // Legacy metric name — keep for backward compatibility with existing dashboards.
         meterRegistry
                 .counter(METRIC_CREATED, "starport", starport, "shipClass", shipClass, "outcome", outcome)
+                .increment();
+        // RED-canonical name: <domain>_<operation>_requests_total covers ALL outcomes (success + each error).
+        meterRegistry
+                .counter(METRIC_REQUESTS_TOTAL, "starport", starport, "shipClass", shipClass, "outcome", outcome)
                 .increment();
     }
 }

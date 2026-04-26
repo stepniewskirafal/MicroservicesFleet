@@ -7,7 +7,10 @@ import com.galactic.telemetry.filter.EnrichmentFilter;
 import com.galactic.telemetry.filter.ValidationFilter;
 import com.galactic.telemetry.model.AnomalyAlert;
 import com.galactic.telemetry.model.RawTelemetry;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.function.Function;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +26,10 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class PipelineConfiguration {
+
+    private static final String OBS_PIPELINE_PROCESS = "telemetry.pipeline.process";
+    private static final String METRIC_REQUESTS_TOTAL = "telemetry.pipeline.requests.total";
+    private static final String METRIC_REQUEST_ERRORS_TOTAL = "telemetry.pipeline.request.errors.total";
 
     @Bean
     ValidationFilter validationFilter(MeterRegistry meterRegistry) {
@@ -49,18 +56,43 @@ public class PipelineConfiguration {
             ValidationFilter validationFilter,
             EnrichmentFilter enrichmentFilter,
             AggregationFilter aggregationFilter,
-            AnomalyDetectionFilter anomalyDetectionFilter) {
+            AnomalyDetectionFilter anomalyDetectionFilter,
+            MeterRegistry meterRegistry,
+            ObservationRegistry observationRegistry) {
 
-        return raw -> {
-            var validated = validationFilter.apply(raw);
-            if (validated == null) {
-                return null;
-            }
+        Counter requestsCounter = Counter.builder(METRIC_REQUESTS_TOTAL)
+                .description("Total telemetry pipeline invocations (RED Rate)")
+                .tag("pipeline", "telemetry")
+                .register(meterRegistry);
 
-            var enriched = enrichmentFilter.apply(validated);
-            var aggregated = aggregationFilter.apply(enriched);
+        return raw -> Observation.createNotStarted(OBS_PIPELINE_PROCESS, observationRegistry)
+                .lowCardinalityKeyValue("pipeline", "telemetry")
+                .observe(() -> {
+                    requestsCounter.increment();
+                    try {
+                        var validated = validationFilter.apply(raw);
+                        if (validated == null) {
+                            recordError(meterRegistry, "telemetry", "validation");
+                            return null;
+                        }
 
-            return anomalyDetectionFilter.apply(aggregated);
-        };
+                        var enriched = enrichmentFilter.apply(validated);
+                        var aggregated = aggregationFilter.apply(enriched);
+
+                        return anomalyDetectionFilter.apply(aggregated);
+                    } catch (RuntimeException ex) {
+                        recordError(meterRegistry, "telemetry", "exception");
+                        throw ex;
+                    }
+                });
+    }
+
+    static void recordError(MeterRegistry meterRegistry, String pipeline, String stage) {
+        Counter.builder(METRIC_REQUEST_ERRORS_TOTAL)
+                .description("Telemetry pipeline errors by stage (RED Errors)")
+                .tag("pipeline", pipeline)
+                .tag("stage", stage)
+                .register(meterRegistry)
+                .increment();
     }
 }
