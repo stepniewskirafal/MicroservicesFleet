@@ -682,18 +682,10 @@
       "type": "traces",
       "targets": [
         {
-          "queryType": "traceqlSearch",
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"starport-registry|trade-route-planner|telemetry-pipeline\" }",
           "limit": 20,
-          "filters": [
-            {
-              "id": "service-name",
-              "tag": "service.name",
-              "operator": "=~",
-              "scope": "resource",
-              "value": ["starport-registry", "trade-route-planner", "telemetry-pipeline"],
-              "valueType": "string"
-            }
-          ],
+          "tableType": "traces",
           "refId": "A"
         }
       ]
