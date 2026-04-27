@@ -688,17 +688,10 @@
             {
               "id": "service-name",
               "tag": "service.name",
-              "operator": "=",
+              "operator": "=~",
               "scope": "resource",
               "value": ["starport-registry", "trade-route-planner", "telemetry-pipeline"],
               "valueType": "string"
-            },
-            {
-              "id": "min-duration",
-              "tag": "duration",
-              "operator": ">",
-              "valueType": "duration",
-              "value": [""]
             }
           ],
           "refId": "A"
