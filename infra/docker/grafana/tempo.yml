@@ -20,5 +20,15 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
+  # local-blocks processor enables TraceQL metrics queries
+  # (`{ ... } | rate()`, `quantile_over_time(...)`) by buffering
+  # recent spans on local disk so Tempo can scan them ad-hoc
+  # from Grafana panels with the Tempo datasource.
+  processor:
+    local_blocks:
+      filter_server_spans_from_root_span: true
+      flush_to_storage: true
+  traces_storage:
+    path: /tmp/tempo/generator/traces
 overrides:
-  metrics_generator_processors: [service-graphs, span-metrics]
+  metrics_generator_processors: [service-graphs, span-metrics, local-blocks]
