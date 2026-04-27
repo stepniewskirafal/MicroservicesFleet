@@ -24,11 +24,17 @@ metrics_generator:
   # (`{ ... } | rate()`, `quantile_over_time(...)`) by buffering
   # recent spans on local disk so Tempo can scan them ad-hoc
   # from Grafana panels with the Tempo datasource.
+  #
+  # In Tempo 2.5+ both filter_server_spans_from_root_span and
+  # flush_to_storage were removed from this config block:
+  #   - root-span filtering is now controlled at query time in TraceQL
+  #     (`{ kind = server && parent = nil }`) rather than processor-side
+  #   - on-disk persistence is implicit when traces_storage.path is set
   processor:
-    local_blocks:
-      filter_server_spans_from_root_span: true
-      flush_to_storage: true
+    local_blocks: {}
   traces_storage:
     path: /tmp/tempo/generator/traces
 overrides:
-  metrics_generator_processors: [service-graphs, span-metrics, local-blocks]
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics, local-blocks]
