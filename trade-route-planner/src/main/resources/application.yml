@@ -82,19 +82,12 @@ management:
     enable:
       kafka: true
     distribution:
-      percentiles-histogram:
-        http.server.requests: true
-        routes.plan: true
-      percentiles:
-        http.server.requests: 0.5,0.95,0.99
-      minimum-expected-value:
-        http.server.requests: 5ms
-        routes.plan: 5ms
-      maximum-expected-value:
-        http.server.requests: 10s
-        routes.plan: 5s
+      # Histogram aktywuje sam `slo:` — usuwamy `percentiles-histogram`, `percentiles` (Summary
+      # nie agreguje się poprawnie między instancjami) i `min/max-expected-value` (martwa
+      # konfiguracja bez auto-bucketów).
       slo:
-        routes.plan: 10ms,50ms,100ms,200ms,500ms,1s,2s,5s
+        http.server.requests: 50ms,100ms,250ms,500ms,1s,2.5s,5s,10s
+        routes.plan:          10ms,50ms,100ms,200ms,500ms,1s,2s,5s
 
 logging:
   pattern:
