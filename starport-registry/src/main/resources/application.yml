@@ -134,7 +134,7 @@ management:
       # Client-side `percentiles:` (Summary) intentionally omitted: in a multi-instance setup their
       # values cannot be aggregated correctly. Use histogram_quantile() over _bucket in PromQL instead.
       slo:
-        http.server.requests:             50ms,100ms,250ms,500ms,1s,2.5s,5s,10s
+        http.server.requests:             50ms,100ms,250ms,500ms,1s,2500ms,5s,10s
         reservations.hold.allocate:       5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s
         reservations.fees.calculate:      1ms,5ms,10ms,50ms,100ms
         reservations.route.plan:          50ms,100ms,200ms,500ms,1s,2s,5s

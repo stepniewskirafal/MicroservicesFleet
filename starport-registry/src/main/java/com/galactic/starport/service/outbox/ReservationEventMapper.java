@@ -1,6 +1,7 @@
 package com.galactic.starport.service.outbox;
 
 import com.galactic.starport.service.Reservation;
+import java.time.Instant;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,6 +18,7 @@ class ReservationEventMapper {
                 .startAt(r.getStartAt())
                 .endAt(r.getEndAt())
                 .feeCharged(r.getFeeCharged())
+                .producedAt(Instant.now())
                 .build();
     }
 }

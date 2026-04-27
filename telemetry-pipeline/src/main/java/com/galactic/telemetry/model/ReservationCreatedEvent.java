@@ -13,4 +13,8 @@ public record ReservationCreatedEvent(
         String routeCode,
         Instant startAt,
         Instant endAt,
-        BigDecimal feeCharged) {}
+        BigDecimal feeCharged,
+        // Set by producer (starport-registry/OutboxAppender) right before persisting to event_outbox.
+        // Used by telemetry-pipeline to compute events.reservation.lag.seconds (e2e async latency).
+        // Nullable for forward compatibility — older events in flight may not carry this field.
+        Instant producedAt) {}

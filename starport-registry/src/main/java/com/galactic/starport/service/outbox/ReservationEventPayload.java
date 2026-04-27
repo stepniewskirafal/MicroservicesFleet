@@ -18,4 +18,9 @@ class ReservationEventPayload {
     private Instant startAt;
     private Instant endAt;
     private BigDecimal feeCharged;
+    /**
+     * Timestamp when this event was produced (right before INSERT into event_outbox). Used downstream
+     * by telemetry-pipeline to compute end-to-end async lag (events.reservation.lag.seconds).
+     */
+    private Instant producedAt;
 }

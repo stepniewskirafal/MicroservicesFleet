@@ -5,6 +5,7 @@ import com.galactic.telemetry.model.EnrichedRouteEvent;
 import com.galactic.telemetry.model.ReservationCreatedEvent;
 import com.galactic.telemetry.model.RoutePlannedEvent;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -30,6 +31,7 @@ public class EventPipelineConfiguration {
     private static final double RISK_THRESHOLD_HIGH = 0.7;
     private static final String OBS_PIPELINE_PROCESS = "telemetry.pipeline.process";
     private static final String METRIC_REQUESTS_TOTAL = "telemetry.pipeline.requests.total";
+    private static final String METRIC_RESERVATION_LAG = "events.reservation.lag";
 
     @Bean
     public Function<ReservationCreatedEvent, EnrichedReservationEvent> reservationPipeline(
@@ -45,6 +47,11 @@ public class EventPipelineConfiguration {
                 .description("Total telemetry pipeline invocations (RED Rate)")
                 .tag("pipeline", "reservation")
                 .register(meterRegistry);
+        DistributionSummary lagSummary = DistributionSummary.builder(METRIC_RESERVATION_LAG)
+                .baseUnit("seconds")
+                .description("End-to-end async lag: time from ReservationConfirmed produced "
+                        + "(starport-registry/OutboxAppender) to enriched (telemetry-pipeline)")
+                .register(meterRegistry);
 
         return event -> Observation.createNotStarted(OBS_PIPELINE_PROCESS, observationRegistry)
                 .lowCardinalityKeyValue("pipeline", "reservation")
@@ -57,6 +64,13 @@ public class EventPipelineConfiguration {
                             event.reservationId(),
                             event.starportCode(),
                             event.customerCode());
+
+                    if (event.producedAt() != null) {
+                        double lagSeconds = Duration.between(event.producedAt(), Instant.now()).toMillis() / 1000.0;
+                        if (lagSeconds >= 0) {
+                            lagSummary.record(lagSeconds);
+                        }
+                    }
 
                     try {
                         long durationHours = 0;

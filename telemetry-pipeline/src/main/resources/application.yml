@@ -128,12 +128,13 @@ management:
       # Histogram aktywuje sam `slo:` — `percentiles-histogram` zbędny (powodował dorzucanie
       # ~50 auto-bucketów per metryka oprócz naszych SLO progów).
       slo:
-        http.server.requests:        50ms,100ms,250ms,500ms,1s,2.5s,5s,10s
+        http.server.requests:        50ms,100ms,250ms,500ms,1s,2500ms,5s,10s
         telemetry.filter.validation: 100us,500us,1ms,5ms,10ms,50ms,100ms
         telemetry.filter.enrichment: 100us,500us,1ms,5ms,10ms,50ms,100ms
         telemetry.filter.aggregation: 100us,500us,1ms,5ms,10ms,50ms,100ms
         telemetry.filter.anomaly:    100us,500us,1ms,5ms,10ms,50ms,100ms
         telemetry.pipeline.process:  1ms,5ms,10ms,25ms,50ms,100ms,250ms,500ms
+        events.reservation.lag:      100ms,500ms,1s,5s,10s,30s,60s,300s
   endpoints:
     web:
       exposure:
