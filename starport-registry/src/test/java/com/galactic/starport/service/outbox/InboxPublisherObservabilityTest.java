@@ -74,7 +74,7 @@ class InboxPublisherObservabilityTest {
 
         Timer t = meterRegistry
                 .get("reservations.inbox.poll.duration")
-                .tags("outcome", "success", "batchSize", "1")
+                .tags("outcome", "success")
                 .timer();
         assertEquals(1, t.count());
 
@@ -109,7 +109,7 @@ class InboxPublisherObservabilityTest {
 
         Timer t = meterRegistry
                 .get("reservations.inbox.poll.duration")
-                .tags("outcome", "error", "batchSize", "1")
+                .tags("outcome", "error")
                 .timer();
         assertEquals(1, t.count());
 
@@ -126,7 +126,7 @@ class InboxPublisherObservabilityTest {
 
         Timer t = meterRegistry
                 .get("reservations.inbox.poll.duration")
-                .tags("outcome", "empty", "batchSize", "0")
+                .tags("outcome", "empty")
                 .timer();
         assertEquals(1, t.count());
 
