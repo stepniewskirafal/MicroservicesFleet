@@ -41,7 +41,7 @@ services:
       start_period: 60s
 
   tempo:
-    image: grafana/tempo:2.4.1
+    image: grafana/tempo:2.5.0
     container_name: tempo
     command: ["-config.file=/etc/tempo/tempo.yml"]
     volumes:
@@ -62,6 +62,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ./prometheus:/etc/prometheus:ro
     ports:
