@@ -1,0 +1,44 @@
+# IDE / Editor settings
+.claude/
+.idea/
+.jpb/
+*.iws
+*.iml
+*.ipr
+.vscode/
+
+# Spring Tool Suite
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Build
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
