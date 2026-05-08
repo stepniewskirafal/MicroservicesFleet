@@ -81,7 +81,9 @@
                         <compilerArgs>
                             <arg>-XDcompilePolicy=simple</arg>
                             <arg>--should-stop=ifError=FLOW</arg>
-                            <arg>-Xplugin:ErrorProne -XepDisableWarningsInGeneratedCode -XepExcludedPaths:.*/target/generated-sources/.* -Xep:NullAway:WARN -XepOpt:NullAway:AnnotatedPackages=com.galactic</arg>
+                            <!-- AlmostJavadoc disabled: crashes with AbstractMethodError on JDK 21 + Lombok 1.18.40 (lombok.javac.Javac$JavadocOps_8 missing Tokens$Comment.stripIndent). -->
+                            <!-- NullAway JPA/Spring exclusions per ai-main/.claude/rules/null-safety.md — Hibernate populates entity fields via reflection after construction, so the no-arg ctor cannot satisfy @NonNull init checks. -->
+                            <arg>-Xplugin:ErrorProne -XepDisableWarningsInGeneratedCode -XepExcludedPaths:.*/target/generated-sources/.* -Xep:AlmostJavadoc:OFF -Xep:NullAway:WARN -XepOpt:NullAway:AnnotatedPackages=com.galactic -XepOpt:NullAway:ExcludedClassAnnotations=jakarta.persistence.Entity,jakarta.persistence.MappedSuperclass,jakarta.persistence.Embeddable -XepOpt:NullAway:ExcludedFieldAnnotations=jakarta.persistence.Id,jakarta.persistence.GeneratedValue,jakarta.persistence.Column,jakarta.persistence.ManyToOne,jakarta.persistence.OneToMany,jakarta.persistence.OneToOne,jakarta.persistence.ManyToMany,jakarta.persistence.JoinColumn,org.springframework.beans.factory.annotation.Autowired,org.springframework.beans.factory.annotation.Value,jakarta.inject.Inject -XepOpt:NullAway:TreatGeneratedAsUnannotated=true</arg>
                             <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                             <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
                             <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
