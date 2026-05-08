@@ -28,8 +28,10 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
+          "expr": "sum(increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
           "instant": true,
+          "range": false,
+          "format": "time_series",
           "legendFormat": "razem"
         }
       ],
@@ -52,7 +54,7 @@
     },
     {
       "id": 2,
-      "type": "barchart",
+      "type": "bargauge",
       "title": "Przychód per port [credits]",
       "description": "Który port zarobił najwięcej w wybranym okresie.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
@@ -61,37 +63,36 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (starport) (increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
+          "expr": "sum by (starport) (increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
           "instant": true,
-          "legendFormat": "{{starport}}",
-          "format": "table"
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{starport}}"
         }
-      ],
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true } } },
-        { "id": "renameByRegex", "options": { "regexp": "Value", "renamePattern": "Przychód" } }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
           "noValue": "0",
+          "min": 0,
           "color": { "mode": "fixed", "fixedColor": "#10b981" }
         },
         "overrides": []
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "starport",
-        "showValue": "always",
-        "stacking": "none",
-        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "desc" }
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "minVizWidth": 0,
+        "minVizHeight": 16,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
     {
       "id": 3,
-      "type": "barchart",
+      "type": "bargauge",
       "title": "Przychód per klasa statku [credits]",
       "description": "SCOUT / FREIGHTER / CRUISER — z której klasy płynie najwięcej przychodu.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
@@ -100,21 +101,19 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
+          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
           "instant": true,
-          "legendFormat": "{{shipClass}}",
-          "format": "table"
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{shipClass}}"
         }
-      ],
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true } } },
-        { "id": "renameByRegex", "options": { "regexp": "Value", "renamePattern": "Przychód" } }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
           "noValue": "0",
+          "min": 0,
           "color": { "mode": "palette-classic" }
         },
         "overrides": [
@@ -126,17 +125,18 @@
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "shipClass",
-        "showValue": "always",
-        "stacking": "none",
-        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "desc" }
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "minVizWidth": 0,
+        "minVizHeight": 16,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
     {
       "id": 4,
-      "type": "barchart",
-      "title": "Najczęściej cumujące klasy statków [liczba rezerwacji]",
+      "type": "bargauge",
+      "title": "Najczęściej cumujące klasy [liczba zatwierdzonych rezerwacji]",
       "description": "Która klasa statku najczęściej rezerwuje dok (tylko zatwierdzone rezerwacje) w wybranym okresie.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 22, "w": 12, "h": 10 },
@@ -144,21 +144,19 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_create_requests_total{outcome=\"confirmed\"}[$__range]))",
+          "expr": "sum by (shipClass) (increase(reservations_total{outcome=\"confirmed\"}[$__range]))",
           "instant": true,
-          "legendFormat": "{{shipClass}}",
-          "format": "table"
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{shipClass}}"
         }
-      ],
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true } } },
-        { "id": "renameByRegex", "options": { "regexp": "Value", "renamePattern": "Liczba" } }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
           "noValue": "0",
+          "min": 0,
           "color": { "mode": "palette-classic" }
         },
         "overrides": [
@@ -170,39 +168,38 @@
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "shipClass",
-        "showValue": "always",
-        "stacking": "none",
-        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "desc" }
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "minVizWidth": 0,
+        "minVizHeight": 16,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
     {
       "id": 5,
-      "type": "barchart",
-      "title": "Średni przychód z jednej rezerwacji [credits / rezerwację]",
-      "description": "Łączny przychód podzielony przez liczbę zatwierdzonych rezerwacji — która klasa zostawia w kasie najwięcej za pojedynczą wizytę.",
+      "type": "bargauge",
+      "title": "Średni przychód z jednej rezerwacji [credits]",
+      "description": "Łączny przychód podzielony przez liczbę rezerwacji — która klasa zostawia w kasie najwięcej za pojedynczą wizytę.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 22, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_sum[$__range])) / clamp_min(sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_count[$__range])), 1)",
+          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_sum[$__range])) / clamp_min(sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_count[$__range])), 1)",
           "instant": true,
-          "legendFormat": "{{shipClass}}",
-          "format": "table"
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{shipClass}}"
         }
-      ],
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true } } },
-        { "id": "renameByRegex", "options": { "regexp": "Value", "renamePattern": "Średnia" } }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
           "noValue": "0",
+          "min": 0,
           "color": { "mode": "palette-classic" }
         },
         "overrides": [
@@ -214,26 +211,29 @@
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "shipClass",
-        "showValue": "always",
-        "stacking": "none",
-        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single", "sort": "desc" }
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "minVizWidth": 0,
+        "minVizHeight": 16,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
     {
       "id": 6,
       "type": "stat",
       "title": "Zajętość doków per port — TERAZ (czerwone < 50%)",
-      "description": "Bieżąca zajętość doków w każdym porcie. Niska zajętość = puste doki = utracony przychód. Wartość poniżej 50% świeci na czerwono.",
+      "description": "Bieżąca zajętość doków w każdym porcie. Niska zajętość = puste doki = utracony przychód. Wartość poniżej 50% świeci na czerwono. Jeśli widać 'brak danych' — przebuduj i zrestartuj kontenery starport-registry, żeby uruchomić nowy DockOccupancyObserver.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 32, "w": 24, "h": 10 },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "reservations_docks_occupied_ratio",
+          "expr": "max by (starport) (reservations_docks_occupied_ratio)",
           "instant": true,
+          "range": false,
+          "format": "time_series",
           "legendFormat": "{{starport}}"
         }
       ],
@@ -274,6 +274,6 @@
   "timezone": "browser",
   "title": "Biznes — Przychody i zajętość doków",
   "uid": "business-revenue-executive",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
