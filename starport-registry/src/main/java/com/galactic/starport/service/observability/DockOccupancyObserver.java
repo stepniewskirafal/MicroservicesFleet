@@ -15,16 +15,27 @@ import org.springframework.stereotype.Component;
 class DockOccupancyObserver {
 
     private static final String METRIC_OCCUPANCY_RATIO = "reservations.docks.occupied.ratio";
+    private static final String METRIC_OCCUPIED = "reservations.docks.occupied";
+    private static final String METRIC_CAPACITY = "reservations.docks.capacity";
 
     private final DockOccupancyQuery query;
-    private final MultiGauge occupancyGauge;
+    private final MultiGauge occupancyRatioGauge;
+    private final MultiGauge occupiedGauge;
+    private final MultiGauge capacityGauge;
 
     DockOccupancyObserver(DockOccupancyQuery query, MeterRegistry meterRegistry) {
         this.query = query;
-        this.occupancyGauge = MultiGauge.builder(METRIC_OCCUPANCY_RATIO)
+        this.occupancyRatioGauge = MultiGauge.builder(METRIC_OCCUPANCY_RATIO)
                 .description("Ratio of occupied docking bays per starport (0.0=empty, 1.0=full)."
                         + " Powers the executive dashboard saturation tile.")
                 .baseUnit("ratio")
+                .register(meterRegistry);
+        this.occupiedGauge = MultiGauge.builder(METRIC_OCCUPIED)
+                .description("Number of docking bays currently reserved per starport"
+                        + " (NOW between reservation start_at and end_at).")
+                .register(meterRegistry);
+        this.capacityGauge = MultiGauge.builder(METRIC_CAPACITY)
+                .description("Total docking bay capacity per starport.")
                 .register(meterRegistry);
     }
 
@@ -34,15 +45,27 @@ class DockOccupancyObserver {
     public void refresh() {
         try {
             var snapshots = query.aggregate();
-            occupancyGauge.register(
-                    snapshots.stream().map(DockOccupancyObserver::toRow).toList(), true);
+            occupancyRatioGauge.register(
+                    snapshots.stream().map(DockOccupancyObserver::toRatioRow).toList(), true);
+            occupiedGauge.register(
+                    snapshots.stream().map(DockOccupancyObserver::toOccupiedRow).toList(), true);
+            capacityGauge.register(
+                    snapshots.stream().map(DockOccupancyObserver::toCapacityRow).toList(), true);
         } catch (Exception ex) {
             log.warn("Failed to refresh dock occupancy gauge", ex);
         }
     }
 
-    private static Row<?> toRow(DockOccupancySnapshot snapshot) {
+    private static Row<?> toRatioRow(DockOccupancySnapshot snapshot) {
         double ratio = snapshot.total() == 0 ? 0.0 : (double) snapshot.occupied() / snapshot.total();
         return Row.of(Tags.of("starport", snapshot.starportCode()), ratio);
+    }
+
+    private static Row<?> toOccupiedRow(DockOccupancySnapshot snapshot) {
+        return Row.of(Tags.of("starport", snapshot.starportCode()), (double) snapshot.occupied());
+    }
+
+    private static Row<?> toCapacityRow(DockOccupancySnapshot snapshot) {
+        return Row.of(Tags.of("starport", snapshot.starportCode()), (double) snapshot.total());
     }
 }

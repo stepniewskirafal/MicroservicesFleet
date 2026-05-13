@@ -1,0 +1,215 @@
+# =============================================================================
+# Prometheus Recording Rules — MicroservicesFleet
+# =============================================================================
+#
+# CO TO JEST?
+# -----------
+# Recording rules to mechanizm Prometheusa, który cyklicznie oblicza złożone
+# wyrażenia PromQL i zapisuje wynik jako nową, prostą metrykę.
+#
+# PO CO?
+# ------
+# Bez recording rules każdy panel w Grafanie wykonuje pełne obliczenie na
+# surowych danych przy każdym odświeżeniu. Przy wielu replikach i histogramach
+# z wieloma bucketami to może być kosztowne.
+#
+# Reguła pre-agreguje wynik co evaluation_interval (3s) → dashboard czyta
+# gotową liczbę zamiast przeliczać ją przy każdym załadowaniu.
+#
+# KONWENCJA NAZW (zgodna z ADR-0030)
+# -----------------------------------
+# Nazwa wynikowej metryki: job:<metryka>:<agregacja>
+# Przykład:  job:reservations_hold_allocate_seconds:rate5m
+#              ↑                ↑                      ↑
+#           prefix job   oryginalna metryka      co mierzy reguła
+#
+# To pozwala:
+# - od razu rozpoznać, że to reguła (prefix "job:")
+# - łatwo znaleźć ją w Grafanie (grep po "job:")
+# - nie pomylić z oryginalnymi metrykami (które nie mają tego prefiksu)
+# =============================================================================
+
+groups:
+
+  # ---------------------------------------------------------------------------
+  # STARPORT REGISTRY — Rezerwacje
+  # Metryki z: Observation("reservations.hold.allocate", ...)
+  #            Observation("reservations.fees.calculate", ...)
+  #            Observation("reservations.route.plan", ...)
+  # Niskie tagi (lowCardinalityKeyValue): starport, shipClass, outcome
+  # ---------------------------------------------------------------------------
+  - name: starport_registry_reservations
+    interval: 15s          # reguły rezerwacji obliczamy co 15s (mniej krytyczne)
+    rules:
+
+      # ── Throughput: ile rezerwacji na sekundę (per starport) ─────────────
+      # Bazowa metryka:  reservations_hold_allocate_seconds_count
+      #                  (Timer → Micrometer tłumaczy dot-notation na _)
+      # Okno: 5 minut — wygładza krótkie skoki, dobre dla dashboardu
+      - record: job:reservations_hold_allocate_seconds:rate5m
+        expr: |
+          sum by (job, starport, outcome) (
+            rate(reservations_hold_allocate_seconds_count[5m])
+          )
+        # Wynik: ile razy na sekundę operacja "hold.allocate" wykonała się
+        # w ostatnich 5 min — pogrupowane wg starportu i outcome (SUCCESS/ERROR).
+        #
+        # Przykładowe użycie w Grafanie (panel "Throughput per starport"):
+        #   job:reservations_hold_allocate_seconds:rate5m{outcome="SUCCESS"}
+
+      # ── Latencja P99 per shipClass ────────────────────────────────────────
+      # histogram_quantile oblicza percentyl z bucketów histogramu.
+      # Bez recording rule: każdy panel w Grafanie przelicza wszystkie buckety
+      # dla obu replik od nowa. Z regułą: wynik gotowy.
+      - record: job:reservations_hold_allocate_seconds:p99_5m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (job, shipClass, le) (
+              rate(reservations_hold_allocate_seconds_bucket[5m])
+            )
+          )
+        # "le" (less or equal) to specjalny label bucketów histogramu —
+        # musi pozostać w grupowaniu, bo histogram_quantile go potrzebuje.
+
+      # ── P50 (mediana) latencji rezerwacji ─────────────────────────────────
+      - record: job:reservations_hold_allocate_seconds:p50_5m
+        expr: |
+          histogram_quantile(0.50,
+            sum by (job, shipClass, le) (
+              rate(reservations_hold_allocate_seconds_bucket[5m])
+            )
+          )
+
+      # ── Error rate rezerwacji ─────────────────────────────────────────────
+      # Stosunek błędów do wszystkich wywołań.
+      # Wynik: liczba z przedziału [0, 1], np. 0.05 = 5% błędów.
+      - record: job:reservations_hold_allocate:error_ratio5m
+        expr: |
+          sum by (job, starport) (
+            rate(reservations_hold_allocate_seconds_count{outcome="ERROR"}[5m])
+          )
+          /
+          sum by (job, starport) (
+            rate(reservations_hold_allocate_seconds_count[5m])
+          )
+        # Dzielenie dwóch wektorów: Prometheus dopasowuje labele automatycznie.
+        # Jeśli mianownik = 0 (zero requestów), wynik = NaN — Grafana
+        # wyświetla przerwę na wykresie zamiast 0%, co jest poprawne.
+
+      # ── Łączna opłata (fee) na godzinę — DistributionSummary ─────────────
+      # reservations_fees_calculated_amount_sum = suma opłat
+      # reservations_fees_calculated_amount_count = liczba transakcji
+      # Dzielimy → średnia opłata na transakcję
+      - record: job:reservations_fees_calculated_amount:avg_rate5m
+        expr: |
+          sum by (job, starport, shipClass) (
+            rate(reservations_fees_calculated_amount_sum[5m])
+          )
+          /
+          sum by (job, starport, shipClass) (
+            rate(reservations_fees_calculated_amount_count[5m])
+          )
+
+  # ---------------------------------------------------------------------------
+  # TRADE ROUTE PLANNER — Trasy
+  # Metryki z: routes.planned.count (Counter), routes.risk.score (DistributionSummary)
+  # ---------------------------------------------------------------------------
+  - name: trade_route_planner_routes
+    interval: 30s           # trasy planujemy rzadziej — 30s wystarczy
+    rules:
+
+      # ── Tempo planowania tras: ile tras na sekundę ────────────────────────
+      - record: job:routes_planned_count:rate5m
+        expr: |
+          sum by (job) (
+            rate(routes_planned_count_total[5m])
+          )
+
+      # ── Średni risk score tras (DistributionSummary) ──────────────────────
+      - record: job:routes_risk_score:avg_rate5m
+        expr: |
+          sum by (job) (rate(routes_risk_score_sum[5m]))
+          /
+          sum by (job) (rate(routes_risk_score_count[5m]))
+
+      # ── P95 latencji planowania trasy ─────────────────────────────────────
+      - record: job:routes_plan_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, le) (
+              rate(routes_plan_duration_seconds_bucket[5m])
+            )
+          )
+
+  # ---------------------------------------------------------------------------
+  # TELEMETRY PIPELINE — Przetwarzanie wiadomości Kafka
+  # Metryki z: telemetry.messages.received (Counter), telemetry.anomalies.detected
+  # ---------------------------------------------------------------------------
+  - name: telemetry_pipeline_kafka
+    interval: 15s
+    rules:
+
+      # ── Throughput wiadomości Kafka ───────────────────────────────────────
+      - record: job:telemetry_messages_received:rate5m
+        expr: |
+          sum by (job) (
+            rate(telemetry_messages_received_total[5m])
+          )
+
+      # ── Wskaźnik nieprawidłowych wiadomości ──────────────────────────────
+      - record: job:telemetry_messages:invalid_ratio5m
+        expr: |
+          sum by (job) (rate(telemetry_messages_invalid_total[5m]))
+          /
+          sum by (job) (rate(telemetry_messages_received_total[5m]))
+
+      # ── Wskaźnik wykrytych anomalii ───────────────────────────────────────
+      - record: job:telemetry_anomalies_detected:rate5m
+        expr: |
+          sum by (job, severity) (
+            rate(telemetry_anomalies_detected_total[5m])
+          )
+          # severity label: WARNING lub CRITICAL (low-cardinality — ADR-0030)
+
+  # ---------------------------------------------------------------------------
+  # CROSS-SERVICE — agregaty całej floty dla głównego dashboardu
+  # Te reguły czytają wyniki innych reguł (job:...) — dwupoziomowa agregacja.
+  # ---------------------------------------------------------------------------
+  - name: fleet_overview
+    interval: 60s           # dashboard overview odświeżamy co minutę
+    rules:
+
+      # ── Łączny throughput całej floty (wszystkie serwisy razem) ───────────
+      # Suma requestów przez API Gateway jako proxy dla ruchu w systemie.
+      # http_server_requests_seconds_count pochodzi z Spring Boot Actuator
+      # (automatyczny timer na każdy HTTP request — brak ręcznej instrumentacji).
+      - record: job:fleet_http_requests:rate5m
+        expr: |
+          sum by (job, uri, method, status) (
+            rate(http_server_requests_seconds_count[5m])
+          )
+        # "uri" jest low-cardinality dzięki Spring MVC path templates:
+        # /api/starports/{code} zamiast /api/starports/SOLARIS — Micrometer
+        # automatycznie redukuje konkretne wartości do szablonu.
+
+      # ── Fleet-wide P99 latencja HTTP ─────────────────────────────────────
+      - record: job:fleet_http_requests_seconds:p99_5m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (job, uri, le) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
+          )
+
+      # ── Availability (SLO helper) ─────────────────────────────────────────
+      # Procent żądań zakończonych sukcesem (status 2xx) w stosunku do wszystkich.
+      # Używane do obliczania SLO error budget w Grafanie:
+      #   error_budget_remaining = (1 - target_slo) - (1 - job:fleet_availability:ratio5m)
+      - record: job:fleet_availability:ratio5m
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"2.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count[5m]))
+        # status=~"2.." to regex: dopasowuje 200, 201, 202, itd.
+        # Wynik 0.999 = 99.9% availability w ostatnich 5 minutach.
+

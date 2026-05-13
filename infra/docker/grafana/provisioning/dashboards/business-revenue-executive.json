@@ -15,7 +15,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "# 💰 Biznes — Przychody i zajętość doków\n\nKasa, którą zarobiliśmy w **wybranym okresie** (zmień zakres czasu w prawym górnym rogu) oraz **bieżąca zajętość doków** w każdym porcie. Czerwona kafelka = port świeci pustkami → tracimy pieniądze."
+        "content": "# 💰 Biznes — Przychody i zajętość doków\n\nKasa, którą zarobiliśmy w **wybranym okresie** (zmień zakres czasu w prawym górnym rogu) oraz **bieżąca zajętość doków** w każdym porcie (półokrągłe wskaźniki + tabela z surowymi liczbami). Czerwony wskaźnik = port świeci pustkami → tracimy pieniądze."
       }
     },
     {
@@ -28,7 +28,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
+          "expr": "sum(increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
           "instant": true,
           "range": false,
           "format": "time_series",
@@ -37,7 +37,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "locale",
           "decimals": 0,
           "noValue": "0",
           "color": { "mode": "fixed", "fixedColor": "#10b981" }
@@ -63,7 +63,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (starport) (increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
+          "expr": "sum by (starport) (increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
           "instant": true,
           "range": false,
           "format": "time_series",
@@ -72,7 +72,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "locale",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -101,7 +101,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_sum[$__range]))",
+          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_sum[$__range]))",
           "instant": true,
           "range": false,
           "format": "time_series",
@@ -110,7 +110,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "locale",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -153,7 +153,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "locale",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -187,7 +187,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_sum[$__range])) / clamp_min(sum by (shipClass) (increase(reservations_fees_calculated_amount_CR_count[$__range])), 1)",
+          "expr": "sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_sum[$__range])) / clamp_min(sum by (shipClass) (increase(reservations_fees_calculated_amount_cr_count[$__range])), 1)",
           "instant": true,
           "range": false,
           "format": "time_series",
@@ -196,7 +196,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "locale",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -221,11 +221,11 @@
     },
     {
       "id": 6,
-      "type": "stat",
+      "type": "gauge",
       "title": "Zajętość doków per port — TERAZ (czerwone < 50%)",
-      "description": "Bieżąca zajętość doków w każdym porcie. Niska zajętość = puste doki = utracony przychód. Wartość poniżej 50% świeci na czerwono. Jeśli widać 'brak danych' — przebuduj i zrestartuj kontenery starport-registry, żeby uruchomić nowy DockOccupancyObserver.",
+      "description": "Bieżąca zajętość doków w każdym porcie jako półokrągły wskaźnik. Niska zajętość = puste doki = utracony przychód. Wartość poniżej 50% świeci na czerwono. Jeśli widać 'brak danych' — przebuduj i zrestartuj kontenery starport-registry, żeby uruchomić DockOccupancyObserver.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 10 },
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 12 },
       "targets": [
         {
           "refId": "A",
@@ -255,12 +255,106 @@
         "overrides": []
       },
       "options": {
-        "graphMode": "area",
-        "colorMode": "background",
-        "justifyMode": "center",
-        "textMode": "value_and_name",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "orientation": "horizontal"
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Doki zajęte / pojemność — TERAZ",
+      "description": "Surowe liczby pod wskaźnikami: ile doków jest aktualnie zarezerwowanych (NOW pomiędzy reservation.start_at i end_at) oraz ile ich jest w sumie. Kolumna 'Obłożenie' to inline gauge: czerwone < 50%, zielone >= 50%.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 44, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (starport) (reservations_docks_occupied)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (starport) (reservations_docks_capacity)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (starport) (reservations_docks_occupied_ratio)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "Time 3": true },
+            "indexByName": { "starport": 0, "Value #A": 1, "Value #B": 2, "Value #C": 3 },
+            "renameByName": {
+              "starport": "Port",
+              "Value #A": "Zajęte",
+              "Value #B": "Pojemność",
+              "Value #C": "Obłożenie"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "center", "displayMode": "auto" },
+          "noValue": "brak danych"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Obłożenie" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "decimals", "value": 0 },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 1 },
+              { "id": "custom.displayMode", "value": "gradient-gauge" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#f43f5e", "value": null },
+                    { "color": "#10b981", "value": 0.5 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Zajęte" },
+            "properties": [
+              { "id": "unit", "value": "none" },
+              { "id": "decimals", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Pojemność" },
+            "properties": [
+              { "id": "unit", "value": "none" },
+              { "id": "decimals", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Obłożenie", "desc": true }]
       }
     }
   ],

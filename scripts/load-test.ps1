@@ -9,6 +9,10 @@
 #
 # ScriptId 1-5 gives each script a separate time window so dates
 # never overlap between scripts. Each reservation = 1h, spaced +1 day.
+# ScriptId 1 starts at "now + 5 min" (earliest possible). Bands:
+#   ScriptId 1: days 0-49    ScriptId 2: days 50-99
+#   ScriptId 3: days 100-149 ScriptId 4: days 150-199
+#   ScriptId 5: days 200-249
 # ------------------------------------------------------------------
 # Default target is the api-gateway (ADR-0031). Individual instance ports are
 # no longer host-bound in docker-compose — traffic must go through the gateway
@@ -23,10 +27,11 @@ $API = "$Base/api/v1/starports"
 $ok = 0; $fail = 0; $err = 0; $mismatch = 0
 
 # ---- Time offset strategy ----
-# Each ScriptId gets a non-overlapping band of DAYS.
-# Script 1: days 100-149,  Script 2: days 200-249, etc.
-# Each reservation = 1 hour at 12:00 UTC on a unique day.
-$dayBase = $ScriptId * 100
+# Each ScriptId gets a non-overlapping band of 50 days, contiguous from 0.
+# Script 1: days 0-49 (earliest reservation = NOW + 5 min),
+# Script 2: days 50-99, ..., Script 5: days 200-249.
+# Each reservation = 1 hour, anchored at "now + 5 min" + DayOffset days.
+$dayBase = ($ScriptId - 1) * 50
 
 function Fire {
     param(
@@ -87,8 +92,11 @@ function MakeReservationBody {
         [string]$Route = "false",
         [string]$Origin = ""
     )
-    # Each reservation: 1 hour at 12:00 UTC, on a unique day
-    $startDate = (Get-Date).ToUniversalTime().Date.AddDays($DayOffset).AddHours(12)
+    # Each reservation: 1 hour starting at (now + 5 min) + DayOffset days.
+    # DayOffset=0 gives the earliest possible window (~5 min from now);
+    # the offset shifts each subsequent reservation onto a fresh day so
+    # good calls within a run never overlap on any bay.
+    $startDate = (Get-Date).ToUniversalTime().AddMinutes(5).AddDays($DayOffset)
     $endDate   = $startDate.AddHours(1)
     $startStr  = $startDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
     $endStr    = $endDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -116,8 +124,8 @@ function MakeReservationBody {
 
 $goodCalls = @()
 
-for ($i = 1; $i -le 50; $i++) {
-    $day = $dayBase + $i  # unique day per request per script
+for ($i = 0; $i -lt 50; $i++) {
+    $day = $dayBase + $i  # unique day per request per script (day 0 = now+5min for ScriptId 1)
     $goodCalls += ,@{
         Label  = "GOOD  SCOUT CUST-001/SS-Enterprise-01 -> ABC  day+$day"
         Expect = 201
@@ -203,7 +211,7 @@ $total = [Math]::Min($goodCalls.Count + $badCalls.Count, 100)
 Write-Host "============================================"
 Write-Host " Starport Registry Load Test ($total requests)"
 Write-Host " Target:    $Base"
-Write-Host " Script ID: $ScriptId / 5  (days $($dayBase+1)-$($dayBase+50))"
+Write-Host " Script ID: $ScriptId / 5  (days $dayBase-$($dayBase+49))"
 Write-Host " Routes:    $(if ($WithRoutes) { 'ENABLED' } else { 'DISABLED' })"
 Write-Host " Pattern:   GOOD, BAD, GOOD, BAD, ..."
 Write-Host "============================================"

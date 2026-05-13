@@ -21,10 +21,14 @@ class JpaDockOccupancyQuery implements DockOccupancyQuery {
         List<Object[]> rows = em.createNativeQuery(
                         """
                         SELECT s.code,
-                               COUNT(*) FILTER (WHERE db.status <> 'AVAILABLE') AS occupied,
-                               COUNT(*) AS total
-                        FROM docking_bay db
-                        JOIN starport s ON s.id = db.starport_id
+                               COUNT(DISTINCT CASE
+                                                WHEN r.start_at <= NOW() AND r.end_at > NOW()
+                                                THEN r.docking_bay_id
+                                              END) AS occupied,
+                               COUNT(DISTINCT db.id) AS total
+                        FROM starport s
+                        JOIN docking_bay db ON db.starport_id = s.id
+                        LEFT JOIN reservation r ON r.docking_bay_id = db.id
                         GROUP BY s.code
                         """)
                 .getResultList();

@@ -6,9 +6,11 @@
 #   - Stoppable any time with 'Q' or Esc (clean summary on exit)
 #   - 90% good / 10% bad mix (configurable with -ErrorRatio)
 #   - Throttled (default 5 req/s = 300/min, configurable)
-#   - Each good request gets a globally unique 1h time slot far in the
-#     future, so good reservations NEVER overlap on the same bay
-#     (only intentional bad requests overlap or break things).
+#   - Each good request gets a globally unique 1h time slot starting at
+#     `now + 5 min` (slot 0 = earliest possible), then slot i = base + i hours.
+#     Good reservations NEVER overlap on the same bay because slots are
+#     globally unique. Some of them naturally span "now", which is what
+#     the dock-occupancy dashboard ("Zajętość doków per port — TERAZ") needs.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\load-test-timed.ps1 -DurationMinutes 5
@@ -75,14 +77,15 @@ function Get-ShipForCustomer {
 
 # Builds a body for a guaranteed-valid reservation request.
 # Each call gets a globally unique 1h time slot derived from $SlotIdx
-# (base = today + 100 years; +$SlotIdx hours). No two good requests
-# can overlap on any docking bay.
+# (base = now + 5 min; slot i = base + i hours). No two good requests
+# can overlap on any docking bay. Slot 0 ≈ NOW, so the occupancy
+# dashboard sees live data while the test runs.
 function New-GoodBody {
     param(
         [int]$SlotIdx,
         [int]$CustomerIdx
     )
-    $baseTime = (Get-Date).ToUniversalTime().Date.AddYears(100).AddHours(12)
+    $baseTime = (Get-Date).ToUniversalTime().AddMinutes(5)
     $startDt  = $baseTime.AddHours($SlotIdx)
     $endDt    = $startDt.AddHours(1)
     $startStr = $startDt.ToString("yyyy-MM-ddTHH:mm:ssZ")
