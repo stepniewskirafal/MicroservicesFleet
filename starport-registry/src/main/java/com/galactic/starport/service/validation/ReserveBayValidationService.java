@@ -4,8 +4,6 @@ import com.galactic.starport.service.InvalidReservationException;
 import com.galactic.starport.service.InvalidReservationTimeException;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.StarportNotFoundException;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -23,8 +21,6 @@ import org.springframework.validation.Validator;
 @Slf4j
 class ReserveBayValidationService implements ReserveBayValidator, Validator {
     private final List<ReserveBayCommandValidationRule> validationRules;
-    private final ObservationRegistry observationRegistry;
-    private static final String OBSERVATION_NAME = "validation.reserve-bay";
 
     @Override
     public boolean supports(Class<?> clazz) {
@@ -34,21 +30,8 @@ class ReserveBayValidationService implements ReserveBayValidator, Validator {
     @Override
     public void validate(Object target, Errors errors) {
         ReserveBayCommand command = (ReserveBayCommand) target;
-        Observation parent = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("routeRequested", String.valueOf(command.requestRoute()));
-        parent.start();
-        try (Observation.Scope scope = parent.openScope()) {
-            for (ReserveBayCommandValidationRule rule : validationRules) {
-                Observation.createNotStarted("validation.rule", observationRegistry)
-                        .lowCardinalityKeyValue("rule", rule.getClass().getSimpleName())
-                        .parentObservation(parent)
-                        .observe(() -> rule.validate(command, errors));
-            }
-        } catch (Exception ex) {
-            parent.error(ex);
-            throw ex;
-        } finally {
-            parent.stop();
+        for (ReserveBayCommandValidationRule rule : validationRules) {
+            rule.validate(command, errors);
         }
         log.info("Reservation command validated. errorsCount={}", errors.getErrorCount());
     }

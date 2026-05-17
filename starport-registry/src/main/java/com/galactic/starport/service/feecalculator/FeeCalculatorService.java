@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 class FeeCalculatorService implements FeeCalculator {
     private static final String OBSERVATION_NAME = "reservations.fees.calculate";
     private static final String METRIC_FEE_AMOUNT = "reservations.fees.calculated.amount";
-    private static final String METRIC_FEE_HOURS = "reservations.fees.calculated.hours";
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
 
@@ -43,13 +42,6 @@ class FeeCalculatorService implements FeeCalculator {
                             .tag("shipClass", command.shipClass().name())
                             .register(meterRegistry)
                             .record(fee.doubleValue());
-
-                    DistributionSummary.builder(METRIC_FEE_HOURS)
-                            .baseUnit("hours")
-                            .description("Charged hours used to calculate reservation fee")
-                            .tag("shipClass", command.shipClass().name())
-                            .register(meterRegistry)
-                            .record(billingHours);
 
                     log.debug(
                             "Calculated fee: starport={}, shipClass={}, hours={}, fee={}",

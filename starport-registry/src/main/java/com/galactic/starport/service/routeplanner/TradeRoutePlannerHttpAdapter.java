@@ -23,7 +23,6 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
     private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
-    private static final String METRIC_ROUTE_PLAN_REQUESTS = "reservations.route.plan.requests.total";
     private static final double FUEL_RANGE_SCOUT = 15.0;
     private static final double FUEL_RANGE_FREIGHTER = 25.0;
     private static final double FUEL_RANGE_CRUISER = 40.0;
@@ -33,7 +32,6 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
     private final Counter routePlanSuccessCounter;
-    private final Counter routePlanRequestsCounter;
 
     TradeRoutePlannerHttpAdapter(
             RestClient tradeRoutePlannerRestClient,
@@ -44,9 +42,6 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
         this.meterRegistry = meterRegistry;
         this.routePlanSuccessCounter = Counter.builder(METRIC_ROUTE_PLAN_SUCCESS)
                 .description("Number of successfully planned routes")
-                .register(meterRegistry);
-        this.routePlanRequestsCounter = Counter.builder(METRIC_ROUTE_PLAN_REQUESTS)
-                .description("Total number of route plan requests (success + every error type) — RED Rate")
                 .register(meterRegistry);
     }
 
@@ -73,7 +68,6 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     }
 
     private Route callTradeRoutePlanner(ReserveBayCommand command) {
-        routePlanRequestsCounter.increment();
         TradeRoutePlannerRequest request = buildRequest(command);
         try {
             TradeRoutePlannerResponse response = restClient

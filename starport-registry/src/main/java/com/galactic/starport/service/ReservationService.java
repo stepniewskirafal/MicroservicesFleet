@@ -21,9 +21,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ReservationService {
 
-    private static final String METRIC_CREATED = "reservations.created.total";
-    private static final String METRIC_REQUESTS_TOTAL = "reservations.create.requests.total";
-    private static final String METRIC_HOLD_RELEASED = "reservations.hold.released";
+    private static final String METRIC_RESERVATIONS = "reservations";
 
     private final HoldReservationFacade holdReservationFacade;
     private final ConfirmReservationFacade confirmReservationFacade;
@@ -56,16 +54,6 @@ public class ReservationService {
 
         } catch (RouteUnavailableException ex) {
             incrementReservationCounter(starport, shipClass, "route_unavailable");
-            meterRegistry
-                    .counter(
-                            METRIC_HOLD_RELEASED,
-                            "starport",
-                            starport,
-                            "shipClass",
-                            shipClass,
-                            "reason",
-                            "route_unavailable")
-                    .increment();
             throw ex;
 
         } catch (ReservationConfirmationException ex) {
@@ -75,13 +63,8 @@ public class ReservationService {
     }
 
     private void incrementReservationCounter(String starport, String shipClass, String outcome) {
-        // Legacy metric name — keep for backward compatibility with existing dashboards.
         meterRegistry
-                .counter(METRIC_CREATED, "starport", starport, "shipClass", shipClass, "outcome", outcome)
-                .increment();
-        // RED-canonical name: <domain>_<operation>_requests_total covers ALL outcomes (success + each error).
-        meterRegistry
-                .counter(METRIC_REQUESTS_TOTAL, "starport", starport, "shipClass", shipClass, "outcome", outcome)
+                .counter(METRIC_RESERVATIONS, "starport", starport, "shipClass", shipClass, "outcome", outcome)
                 .increment();
     }
 }

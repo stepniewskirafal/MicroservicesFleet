@@ -8,7 +8,6 @@ import com.galactic.telemetry.model.ReservationCreatedEvent;
 import com.galactic.telemetry.model.RoutePlannedEvent;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.observation.ObservationRegistry;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.function.Function;
@@ -24,13 +23,11 @@ import org.junit.jupiter.params.provider.CsvSource;
 class EventPipelineConfigurationTest {
 
     private SimpleMeterRegistry meterRegistry;
-    private ObservationRegistry observationRegistry;
     private EventPipelineConfiguration config;
 
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        observationRegistry = ObservationRegistry.create();
         config = new EventPipelineConfiguration();
     }
 
@@ -40,7 +37,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_compute_duration_when_both_dates_present() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             Instant start = Instant.parse("2026-01-01T10:00:00Z");
             Instant end = Instant.parse("2026-01-01T15:30:00Z");
@@ -54,7 +51,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_default_duration_to_zero_when_start_is_null() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             ReservationCreatedEvent event = aReservationEvent(null, Instant.now());
 
@@ -66,7 +63,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_default_duration_to_zero_when_end_is_null() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             ReservationCreatedEvent event = aReservationEvent(Instant.now(), null);
 
@@ -78,7 +75,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_set_event_type_to_reservation_confirmed() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             EnrichedReservationEvent result = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
 
@@ -88,7 +85,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_set_processed_by_to_telemetry_pipeline() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             EnrichedReservationEvent result = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
 
@@ -98,7 +95,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_preserve_all_original_fields() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             ReservationCreatedEvent event = new ReservationCreatedEvent(
                     42L,
@@ -128,7 +125,7 @@ class EventPipelineConfigurationTest {
         @Test
         void should_increment_received_and_enriched_counters() {
             Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
-                    config.reservationPipeline(meterRegistry, observationRegistry);
+                    config.reservationPipeline(meterRegistry);
 
             var unused1 = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
             var unused2 = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
@@ -145,7 +142,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_set_event_type_to_route_planned() {
-            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry, observationRegistry);
+            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry);
 
             EnrichedRouteEvent result = pipeline.apply(aRouteEvent(0.5));
 
@@ -154,7 +151,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_preserve_all_original_fields() {
-            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry, observationRegistry);
+            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry);
 
             RoutePlannedEvent event = new RoutePlannedEvent(
                     "ROUTE-X", "SP-A", "SP-B", "CRUISER", 15.0, 0.42, Instant.parse("2026-01-01T00:00:00Z"));
@@ -171,7 +168,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_increment_received_and_enriched_counters() {
-            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry, observationRegistry);
+            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry);
 
             var unused1 = pipeline.apply(aRouteEvent(0.1));
             var unused2 = pipeline.apply(aRouteEvent(0.5));
@@ -200,7 +197,7 @@ class EventPipelineConfigurationTest {
             "0.99,  HIGH",
         })
         void should_classify_risk_correctly(double riskScore, String expectedLevel) {
-            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry, observationRegistry);
+            Function<RoutePlannedEvent, EnrichedRouteEvent> pipeline = config.routePipeline(meterRegistry);
 
             EnrichedRouteEvent result = pipeline.apply(aRouteEvent(riskScore));
 

@@ -26,7 +26,6 @@ public class PlanRouteService implements PlanRouteUseCase {
     private static final String OBSERVATION_NAME = "routes.plan";
     private static final String METRIC_SUCCESS = "routes.planned.count";
     private static final String METRIC_REJECTED = "routes.rejected.count";
-    private static final String METRIC_REQUESTS_TOTAL = "routes.plan.requests.total";
     private static final String METRIC_RISK_SCORE = "routes.risk.score";
     private static final String METRIC_ETA_HOURS = "routes.eta.hours";
     private static final double BASE_ETA_SCOUT = 8.0;
@@ -41,7 +40,6 @@ public class PlanRouteService implements PlanRouteUseCase {
     private final MeterRegistry meterRegistry;
     private final RouteEventPublisher routeEventPublisher;
     private final Counter plannedCounter;
-    private final Counter requestsTotalCounter;
     private final DistributionSummary riskScoreSummary;
 
     public PlanRouteService(
@@ -53,9 +51,6 @@ public class PlanRouteService implements PlanRouteUseCase {
         this.routeEventPublisher = routeEventPublisher;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)
                 .description("Number of successfully planned routes")
-                .register(meterRegistry);
-        this.requestsTotalCounter = Counter.builder(METRIC_REQUESTS_TOTAL)
-                .description("Total number of route plan requests (planned + rejected) — RED Rate")
                 .register(meterRegistry);
         this.riskScoreSummary = DistributionSummary.builder(METRIC_RISK_SCORE)
                 .description("Distribution of route risk scores (0=safe, 1=dangerous)")
@@ -73,7 +68,6 @@ public class PlanRouteService implements PlanRouteUseCase {
     }
 
     private PlannedRoute doPlan(RouteRequest request) {
-        requestsTotalCounter.increment();
         validateFuelRange(request);
 
         double riskScore = ThreadLocalRandom.current().nextDouble(0.0, 1.0);
