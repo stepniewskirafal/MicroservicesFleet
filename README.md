@@ -131,7 +131,7 @@ MicroservicesFleet/
 │   ├── docker-compose.yml          # 15+ services (app × 2 each + observability)
 │   ├── grafana/                    # Auto-provisioned datasources + dashboards
 │   ├── prometheus/                 # Scrape config
-│   ├── tempo.yml / loki.yml / promtail-config.yml
+│   ├── tempo.yml / loki.yml / alloy/config.alloy
 ├── scripts/                        # Load-test PowerShell scripts
 ├── plany/                          # Throughput / concurrency design notes
 ├── pom.xml                         # Aggregator (BOMs + plugins — ADR-0025)
@@ -261,7 +261,7 @@ only through environment variables.
   - `reservations.outbox.dead.letter{eventType, binding}`
   - `routes.planned.count`, `routes.risk.score`
   - `telemetry.messages.received`, `telemetry.anomalies.detected{severity}`
-- **Logs** — Promtail tails Docker container stdout → Loki. Every log line prefixed with
+- **Logs** — Grafana Alloy tails Docker container stdout → Loki. Every log line prefixed with
   `[service,traceId,spanId]` so Grafana's "Logs for this span" button works.
 - **Correlation** — `reservationId` / `routeId` ride in OpenTelemetry baggage; visible
   in traces and in log MDC (ADR-0017).

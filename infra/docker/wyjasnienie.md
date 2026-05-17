@@ -82,7 +82,7 @@ private static final Map<String, ShipInfo> SHIP_REGISTRY = Map.of(
 |---|---|---|
 | **Prometheus** | HTTP scrape (`/actuator/prometheus`) | Metrics: `telemetry.messages.received`, `telemetry.messages.invalid`, `telemetry.anomalies.detected{severity=WARNING/CRITICAL}` |
 | **Tempo / Zipkin** | OTLP HTTP (`http://tempo:4318/v1/traces`) | Distributed traces |
-| **Loki / Promtail** | Log scraping from Docker | Application logs |
+| **Loki / Alloy** | Log scraping from Docker | Application logs |
 | **Grafana** | UI | Visualization of metrics, logs, and traces |
 
 ---

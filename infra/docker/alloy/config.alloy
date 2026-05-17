@@ -1,0 +1,53 @@
+// Grafana Alloy — log collector replacing Promtail.
+// Tails stdout/stderr of every Docker container on the host and ships
+// the lines to Loki, with labels matching what the old Promtail config
+// produced so existing Grafana dashboards and LogQL queries keep working.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ── Discovery ───────────────────────────────────────────────────────────────
+// Watch the Docker daemon for running containers.
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+// Relabel discovered targets so the labels match the previous Promtail setup:
+//   container = container name (leading slash stripped)
+//   stream    = stdout | stderr
+//   service   = docker-compose service name
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+  rule {
+    source_labels = ["__meta_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+// ── Source ──────────────────────────────────────────────────────────────────
+// Tail logs from each discovered container and hand them to the writer.
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.default.receiver]
+}
+
+// ── Sink ────────────────────────────────────────────────────────────────────
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -67,6 +67,7 @@ when replaced, but their content remains to explain why the older choice existed
 | [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
 | [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted                 | 2026-04-17 |
 | [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Accepted          | 2026-04-17 |
+| [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (replaces Promtail)                   | Accepted          | 2026-05-17 |
 
 ---
 
@@ -92,7 +93,8 @@ ADR-0020 (concurrent reservation safety).
 
 **Observability & operations**
 ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration),
-ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality).
+ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality),
+ADR-0032 (Alloy as log collector).
 
 **Build, packaging, deployment**
 ADR-0008 (Compose topology), ADR-0025 (Maven multi-module build),
