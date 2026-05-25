@@ -30,7 +30,17 @@
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <error-prone.version>2.36.0</error-prone.version>
         <nullaway.version>0.12.3</nullaway.version>
+        <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
     </properties>
+
+    <!-- Cross-cutting deps inherited by every child module (ADR-0034: JSON logs for sampling). -->
+    <dependencies>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>${logstash-logback-encoder.version}</version>
+        </dependency>
+    </dependencies>
 
     <dependencyManagement>
         <dependencies>

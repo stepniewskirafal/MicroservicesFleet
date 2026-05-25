@@ -43,6 +43,14 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
+		<!-- ADR-0034: JSON console logs. Declared directly here because eureka-server
+		     does not inherit gt-parent (see ADR-0025 known gap). Keep version in sync
+		     with gt-parent's <logstash-logback-encoder.version> property. -->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>8.0</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
