@@ -1,7 +1,14 @@
-// Grafana Alloy — log collector replacing Promtail.
-// Tails stdout/stderr of every Docker container on the host and ships
-// the lines to Loki, with labels matching what the old Promtail config
-// produced so existing Grafana dashboards and LogQL queries keep working.
+// Grafana Alloy — log collector replacing Promtail (ADR-0032).
+//
+// Pipeline:
+//   docker stdout/stderr → discovery.relabel → loki.source.docker
+//                        → loki.process.sample   (JSON parse + ADR-0034 sampling)
+//                        → loki.write            (Loki HTTP push)
+//
+// Sampling (ADR-0034):
+//   App containers, ERROR / WARN / FATAL  → 100%
+//   App containers, INFO  / DEBUG / TRACE → 10%
+//   Infra containers (loki, kafka, postgres, ...) → 100% (bypass the sample stage)
 
 logging {
   level  = "info"
@@ -9,16 +16,17 @@ logging {
 }
 
 // ── Discovery ───────────────────────────────────────────────────────────────
-// Watch the Docker daemon for running containers.
 discovery.docker "containers" {
   host             = "unix:///var/run/docker.sock"
   refresh_interval = "5s"
 }
 
-// Relabel discovered targets so the labels match the previous Promtail setup:
+// Relabel discovered targets:
 //   container = container name (leading slash stripped)
 //   stream    = stdout | stderr
 //   service   = docker-compose service name
+//   app       = "true" iff the container is one of our Spring Boot apps; this
+//               gates the sampling stage so infra logs are never dropped.
 discovery.relabel "containers" {
   targets = discovery.docker.containers.targets
 
@@ -35,14 +43,56 @@ discovery.relabel "containers" {
     source_labels = ["__meta_docker_compose_service"]
     target_label  = "service"
   }
+  rule {
+    source_labels = ["__meta_docker_compose_service"]
+    regex         = "(api-gateway|eureka|starport-registry-\\d+|trade-route-planner-\\d+|telemetry-pipeline-\\d+)"
+    action        = "replace"
+    target_label  = "app"
+    replacement   = "true"
+  }
 }
 
 // ── Source ──────────────────────────────────────────────────────────────────
-// Tail logs from each discovered container and hand them to the writer.
 loki.source.docker "containers" {
   host       = "unix:///var/run/docker.sock"
   targets    = discovery.relabel.containers.output
+  forward_to = [loki.process.sample.receiver]
+}
+
+// ── Processing: parse JSON + sample ─────────────────────────────────────────
+// Apps emit JSON via logstash-logback-encoder. Non-JSON lines (JVM banner,
+// infra containers) silently skip stage.json — `level` stays empty for them.
+loki.process "sample" {
   forward_to = [loki.write.default.receiver]
+
+  stage.json {
+    expressions = {
+      level   = "level",
+      logger  = "logger",
+      traceId = "traceId",
+      spanId  = "spanId",
+    }
+  }
+
+  // Promote `level` to a stream label so LogQL can query {service=…,level="ERROR"}
+  // directly. Cardinality is bounded: ≤5 services × ≤2 replicas × 6 levels.
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+
+  // Drop 90% of non-error logs from our apps. Infra (no `app` label) bypasses.
+  // Match selector uses labels present on the entry at this point: `app` from
+  // relabel, `level` from the stage.labels above.
+  stage.match {
+    selector = "{app=\"true\",level!~\"WARN|ERROR|FATAL\"}"
+
+    stage.sampling {
+      rate                = 0.1
+      drop_counter_reason = "info_sampled_out"
+    }
+  }
 }
 
 // ── Sink ────────────────────────────────────────────────────────────────────

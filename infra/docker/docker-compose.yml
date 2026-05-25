@@ -251,7 +251,6 @@ services:
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8081"
     healthcheck:
@@ -283,7 +282,6 @@ services:
       DB_PASS: postgres
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8081"
     healthcheck:
@@ -310,7 +308,6 @@ services:
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8082"
     healthcheck:
@@ -337,7 +334,6 @@ services:
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8082"
     healthcheck:
@@ -364,7 +360,6 @@ services:
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8090"
     healthcheck:
@@ -391,7 +386,6 @@ services:
       EUREKA_URL: http://eureka:8761/eureka
       KAFKA_BROKERS: kafka:9093
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://tempo:4318/v1/logs
     expose:
       - "8090"
     healthcheck:
