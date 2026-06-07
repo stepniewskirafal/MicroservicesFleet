@@ -103,12 +103,14 @@ groups:
       - record: job:reservations_fees_calculated_amount:avg_rate5m
         expr: |
           sum by (job, starport, shipClass) (
-            rate(reservations_fees_calculated_amount_sum[5m])
+            rate(reservations_fees_calculated_amount_cr_sum[5m])
           )
           /
           sum by (job, starport, shipClass) (
-            rate(reservations_fees_calculated_amount_count[5m])
+            rate(reservations_fees_calculated_amount_cr_count[5m])
           )
+          # _cr_ suffix: DistributionSummary ma baseUnit("cr") → Micrometer dokleja
+          # _cr do nazwy. Bez tego reguła liczyła nieistniejącą metrykę (fix ADR-0037 review).
 
   # ---------------------------------------------------------------------------
   # TRADE ROUTE PLANNER — Trasy

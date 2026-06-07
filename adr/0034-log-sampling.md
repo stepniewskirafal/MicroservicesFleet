@@ -1,6 +1,6 @@
 # 0034 — Log Sampling at the Collector (Alloy)
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0035](0035-otlp-logs-deterministic-sampling.md)
 **Date:** 2026-05-25
 
 ---

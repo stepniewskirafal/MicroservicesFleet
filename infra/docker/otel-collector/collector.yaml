@@ -1,0 +1,106 @@
+# OTel Collector (contrib) — centralny hub observability (ADR-0037).
+#
+#   traces:  apps → OTLP → tail_sampling → Tempo   (error / latency>2s / 1% baseline)
+#   logs:    apps → OTLP → 100% → Loki             (BEZ samplingu — patrz pipeline logs)
+#   metryki: bez zmian (Prometheus scrape /actuator/prometheus)
+#
+# Wymaga obrazu *-contrib (tail_sampling jest w contrib, nie w core).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # aplikacje pushują gRPC tutaj
+      http:
+        endpoint: 0.0.0.0:4318   # aplikacje pushują HTTP/protobuf (/v1/traces, /v1/logs)
+
+processors:
+  # memory_limiter MUSI być pierwszy w każdym pipeline — odrzuca dane, zanim
+  # tail_sampling zapełni RAM (ADR-0037 §RAM). Sprawdza zużycie co 1s.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 768
+    spike_limit_mib: 192
+
+  # ── TAIL SAMPLING — działa WYŁĄCZNIE na traces ───────────────────────────
+  tail_sampling:
+    # Collector buforuje wszystkie spany danego traceId przez decision_wait,
+    # potem podejmuje JEDNĄ decyzję dla całego trace'u. Musi przeczekać, aż
+    # dotrą OSTATNIE spany: latencja e2e (~3s) + flush BatchSpanProcessora aplikacji.
+    # UWAGA: Spring Boot zarządza tracingiem przez actuator (micrometer-tracing-bridge-otel),
+    # NIE przez OTel SDK autoconfigure — więc env OTEL_BSP_SCHEDULE_DELAY może być
+    # ignorowane, a BSP flushuje co domyślne ~5s. Dlatego decision_wait = 10s
+    # (3s e2e + 5s flush + 2s margines), a nie 6s. Za krótko = orphaned spans.
+    # Reguła: decision_wait > max_e2e + bsp_flush + margines_sieci.
+    decision_wait: 10s
+    # Górny limit traceId trzymanych naraz w RAM (przy 1000 RPS × 10s ≈ 10k; zapas ~10×).
+    num_traces: 100000
+    expected_new_traces_per_sec: 2000
+    # Semantyka OR: trace ZOSTAJE, jeśli spełnia KTÓRĄKOLWIEK politykę.
+    policies:
+      - name: keep-errors           # 100% trace'ów, gdzie którykolwiek span = ERROR
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: keep-slow             # 100% trace'ów wolniejszych niż 2s
+        type: latency
+        latency:
+          threshold_ms: 2000
+      - name: baseline-1pct         # 1% losowo z reszty (normalny ruch)
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 1
+
+  batch:
+    timeout: 2s
+    send_batch_size: 1024
+
+  # ── OPCJONALNIE: redukcja kosztu logów (domyślnie WYŁĄCZONE) ──────────────
+  # Odkomentuj i dodaj do pipeline logs PRZED batch, jeśli 100% logów boli.
+  # Trzyma 100% WARN/ERROR/FATAL, próbkuje INFO/DEBUG deterministycznie po traceId.
+  # CAVEAT: INFO-logi trace'u z 1%-baseline mogą zniknąć mimo że trace jest w Tempo
+  # (osobny sampler, nie zna decyzji tail). Błędy/WARN pozostają w 100%.
+  # filter/warn_and_up:
+  #   error_mode: ignore
+  #   logs:
+  #     log_record:
+  #       - 'severity_number < 13'        # DROP tej gałęzi = przepuszczamy tylko WARN+
+  # probabilistic_sampler/info:
+  #   sampling_percentage: 10
+  #   attribute_source: traceID
+  #   fail_closed: false                  # logi bez traceId (startup/@Scheduled) → 100%
+
+exporters:
+  # Tempo przyjmuje OTLP po HTTP:4318 (tak jest w tempo.yml) → otlphttp, nie otlp/grpc.
+  otlphttp/tempo:
+    endpoint: http://tempo:4318          # otlphttp sam dokleja /v1/traces
+    tls:
+      insecure: true
+  # Loki 3.x ma natywny OTLP pod /otlp (otlphttp dokleja /v1/logs).
+  # WYMAGA Loki >= 3.0 — bump obrazu w docker-compose.observability.yml.
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    # TRACES — pełny tail sampling.
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlphttp/tempo]
+
+    # LOGS — BEZ samplingu, 100% do Loki.
+    # DLACZEGO: tail_sampling nie obsługuje logów, a pipeline logs nie zna jego
+    # decyzji. Jedyna pewna gwarancja "trace w Tempo ⇒ log w Loki" (zero dziur
+    # przy debugowaniu błędów) to nie wyrzucać logów tutaj. Logi w Loki są tanie.
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]

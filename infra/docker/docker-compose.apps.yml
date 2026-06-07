@@ -1,0 +1,415 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Application stack: service discovery, data infra, gateway and app replicas.
+#
+# Host-bound (public):
+#   api-gateway :8080  — single public entry for business APIs
+#   eureka      :8761  — service registry UI
+#   kafka       :9092  — external bootstrap (Postman / IDE)
+#   postgres    :5432  — external DB access (dev convenience)
+#   kafka-ui    :8085  — topic browser
+#
+# App instances (starport-registry, trade-route-planner, telemetry-pipeline) do
+# NOT bind host ports — reachable only on the internal Docker network via
+# Eureka-resolved names (lb://...). ADR-0031.
+#
+# Networks: everything here lives on `app`. The observability bridges
+# (tempo, alloy, prometheus, otel-collector — defined in the observability file)
+# also join `app`, so apps push traces+logs to otel-collector:4318 (ADR-0037),
+# Prometheus scrapes app /actuator/prometheus. Both files merge into one project
+# via the top-level `include:`, so these cross-stack names resolve. This file is
+# NOT runnable standalone — start from the root: `docker compose up -d --build`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  eureka:
+    build:
+      context: ../..
+      dockerfile: eureka-server/Dockerfile
+    container_name: eureka
+    ports:
+      - "8761:8761"
+    environment:
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    networks:
+      - app
+    depends_on:
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c work_mem=4MB
+      -c effective_cache_size=512MB
+      -c random_page_cost=1.1
+    environment:
+      POSTGRES_DB: starports
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    networks:
+      - app
+    tmpfs:
+      - /var/lib/postgresql/data:rw,size=1g,uid=70,gid=70,mode=0700
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starports"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
+    ports:
+      - "9092:9092"               # HOST listener – accessible from localhost (Postman, IntelliJ)
+    networks:
+      - app
+    environment:
+      # KRaft – no Zookeeper
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+
+      # Broker listens on 3 addresses:
+      #  PLAINTEXT_HOST   – host clients (localhost:9092)
+      #  PLAINTEXT_DOCKER – containers in Compose network (kafka:9093)
+      #  CONTROLLER       – KRaft quorum
+      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT_DOCKER://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_DOCKER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 2
+    healthcheck:
+      # Broker is ready when it responds to API-versions request
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9093 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8085:8080"
+    networks:
+      - app
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # PUBLIC INGRESS — the only app-layer host-bound port
+  # ─────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8080
+      EUREKA_URL: http://eureka:8761/eureka
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # APPLICATION INSTANCES — internal network only
+  # Each service has ≥2 replicas (ADR-0008). They share one container port per
+  # service (uniqueness comes from container_name / Eureka instance-id, not
+  # from host-side port mapping). Gateway + Eureka decide which replica serves
+  # a given request (ADR-0003, 0031).
+  # ─────────────────────────────────────────────
+
+  starport-registry-1:
+    build:
+      context: ../..
+      dockerfile: starport-registry/Dockerfile
+    container_name: starport-registry-1
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8081
+      EUREKA_URL: http://eureka:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/starports
+      DB_USER: postgres
+      DB_PASS: postgres
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  starport-registry-2:
+    build:
+      context: ../..
+      dockerfile: starport-registry/Dockerfile
+    container_name: starport-registry-2
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8081
+      EUREKA_URL: http://eureka:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/starports
+      DB_USER: postgres
+      DB_PASS: postgres
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  trade-route-planner-1:
+    build:
+      context: ../..
+      dockerfile: trade-route-planner/Dockerfile
+    container_name: trade-route-planner-1
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8082
+      EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
+
+  trade-route-planner-2:
+    build:
+      context: ../..
+      dockerfile: trade-route-planner/Dockerfile
+    container_name: trade-route-planner-2
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8082
+      EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
+
+  telemetry-pipeline-1:
+    build:
+      context: ../..
+      dockerfile: telemetry-pipeline/Dockerfile
+    container_name: telemetry-pipeline-1
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8090
+      EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped
+
+  telemetry-pipeline-2:
+    build:
+      context: ../..
+      dockerfile: telemetry-pipeline/Dockerfile
+    container_name: telemetry-pipeline-2
+    networks:
+      - app
+    depends_on:
+      eureka:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      PORT: 8090
+      EUREKA_URL: http://eureka:8761/eureka
+      KAFKA_BROKERS: kafka:9093
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      # Best-effort skrócenie flush BSP do 1s. UWAGA: Spring Boot zarządza tracingiem
+      # przez actuator (NIE OTel SDK autoconfigure), więc ten env może być ignorowany —
+      # dlatego collector.yaml ma decision_wait=10s pokrywające domyślne 5s (ADR-0037 §B2).
+      OTEL_BSP_SCHEDULE_DELAY: "1000"
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped
+
+networks:
+  app:

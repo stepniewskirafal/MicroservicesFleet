@@ -69,6 +69,9 @@ when replaced, but their content remains to explain why the older choice existed
 | [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Accepted          | 2026-04-17 |
 | [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (replaces Promtail)                   | Accepted          | 2026-05-17 |
 | [0034](0034-log-sampling.md)             | Log Sampling at the Collector (Alloy: 100% errors, 10% INFO/DEBUG) | Accepted          | 2026-05-25 |
+| [0035](0035-otlp-logs-deterministic-sampling.md) | Logs via OTLP Push + Deterministic Trace-Keyed Sampling (supersedes 0034) | Accepted | 2026-05-27 |
+| [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Accepted | 2026-06-07 |
+| [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | Accepted | 2026-06-13 |
 
 ---
 
@@ -95,7 +98,8 @@ ADR-0020 (concurrent reservation safety).
 **Observability & operations**
 ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration),
 ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality),
-ADR-0032 (Alloy as log collector), ADR-0034 (log sampling at the collector).
+ADR-0032 (Alloy as log collector), ADR-0034 (log sampling at the collector),
+ADR-0037 (tail sampling via OTel Collector; logs 100% to Loki).
 
 **Build, packaging, deployment**
 ADR-0008 (Compose topology), ADR-0025 (Maven multi-module build),

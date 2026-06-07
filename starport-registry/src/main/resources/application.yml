@@ -124,6 +124,9 @@ management:
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
+    logging:
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://alloy:4318/v1/logs}
+      transport: http
   metrics:
     enable:
       kafka: true

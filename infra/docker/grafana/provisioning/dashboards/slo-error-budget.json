@@ -1,0 +1,478 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "name": "Deploys",
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "iconColor": "#8b5cf6",
+        "target": { "limit": 100, "matchAny": false, "tags": ["deploy"], "type": "tags" }
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "## SLO / Error Budget &nbsp;—&nbsp; *czy dotrzymujemy obietnicy?*\n\n**SLO:** 99.5% requestów bez 5xx **i** 99.5% requestów < 500 ms, w oknie **30 dni**. &nbsp;·&nbsp; **Error budget** = 0.5% = ~3.6 h/mies.\n\n> Panele *30d* (górny wiersz) liczą stałe okno 30 dni i **ignorują** time-picker. Wykresy historyczne i burn-rate reagują na zakres czasu. Próg latencji = `le=\"0.5\"` (granica bucketa SLO — patrz `application.yml`)."
+      }
+    },
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Availability SLO — compliance 30d",
+      "description": "Procent requestów HTTP bez błędu serwera (5xx) w ostatnich 30 dniach. Zielony ≥ 99.5% (SLO).",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "(1 - (sum(increase(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[30d])) / clamp_min(sum(increase(http_server_requests_seconds_count{job=~\"$job\"}[30d])), 1))) * 100",
+          "legendFormat": "success %",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 3,
+          "min": 99,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#f59e0b", "value": 99.5 },
+              { "color": "#10b981", "value": 99.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "background_solid",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Error Budget Remaining 30d",
+      "description": "Ile budżetu błędów (0.5%) jeszcze mamy. (compliance - SLO) / (100 - SLO). Czerwony < 20% — wstrzymaj ryzykowne deploye.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "(((1 - (sum(increase(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[30d])) / clamp_min(sum(increase(http_server_requests_seconds_count{job=~\"$job\"}[30d])), 1))) * 100) - $slo) / (100 - $slo) * 100",
+          "legendFormat": "budget left",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#f59e0b", "value": 20 },
+              { "color": "#10b981", "value": 50 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Latency SLO — % < 500ms (30d)",
+      "description": "Procent requestów obsłużonych poniżej 500 ms w 30 dniach (liczony z bucketu le=0.5). Zielony ≥ 99.5%.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "100 * sum(increase(http_server_requests_seconds_bucket{job=~\"$job\",le=\"0.5\"}[30d])) / clamp_min(sum(increase(http_server_requests_seconds_count{job=~\"$job\"}[30d])), 1)",
+          "legendFormat": "fast %",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 3,
+          "min": 99,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#f59e0b", "value": 99.5 },
+              { "color": "#10b981", "value": 99.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "background_solid",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Lost Reservations 30d (business)",
+      "description": "Biznesowy SLI: procent rezerwacji utraconych (no_capacity | route_unavailable) w 30 dniach. Niezależny od $job — metryka globalna. Czerwony > 1%.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 18, "y": 4, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "100 * sum(increase(reservations_total{outcome=~\"no_capacity|route_unavailable\"}[30d])) / clamp_min(sum(increase(reservations_total[30d])), 1)",
+          "legendFormat": "lost %",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#f59e0b", "value": 1 },
+              { "color": "#f43f5e", "value": 5 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "background_solid",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Availability & Latency — History",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 10, "w": 24, "h": 1 },
+      "panels": []
+    },
+
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Availability — success rate (%)",
+      "description": "Bieżący success rate (1 - 5xx ratio). Czerwona linia = SLO 99.5%. Zejście pod nią = palimy error budget.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 11, "w": 12, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "100 * (1 - sum(rate(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[$__rate_interval])), 1e-9))",
+          "legendFormat": "success %",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 3,
+          "min": 98,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "color": { "mode": "fixed", "fixedColor": "#10b981" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#10b981", "value": 99.5 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "mean"], "showLegend": true }
+      }
+    },
+
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Latency SLO — % requests < 500ms",
+      "description": "Odsetek requestów szybszych niż 500 ms (bucket le=0.5). Czerwona linia = SLO 99.5%.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 12, "y": 11, "w": 12, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(http_server_requests_seconds_bucket{job=~\"$job\",le=\"0.5\"}[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "fast %",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 3,
+          "min": 98,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "color": { "mode": "fixed", "fixedColor": "#0ea5e9" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#0ea5e9", "value": 99.5 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "mean"], "showLegend": true }
+      }
+    },
+
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Burn Rate & Budget Consumers",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 1 },
+      "panels": []
+    },
+
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Error Budget Burn Rate (1h / 6h)",
+      "description": "Burn rate = (error ratio w oknie) / budżet. 1.0 = zużywamy budżet dokładnie w tempie, które wyczerpie go w 30 dni. >1 = palimy za szybko. Klasyczne progi fast-burn: 6 (6h) i 14.4 (1h).",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "(sum(rate(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[1h])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[1h])), 1e-9)) * 100 / (100 - $slo)",
+          "legendFormat": "burn 1h",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "(sum(rate(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[6h])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[6h])), 1e-9)) * 100 / (100 - $slo)",
+          "legendFormat": "burn 6h",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#f59e0b", "value": 1 },
+              { "color": "#f43f5e", "value": 6 }
+            ]
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "burn 1h" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#f43f5e" } }] },
+          { "matcher": { "id": "byName", "options": "burn 6h" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#f59e0b" } }] }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"], "showLegend": true }
+      }
+    },
+
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Top budget consumers — 5xx by service / endpoint (selected range)",
+      "description": "Które endpointy zjadają error budget w wybranym oknie. Suma 5xx (increase) po job+uri, top 10.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "topk(10, sum by (job, uri) (increase(http_server_requests_seconds_count{job=~\"$job\",status=~\"5..\"}[$__range])))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "job": "Service", "uri": "Endpoint", "Value": "5xx count" }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#f43f5e", "value": 1 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "5xx count" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "decimals", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "5xx count", "desc": true }]
+      }
+    },
+
+    {
+      "id": 200,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Jak czytać** &nbsp;·&nbsp; Górny wiersz = stan na *teraz* (okno 30d). &nbsp;·&nbsp; Gdy *Error Budget Remaining* < 20% → zamrażamy ryzykowne deploye, priorytet na niezawodność. &nbsp;·&nbsp; Burn rate > 1 utrzymujący się = budżet wyczerpie się przed końcem okna.\n\n**Założenia SLO** (do sformalizowania w ADR): availability 99.5% (bez 5xx), latency 99.5% < 500 ms, biznes < 1% utraconych rezerwacji — okno kroczące 30 dni. Próg latencji jest związany z granicą bucketa `le=0.5`; zmiana progu wymaga dodania nowej granicy do `management.metrics.distribution.slo` w `application.yml`."
+      }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["slo", "error-budget", "executive", "sre"],
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "definition": "label_values(http_server_requests_seconds_count, job)",
+        "query": {
+          "query": "label_values(http_server_requests_seconds_count, job)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "slo",
+        "label": "SLO target (%)",
+        "type": "constant",
+        "query": "99.5",
+        "current": { "selected": false, "text": "99.5", "value": "99.5" },
+        "hide": 2
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SLO / Error Budget — MicroservicesFleet",
+  "uid": "slo-error-budget",
+  "version": 1,
+  "weekStart": ""
+}

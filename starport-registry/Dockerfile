@@ -2,6 +2,10 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 
+# Harden Maven downloads against flaky networks: retry truncated transfers
+# (fixes "Premature end of Content-Length delimited message body" from Maven Central)
+ENV MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.http.retryHandler.requestSentEnabled=true"
+
 # Copy root POM and all module POMs for dependency caching
 COPY pom.xml ./
 COPY eureka-server/pom.xml ./eureka-server/

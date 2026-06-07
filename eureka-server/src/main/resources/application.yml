@@ -20,6 +20,10 @@ eureka:
     wait-time-in-ms-when-sync-empty: 0
 
 management:
+  otlp:
+    logging:
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://alloy:4318/v1/logs}
+      transport: http
   endpoints:
     web:
       exposure:

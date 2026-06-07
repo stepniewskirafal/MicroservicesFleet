@@ -945,7 +945,7 @@
       "type": "logs",
       "targets": [
         {
-          "expr": "{service=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"} |~ \"ERROR|WARN\"",
+          "expr": "{service_name=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"} |~ \"ERROR|WARN\"",
           "legendFormat": "",
           "refId": "A"
         }
@@ -970,7 +970,7 @@
       "type": "logs",
       "targets": [
         {
-          "expr": "{service=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"}",
+          "expr": "{service_name=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"}",
           "legendFormat": "",
           "refId": "A"
         }

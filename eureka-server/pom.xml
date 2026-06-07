@@ -43,13 +43,20 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
-		<!-- ADR-0034: JSON console logs. Declared directly here because eureka-server
-		     does not inherit gt-parent (see ADR-0025 known gap). Keep version in sync
-		     with gt-parent's <logstash-logback-encoder.version> property. -->
+		<!-- ADR-0035: OTLP logs push to Alloy. Declared directly here because eureka-server
+		     does not inherit gt-parent (see ADR-0025 known gap). Version managed by the
+		     opentelemetry-instrumentation-bom-alpha import below. -->
 		<dependency>
-			<groupId>net.logstash.logback</groupId>
-			<artifactId>logstash-logback-encoder</artifactId>
-			<version>8.0</version>
+			<groupId>io.opentelemetry.instrumentation</groupId>
+			<artifactId>opentelemetry-logback-appender-1.0</artifactId>
+		</dependency>
+		<!-- ADR-0035: provides the OTLP log-record exporter + OpenTelemetry SDK bean that
+		     OtelLogbackInstaller wires the appender to. eureka has no tracing bridge, so its
+		     logs carry no traceId (errors reach Loki; untraced INFO is sampled out). Version
+		     managed by the spring-boot-starter-parent BOM. -->
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-otlp</artifactId>
 		</dependency>
 
 		<dependency>
@@ -64,6 +71,17 @@
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- ADR-0035: aligns OTel core 1.49.0 + incubator 1.49.0-alpha + the logback
+			     appender at one tested set, matching spring-boot-starter-parent 3.5.6's OTel.
+			     Without this, the appender pulls opentelemetry-api-incubator 1.50.0-alpha
+			     against sdk 1.49.0 → AbstractMethodError at log emit. -->
+			<dependency>
+				<groupId>io.opentelemetry.instrumentation</groupId>
+				<artifactId>opentelemetry-instrumentation-bom-alpha</artifactId>
+				<version>2.15.0-alpha</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>

@@ -1,6 +1,12 @@
 global:
     scrape_interval: 3s
     evaluation_interval: 3s
+    # external_labels identyfikują tę instancję Prometheusa w Thanosie.
+    # Thanos Query używa `replica` do deduplikacji, a `cluster` do grupowania.
+    # WYMAGANE przez sidecar — bez tego upload bloków do object store się nie powiedzie.
+    external_labels:
+        cluster: microservices-fleet
+        replica: prometheus-a
 
 # Recording rules pre-aggregate expensive PromQL expressions into new metrics
 # so Grafana dashboards read pre-computed values instead of recalculating on

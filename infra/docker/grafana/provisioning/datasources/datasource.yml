@@ -1,15 +1,20 @@
 apiVersion: 1
 
 datasources:
+  # Wskazuje na Thanos Query (nie bezpośrednio Prometheusa) — globalny widok
+  # sidecar (świeże) + store (historia z MinIO). uid bez zmian, więc wszystkie
+  # dashboardy działają dalej, ale z długą retencją. Thanos Query jest
+  # Prometheus-API-compatible (łącznie z exemplarami przez sidecar).
   - name: Prometheus
     uid: PBFA97CFB590B2093
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://thanos-query:10902
     isDefault: true
     editable: true
     jsonData:
       httpMethod: POST
+      prometheusType: Thanos
       exemplarTraceIdDestinations:
         - name: trace_id
           datasourceUid: tempo

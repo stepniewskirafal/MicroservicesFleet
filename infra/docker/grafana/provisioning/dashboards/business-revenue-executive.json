@@ -1,5 +1,15 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": [
+      {
+        "name": "Deploys",
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "iconColor": "#8b5cf6",
+        "target": { "limit": 100, "matchAny": false, "tags": ["deploy"], "type": "tags" }
+      }
+    ]
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -15,15 +25,16 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "# 💰 Biznes — Przychody i zajętość doków\n\nKasa, którą zarobiliśmy w **wybranym okresie** (zmień zakres czasu w prawym górnym rogu) oraz **bieżąca zajętość doków** w każdym porcie (półokrągłe wskaźniki + tabela z surowymi liczbami). Czerwony wskaźnik = port świeci pustkami → tracimy pieniądze."
+        "content": "# 💰 Biznes — Przychody i zajętość doków\n\nKasa zarobiona w **wybranym okresie** (zmień zakres w prawym górnym rogu — minimum 1h) + **trend CR/h** (czy rośniemy) + **bieżąca zajętość doków**. Czerwony wskaźnik = port świeci pustkami (utracony przychód) **albo** jest pełny (brak miejsca na nowe rezerwacje).\n\n> Liczby to *wskaźnik* z metryk, nie księga główna — do raportu finansowego użyj bazy transakcyjnej."
       }
     },
+
     {
       "id": 1,
       "type": "stat",
-      "title": "Łączny przychód w wybranym okresie [credits]",
+      "title": "Łączny przychód w wybranym okresie",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 7 },
       "targets": [
         {
           "refId": "A",
@@ -37,7 +48,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "locale",
+          "unit": "suffix: CR",
           "decimals": 0,
           "noValue": "0",
           "color": { "mode": "fixed", "fixedColor": "#10b981" }
@@ -52,13 +63,73 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Przychód/h — trend (czy rośniemy?)",
+      "description": "rate() z sumy opłat × 3600 = kredyty/godzinę. Pokazuje KIERUNEK, nie księgową sumę. rate() jest odporny na resety licznika przy restarcie aplikacji. Pionowe linie = deploye (annotacje z tagiem 'deploy').",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 11, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "sum(rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval])) * 3600",
+          "legendFormat": "RAZEM",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "sum by (shipClass) (rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval])) * 3600",
+          "legendFormat": "{{shipClass}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: CR/h",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "auto",
+            "axisGridShow": false,
+            "axisBorderShow": false
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "RAZEM" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#10b981" } },
+              { "id": "custom.lineWidth", "value": 3 }
+            ] },
+          { "matcher": { "id": "byName", "options": "SCOUT" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#0ea5e9" } }] },
+          { "matcher": { "id": "byName", "options": "FREIGHTER" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#22c55e" } }] },
+          { "matcher": { "id": "byName", "options": "CRUISER" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#8b5cf6" } }] }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"], "showLegend": true }
+      }
+    },
+
     {
       "id": 2,
       "type": "bargauge",
-      "title": "Przychód per port [credits]",
+      "title": "Przychód per port",
       "description": "Który port zarobił najwięcej w wybranym okresie.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 10 },
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
@@ -72,7 +143,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "locale",
+          "unit": "suffix: CR",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -90,13 +161,14 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
     {
       "id": 3,
       "type": "bargauge",
-      "title": "Przychód per klasa statku [credits]",
+      "title": "Przychód per klasa statku",
       "description": "SCOUT / FREIGHTER / CRUISER — z której klasy płynie najwięcej przychodu.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 10 },
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
@@ -110,7 +182,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "locale",
+          "unit": "suffix: CR",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -133,13 +205,14 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
     {
       "id": 4,
       "type": "bargauge",
       "title": "Najczęściej cumujące klasy [liczba zatwierdzonych rezerwacji]",
       "description": "Która klasa statku najczęściej rezerwuje dok (tylko zatwierdzone rezerwacje) w wybranym okresie.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 10 },
+      "gridPos": { "x": 0, "y": 29, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
@@ -176,13 +249,14 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
     {
       "id": 5,
       "type": "bargauge",
-      "title": "Średni przychód z jednej rezerwacji [credits]",
+      "title": "Średni przychód z jednej rezerwacji",
       "description": "Łączny przychód podzielony przez liczbę rezerwacji — która klasa zostawia w kasie najwięcej za pojedynczą wizytę.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 10 },
+      "gridPos": { "x": 12, "y": 29, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
@@ -196,7 +270,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "locale",
+          "unit": "suffix: CR",
           "decimals": 0,
           "noValue": "0",
           "min": 0,
@@ -219,13 +293,14 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
     {
       "id": 6,
       "type": "gauge",
-      "title": "Zajętość doków per port — TERAZ (czerwone < 50%)",
-      "description": "Bieżąca zajętość doków w każdym porcie jako półokrągły wskaźnik. Niska zajętość = puste doki = utracony przychód. Wartość poniżej 50% świeci na czerwono. Jeśli widać 'brak danych' — przebuduj i zrestartuj kontenery starport-registry, żeby uruchomić DockOccupancyObserver.",
+      "title": "Zajętość doków per port — TERAZ (czerwone: <50% pustka / >97% brak miejsca)",
+      "description": "Bieżąca zajętość doków. Niska (<50%) = puste doki = utracony przychód. Bardzo wysoka (>97%) = brak miejsca na nowe rezerwacje = też utracony przychód i ryzyko overbookingu. Optymalne pasmo 50–90% (zielone). Jeśli 'brak danych' — przebuduj/zrestartuj starport-registry (DockOccupancyObserver).",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 12 },
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 12 },
       "targets": [
         {
           "refId": "A",
@@ -248,7 +323,9 @@
             "mode": "absolute",
             "steps": [
               { "color": "#f43f5e", "value": null },
-              { "color": "#10b981", "value": 0.5 }
+              { "color": "#10b981", "value": 0.5 },
+              { "color": "#f59e0b", "value": 0.9 },
+              { "color": "#f43f5e", "value": 0.97 }
             ]
           }
         },
@@ -261,13 +338,14 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     },
+
     {
       "id": 7,
       "type": "table",
       "title": "Doki zajęte / pojemność — TERAZ",
-      "description": "Surowe liczby pod wskaźnikami: ile doków jest aktualnie zarezerwowanych (NOW pomiędzy reservation.start_at i end_at) oraz ile ich jest w sumie. Kolumna 'Obłożenie' to inline gauge: czerwone < 50%, zielone >= 50%.",
+      "description": "Surowe liczby pod wskaźnikami: ile doków jest aktualnie zarezerwowanych oraz ile ich jest w sumie. Kolumna 'Obłożenie' to inline gauge.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "gridPos": { "x": 0, "y": 44, "w": 24, "h": 10 },
+      "gridPos": { "x": 0, "y": 51, "w": 24, "h": 10 },
       "targets": [
         {
           "refId": "A",
@@ -330,7 +408,9 @@
                   "mode": "absolute",
                   "steps": [
                     { "color": "#f43f5e", "value": null },
-                    { "color": "#10b981", "value": 0.5 }
+                    { "color": "#10b981", "value": 0.5 },
+                    { "color": "#f59e0b", "value": 0.9 },
+                    { "color": "#f43f5e", "value": 0.97 }
                   ]
                 }
               }
@@ -364,10 +444,13 @@
   "tags": ["business", "executive", "revenue"],
   "templating": { "list": [] },
   "time": { "from": "now-7d", "to": "now" },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": ["30s", "1m", "5m", "15m", "30m", "1h"],
+    "time_options": ["1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+  },
   "timezone": "browser",
   "title": "Biznes — Przychody i zajętość doków",
   "uid": "business-revenue-executive",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

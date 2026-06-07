@@ -1,35 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  JSON console logging (logstash-logback-encoder).
-  Output is consumed by Grafana Alloy → Loki and sampled per ADR-0034:
-    ERROR / WARN / FATAL  → 100%
-    INFO  / DEBUG / TRACE → 10%
+  Logs pipeline (ADR-0035):
+    CONSOLE → Spring Boot default text pattern, stays for `docker logs` debug.
+    OTEL    → OpenTelemetryAppender pushes OTLP to Alloy, which deterministically
+              samples non-error logs at 10% keyed on traceId.
   Test profile keeps Spring Boot's default text pattern for readable test output.
 -->
 <configuration scan="false">
-    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="unknown"/>
-
     <springProfile name="!test">
-        <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <!-- Suppress Logback context map (which would re-emit `appName` from springProperty) -->
-                <includeContext>false</includeContext>
-                <customFields>{"service":"${appName}"}</customFields>
-                <fieldNames>
-                    <timestamp>@timestamp</timestamp>
-                    <message>message</message>
-                    <logger>logger</logger>
-                    <thread>thread</thread>
-                    <levelValue>[ignore]</levelValue>
-                </fieldNames>
-                <includeMdcKeyName>traceId</includeMdcKeyName>
-                <includeMdcKeyName>spanId</includeMdcKeyName>
-                <includeMdcKeyName>reservationId</includeMdcKeyName>
-                <includeMdcKeyName>routeId</includeMdcKeyName>
-            </encoder>
+        <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+        <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+            <captureExperimentalAttributes>true</captureExperimentalAttributes>
+            <captureMdcAttributes>traceId,spanId,reservationId,routeId</captureMdcAttributes>
         </appender>
+
         <root level="INFO">
-            <appender-ref ref="JSON_STDOUT"/>
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="OTEL"/>
         </root>
     </springProfile>
 

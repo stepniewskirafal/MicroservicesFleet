@@ -1,0 +1,13 @@
+# Thanos object storage config (ADR-pending: long-term metrics retention).
+# S3-compatible backend = MinIO running in the same Compose project.
+# Sidecar uploads 2h TSDB blocks here; Store serves them back to Query.
+# Dev credentials only — nie używać w produkcji.
+type: S3
+config:
+  bucket: thanos
+  endpoint: minio:9000
+  # Puste — Thanos używa łańcucha poświadczeń S3 (env AWS_ACCESS_KEY_ID /
+  # AWS_SECRET_ACCESS_KEY ustawiane z .env na kontenerach thanos-*). Jedno źródło prawdy.
+  access_key: ""
+  secret_key: ""
+  insecure: true          # plain HTTP wewnątrz sieci Compose (brak TLS)

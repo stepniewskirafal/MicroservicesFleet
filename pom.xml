@@ -30,15 +30,20 @@
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <error-prone.version>2.36.0</error-prone.version>
         <nullaway.version>0.12.3</nullaway.version>
-        <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
+        <!-- instrumentation-bom-alpha 2.15.0-alpha pins OTel core 1.49.0 + incubator 1.49.0-alpha,
+             matching the core OTel that spring-boot-starter-parent 3.5.6 manages. Bumping to
+             2.16.0-alpha drags core to 1.50.0 and (without the alpha BOM) leaves
+             opentelemetry-api-incubator at 1.50.0-alpha against an sdk on 1.49.0 → AbstractMethodError
+             in the logback appender. Keep this train-aligned with the Spring Boot OTel version. -->
+        <opentelemetry-instrumentation.version>2.15.0-alpha</opentelemetry-instrumentation.version>
     </properties>
 
-    <!-- Cross-cutting deps inherited by every child module (ADR-0034: JSON logs for sampling). -->
+    <!-- Cross-cutting deps inherited by every child module (ADR-0035: OTLP logs push to Alloy). -->
     <dependencies>
         <dependency>
-            <groupId>net.logstash.logback</groupId>
-            <artifactId>logstash-logback-encoder</artifactId>
-            <version>${logstash-logback-encoder.version}</version>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-logback-appender-1.0</artifactId>
+            <!-- version managed by opentelemetry-instrumentation-bom-alpha (below) -->
         </dependency>
     </dependencies>
 
@@ -58,10 +63,14 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Aligns the whole OTel train: imports opentelemetry-bom (core 1.49.0) +
+                 opentelemetry-bom-alpha (incubator 1.49.0-alpha) + the instrumentation
+                 artifacts (logback appender) at one tested version set. Replaces the old
+                 standalone opentelemetry-bom:1.46.0 import, which left incubator unmanaged. -->
             <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-bom</artifactId>
-                <version>1.46.0</version>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-bom-alpha</artifactId>
+                <version>${opentelemetry-instrumentation.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
