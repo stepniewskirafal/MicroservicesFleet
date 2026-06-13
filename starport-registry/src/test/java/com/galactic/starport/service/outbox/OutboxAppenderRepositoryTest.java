@@ -48,7 +48,7 @@ class OutboxAppenderRepositoryTest extends BaseAcceptanceTest {
         Map<String, Object> e = latestOutboxEvent();
         assertEquals("ReservationConfirmed", e.get("event_type"));
         assertEquals("PENDING", e.get("status"));
-        assertEquals("reservationCreated-out-0", e.get("binding"));
+        assertEquals("reservationConfirmed-out-0", e.get("binding"));
         assertEquals(String.valueOf(reservationId), e.get("message_key"));
 
         assertEquals(String.valueOf(reservationId), e.get("payload_reservation_id"));
@@ -88,7 +88,7 @@ class OutboxAppenderRepositoryTest extends BaseAcceptanceTest {
         Map<String, Object> e = latestOutboxEvent();
         assertEquals("ReservationConfirmed", e.get("event_type"));
         assertEquals("PENDING", e.get("status"));
-        assertEquals("reservationCreated-out-0", e.get("binding"));
+        assertEquals("reservationConfirmed-out-0", e.get("binding"));
         assertEquals(String.valueOf(reservationId), e.get("message_key"));
 
         assertNull(e.get("payload_route_code"));

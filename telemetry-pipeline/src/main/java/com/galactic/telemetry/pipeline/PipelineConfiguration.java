@@ -8,19 +8,21 @@ import com.galactic.telemetry.filter.ValidationFilter;
 import com.galactic.telemetry.model.AnomalyAlert;
 import com.galactic.telemetry.model.RawTelemetry;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import java.util.function.Function;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Composes the four stateless filters into a single Spring Cloud Stream function binding.
+ * Composes the telemetry filters into a single Spring Cloud Stream function binding.
  *
  * <p>Pipeline: RawTelemetry → validation → enrichment → aggregation → anomaly detection →
- * AnomalyAlert (or null if no anomaly).
+ * AnomalyAlert (or null if no anomaly). Three of the filters are stateless; {@code
+ * AggregationFilter} is stateful (it keeps per-(ship,sensor) running windows).
  *
- * <p>Spring Cloud Stream automatically subscribes to the input topic and publishes non-null results
- * to the output topic. Null returns are filtered out (no message published).
+ * <p>Composition, per-stage timing and error isolation are handled uniformly by {@link
+ * PipelineBuilder} — adding a filter is one {@code .stage(...)} call, no new {@code Timer} or
+ * try/catch. Spring Cloud Stream subscribes to the input topic and publishes non-null results to
+ * the output topic; null returns are filtered out (no message published).
  */
 @Configuration
 public class PipelineConfiguration {
@@ -53,19 +55,11 @@ public class PipelineConfiguration {
             AnomalyDetectionFilter anomalyDetectionFilter,
             MeterRegistry meterRegistry) {
 
-        Timer validationTimer = Timer.builder("telemetry.filter.validation").register(meterRegistry);
-        Timer enrichmentTimer = Timer.builder("telemetry.filter.enrichment").register(meterRegistry);
-        Timer aggregationTimer = Timer.builder("telemetry.filter.aggregation").register(meterRegistry);
-        Timer anomalyTimer = Timer.builder("telemetry.filter.anomaly").register(meterRegistry);
-
-        return raw -> {
-            var validated = validationTimer.record(() -> validationFilter.apply(raw));
-            if (validated == null) {
-                return null;
-            }
-            var enriched = enrichmentTimer.record(() -> enrichmentFilter.apply(validated));
-            var aggregated = aggregationTimer.record(() -> aggregationFilter.apply(enriched));
-            return anomalyTimer.record(() -> anomalyDetectionFilter.apply(aggregated));
-        };
+        return PipelineBuilder.<RawTelemetry>create(meterRegistry)
+                .stage("validation", validationFilter)
+                .stage("enrichment", enrichmentFilter)
+                .stage("aggregation", aggregationFilter)
+                .stage("anomaly", anomalyDetectionFilter)
+                .build();
     }
 }

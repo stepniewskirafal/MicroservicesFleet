@@ -13,9 +13,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -26,6 +28,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(err -> errors.put(err.getField(), err.getDefaultMessage()));
+        return ResponseEntity.unprocessableEntity().body(errors); // 422
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<Map<String, String>> handleHandlerValidation(HandlerMethodValidationException ex) {
+        // Spring 6.1+: because the handler method also has a constrained simple parameter
+        // (@PathVariable @NotBlank code), @Valid @RequestBody body violations surface here instead of
+        // as MethodArgumentNotValidException. Map them to field→message just like the body case, so a
+        // missing field is a 422 (not the catch-all 500).
+        Map<String, String> errors = new HashMap<>();
+        ex.getAllValidationResults().forEach(result -> {
+            if (result instanceof ParameterErrors bodyErrors) {
+                bodyErrors.getFieldErrors().forEach(fe -> errors.put(fe.getField(), fe.getDefaultMessage()));
+            } else {
+                String name = result.getMethodParameter().getParameterName();
+                result.getResolvableErrors()
+                        .forEach(err -> errors.put(name != null ? name : "request", err.getDefaultMessage()));
+            }
+        });
         return ResponseEntity.unprocessableEntity().body(errors); // 422
     }
 

@@ -22,17 +22,21 @@ scheduled, so a `Supplier<>` poller is the wrong shape. `StreamBridge` honours
 
 **Consumers: functional `@Bean Function<IN, OUT>` everywhere.** Returning a payload
 publishes to `-out-0`; returning `null` filters. This is exactly the Pipes & Filters
-composition `telemetry-pipeline` needs (ADR-0001/0022).
+composition `telemetry-pipeline` needs (→ ADR-0001, ADR-0022). Stages are composed via a
+`PipelineBuilder` (`.stage(...)` wraps each filter with a Timer, then `andThen`).
 
 ```java
 // starport-registry — outbox flush
-streamBridge.send(outboxEvent.getBinding(), msg);   // binding name is data, not code
+streamBridge.send(outboxEvent.binding(), msg);   // binding name is data, not code
 
 // telemetry-pipeline — functional composition
 @Bean
 public Function<RawTelemetry, AnomalyAlert> telemetryPipeline(
-        ValidationFilter v, EnrichmentFilter e, AggregationFilter a, AnomalyDetectionFilter an) {
-    return v.andThen(e).andThen(a).andThen(an::apply);
+        ValidationFilter v, EnrichmentFilter e, AggregationFilter a, AnomalyDetectionFilter an,
+        MeterRegistry meterRegistry) {
+    return PipelineBuilder.<RawTelemetry>create(meterRegistry)
+            .stage("validation", v).stage("enrichment", e)
+            .stage("aggregation", a).stage("anomaly", an).build();
 }
 ```
 

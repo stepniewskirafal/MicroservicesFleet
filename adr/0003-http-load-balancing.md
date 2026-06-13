@@ -22,7 +22,7 @@ WebClient.Builder webClientBuilder() { return WebClient.builder(); }
 webClient.get().uri("lb://trade-route-planner/routes/{id}", id)...
 ```
 
-Connect/read timeouts on `ReactorClientHttpConnector`; retry ≤ 1 on idempotent calls only.
+Per-caller timeouts, retries, and circuit breakers (Resilience4j) → owned by ADR-0014.
 
 ---
 
@@ -45,5 +45,5 @@ Connect/read timeouts on `ReactorClientHttpConnector`; retry ≤ 1 on idempotent
 ## References
 
 - ADR-0002 — Service Discovery: Eureka
+- ADR-0014 — HTTP Resilience (timeouts, retries, circuit breakers)
 - Spring Cloud LoadBalancer — https://docs.spring.io/spring-cloud-commons/docs/current/reference/html/#spring-cloud-loadbalancer
-- Resilience4j — https://resilience4j.readme.io/

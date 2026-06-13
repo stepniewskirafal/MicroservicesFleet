@@ -59,10 +59,33 @@ spring:
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
+          # ADR-0017: enable Micrometer Observation so the consumer EXTRACTS traceparent from
+          # incoming Kafka headers and continues the trace. Without it the carefully propagated
+          # context (outbox SenderContext, planner producer span) is dropped at the consumer and
+          # telemetry starts a brand-new root trace.
+          enable-observation: true
           autoCreateTopics: true
           autoAddPartitions: true
           configuration:
             auto.offset.reset: latest
+        bindings:
+          # Dead-letter queues: catch failures the in-pipeline try/catch CANNOT reach — payloads that
+          # fail message conversion/deserialization before the function runs. Without enableDlq such a
+          # poison message is retried (max-attempts) then silently dropped. With it, the message lands
+          # on a .dlq topic for inspection/replay instead of vanishing. (Filter exceptions inside the
+          # pipeline are handled explicitly by PipelineBuilder — logged, counted, and dropped there.)
+          telemetryPipeline-in-0:
+            consumer:
+              enableDlq: true
+              dlqName: telemetry.raw.dlq
+          reservationPipeline-in-0:
+            consumer:
+              enableDlq: true
+              dlqName: starport.reservations.dlq
+          routePipeline-in-0:
+            consumer:
+              enableDlq: true
+              dlqName: starport.route-planned.dlq
 
   jackson:
     serialization:
@@ -118,9 +141,9 @@ management:
       enabled: true
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
     logging:
-      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://alloy:4318/v1/logs}
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://localhost:4318/v1/logs}
       transport: http
   metrics:
     enable:
@@ -142,6 +165,17 @@ management:
   tracing:
     sampling:
       probability: ${TRACE_SAMPLING:1.0}
+    # ADR-0017: telemetry is the terminal hop — it must also extract the business-correlation
+    # baggage so reservationId/routeId reach the trace context and MDC. Without this the baggage
+    # chain silently ends one service short of the consumer that needs it most.
+    baggage:
+      remote-fields:
+        - reservationId
+        - routeId
+      correlation:
+        fields:
+          - reservationId
+          - routeId
 
 logging:
   pattern:

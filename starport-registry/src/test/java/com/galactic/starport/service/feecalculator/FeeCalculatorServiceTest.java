@@ -80,6 +80,64 @@ class FeeCalculatorServiceTest {
         assertThatThrownBy(() -> feeCalculator.calculateFee(cmd)).isInstanceOf(InvalidReservationTimeException.class);
     }
 
+    @Test
+    void should_apply_peak_surcharge_for_arrival_during_rush_window() {
+        // 12:00 UTC is inside the [06:00, 18:00) rush window → +15%.
+        Instant start = Instant.parse("2004-01-01T12:00:00Z");
+        ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.SCOUT, start, start.plusSeconds(3600)); // 1h
+
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
+
+        // 50 × 1h × 1.15 = 57.50
+        assertThat(fee).isEqualByComparingTo(new BigDecimal("57.50"));
+    }
+
+    @Test
+    void should_not_apply_peak_surcharge_for_off_peak_arrival() {
+        // 05:00 UTC is just before the rush window → no surcharge.
+        Instant start = Instant.parse("2004-01-01T05:00:00Z");
+        ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.SCOUT, start, start.plusSeconds(3600)); // 1h
+
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
+
+        assertThat(fee).isEqualByComparingTo(BigDecimal.valueOf(50));
+    }
+
+    @Test
+    void should_apply_long_stay_discount_from_24_hours() {
+        // 24h off-peak → 10% volume discount.
+        Instant start = Instant.parse("2004-01-01T00:00:00Z");
+        ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.FREIGHTER, start, start.plusSeconds(24 * 3600L));
+
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
+
+        // 120 × 24h = 2880 × 0.90 = 2592.00
+        assertThat(fee).isEqualByComparingTo(new BigDecimal("2592.00"));
+    }
+
+    @Test
+    void should_apply_extended_stay_discount_from_72_hours() {
+        // 72h off-peak → 20% volume discount.
+        Instant start = Instant.parse("2004-01-01T00:00:00Z");
+        ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.SCOUT, start, start.plusSeconds(72 * 3600L));
+
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
+
+        // 50 × 72h = 3600 × 0.80 = 2880.00
+        assertThat(fee).isEqualByComparingTo(new BigDecimal("2880.00"));
+    }
+
+    @Test
+    void should_combine_peak_surcharge_and_long_stay_discount() {
+        // 24h starting at 12:00 (peak): 120 × 24 = 2880 × 0.90 × 1.15 = 2980.80
+        Instant start = Instant.parse("2004-01-01T12:00:00Z");
+        ReserveBayCommand cmd = aCommand(ReserveBayCommand.ShipClass.FREIGHTER, start, start.plusSeconds(24 * 3600L));
+
+        BigDecimal fee = feeCalculator.calculateFee(cmd);
+
+        assertThat(fee).isEqualByComparingTo(new BigDecimal("2980.80"));
+    }
+
     private static ReserveBayCommand aCommand(ReserveBayCommand.ShipClass shipClass, Instant start, Instant end) {
         return ReserveBayCommand.builder()
                 .destinationStarportCode("DEF")

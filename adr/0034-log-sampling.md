@@ -1,3 +1,5 @@
+> **Superseded by ADR-0035 — kept for historical context only.**
+
 # 0034 — Log Sampling at the Collector (Alloy)
 
 **Status:** Superseded by [ADR-0035](0035-otlp-logs-deterministic-sampling.md)

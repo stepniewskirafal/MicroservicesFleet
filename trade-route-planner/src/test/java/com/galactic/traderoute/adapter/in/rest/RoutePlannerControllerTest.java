@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Execution(ExecutionMode.SAME_THREAD)
 class RoutePlannerControllerTest {
 
-    private static final String URL = "/routes/plan";
+    private static final String URL = "/api/v1/routes/plan";
 
     @Autowired
     MockMvc mvc;

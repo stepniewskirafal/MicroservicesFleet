@@ -2,6 +2,7 @@ package com.galactic.traderoute.parallel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
 import com.galactic.traderoute.application.PlanRouteService;
 import com.galactic.traderoute.domain.model.PlannedRoute;
 import com.galactic.traderoute.domain.model.RouteRequest;
@@ -36,8 +37,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.CONCURRENT)
 class ParallelRoutePlannerTest {
 
-    private static final PlanRouteService SERVICE =
-            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP, event -> {});
+    private static final PlanRouteService SERVICE = new PlanRouteService(
+            new MicrometerRouteMetricsAdapter(new SimpleMeterRegistry(), ObservationRegistry.NOOP), event -> {});
 
     @RepeatedTest(value = 20, name = "concurrent planning #{currentRepetition}/{totalRepetitions}")
     void should_produce_valid_route_under_concurrent_junit5_execution(TestInfo info) {
@@ -130,7 +131,8 @@ class ParallelRoutePlannerTest {
     @Test
     void counter_should_be_incremented_atomically_by_all_threads() throws Exception {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        PlanRouteService localService = new PlanRouteService(registry, ObservationRegistry.NOOP, event -> {});
+        PlanRouteService localService = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(registry, ObservationRegistry.NOOP), event -> {});
 
         int threadCount = 30;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);

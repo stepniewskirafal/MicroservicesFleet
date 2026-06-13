@@ -19,7 +19,9 @@ public class StreamBridgeRouteEventPublisher implements RouteEventPublisher {
 
     @Override
     public void publish(RoutePlannedEvent event) {
-        var message = MessageBuilder.withPayload(event)
+        // Map the domain event to an explicit wire DTO so the Kafka payload contract is decoupled
+        // from the domain record — a domain refactor won't silently break telemetry's consumer.
+        var message = MessageBuilder.withPayload(RoutePlannedMessage.from(event))
                 .setHeader("kafka_messageKey", event.routeId())
                 .build();
 

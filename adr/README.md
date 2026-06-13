@@ -33,6 +33,9 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
+38 records: `0000` (template) + **37 decisions** `0001`–`0037`. Three are superseded
+(0034 → 0035 → 0037; 0036 → 0037); ADR-0037 is the current trace/log-pipeline authority.
+
 | #    | Title                                                                        | Status                   | Date       |
 |---|---|---|---|
 | [0000](0000-template.md) | ADR Template                                                     | —                        | —          |
@@ -67,11 +70,12 @@ when replaced, but their content remains to explain why the older choice existed
 | [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
 | [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted                 | 2026-04-17 |
 | [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Accepted          | 2026-04-17 |
-| [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (replaces Promtail)                   | Accepted          | 2026-05-17 |
-| [0034](0034-log-sampling.md)             | Log Sampling at the Collector (Alloy: 100% errors, 10% INFO/DEBUG) | Accepted          | 2026-05-25 |
-| [0035](0035-otlp-logs-deterministic-sampling.md) | Logs via OTLP Push + Deterministic Trace-Keyed Sampling (supersedes 0034) | Accepted | 2026-05-27 |
-| [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Accepted | 2026-06-07 |
-| [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | Accepted | 2026-06-13 |
+| [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (now infra-stdout scraping only)      | Accepted          | 2026-05-17 |
+| [0033](0033-exemplars.md)                | Exemplars: Metrics → Traces correlation (Prometheus → Tempo)       | Accepted          | 2026-05-17 |
+| [0034](0034-log-sampling.md)             | Log Sampling at the Collector (Alloy: 100% errors, 10% INFO/DEBUG) | Superseded by ADR-0035 | 2026-05-25 |
+| [0035](0035-otlp-logs-deterministic-sampling.md) | Logs via OTLP Push + Deterministic Trace-Keyed Sampling   | Superseded by ADR-0037 | 2026-05-27 |
+| [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Superseded by ADR-0037 | 2026-06-07 |
+| [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | **Accepted (current authority)** | 2026-06-13 |
 
 ---
 
@@ -96,10 +100,12 @@ ADR-0012 (virtual threads), ADR-0013 (OSIV off — pool sizing),
 ADR-0020 (concurrent reservation safety).
 
 **Observability & operations**
-ADR-0005 (PLG + Tempo), ADR-0017 (trace propagation), ADR-0009 (configuration),
-ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality),
-ADR-0032 (Alloy as log collector), ADR-0034 (log sampling at the collector),
-ADR-0037 (tail sampling via OTel Collector; logs 100% to Loki).
+ADR-0005 (stack choice: Prometheus + Loki + Grafana + Tempo), ADR-0017 (trace propagation),
+ADR-0009 (configuration), ADR-0027 (actuator exposure), ADR-0030 (metrics naming & cardinality),
+ADR-0033 (exemplars: metrics → traces), ADR-0032 (Alloy — infra stdout scraping only),
+**ADR-0037 — current trace/log pipeline authority: tail sampling in the OTel Collector
+(errors 100% / latency >2s 100% / rest 1%); logs 100% to Loki.**
+Superseded history: ADR-0034 → ADR-0035 → ADR-0037; ADR-0036 → ADR-0037.
 
 **Build, packaging, deployment**
 ADR-0008 (Compose topology), ADR-0025 (Maven multi-module build),
@@ -158,8 +164,9 @@ here so they are not forgotten:
   document the chosen auth model (JWT, OAuth2, mTLS).
 - **No OpenAPI publishing.** Springdoc is not configured. The REST contract is implicit in
   controller signatures; a future ADR would cover API documentation generation.
-- **Kafka DLQ topics are not yet enabled** (only consumer-side `max-attempts`). ADR-0016
-  describes the intent and operational posture.
+- **Kafka DLQ — no replay/drain job.** Dead-lettering is now enabled (`enableDlq` + `dlqName`
+  on every telemetry-pipeline consumer, ADR-0016) and verified end-to-end. Still missing: a
+  drain/replay job for `*.dlq` topics and a dedicated DLQ-policy ADR.
 - **Schema registry for Kafka events.** ADR-0016 keeps JSON + `eventType` discriminator for
   now; if the number of event types or cross-team consumers grows, a Schema Registry ADR
   would replace that.
@@ -172,16 +179,17 @@ here so they are not forgotten:
 - **Idempotency keys on HTTP POSTs.** Not implemented. Reservation creation is idempotent
   per `reservationId` at the DB level, but no `Idempotency-Key` header contract exists.
   See ADR-0020 for the consequences under client retry.
-- **HOLD reservation expiry.** No scheduler cancels `HOLD` reservations whose `confirm`
-  step never ran (e.g. circuit breaker open during route planning). The `CANCELLED`
-  enum value exists but is unused. See ADR-0020 § "Trade-offs and known gaps".
+- **DLQ replay aside, orphaned-HOLD reclaim is now solved** (no longer a gap): inline
+  `try/finally` compensation in `ReservationService.reserveBay` plus a `@Scheduled HoldReaper`
+  (TTL 120s) cancel HOLDs whose `confirm` never ran, and an `@Version` optimistic lock (Flyway
+  V7) guards the confirm/compensate race. See ADR-0020. *(Listed here only to record closure.)*
 - **Clock injection.** All timestamp creation uses `Instant.now()` directly in entities'
   `@PrePersist` / `@PreUpdate` hooks. This works but makes time-dependent logic harder
   to test deterministically. A `Clock` bean + injection would be the idiomatic fix; not
   done today.
-- **ArchUnit rule classes.** ADR-0011 declares the dependency (archunit-junit5) and the
-  intended rules, but the test classes per service are not yet authored. Until they
-  land, the structural rules in ADR-0021 / ADR-0022 / ADR-0024 are enforced by review.
+- **ArchUnit rule classes — partial.** Pipes & Filters rules are authored
+  (`telemetry-pipeline` `PipesAndFiltersArchitectureTest`); the Layered (starport-registry) and
+  Hexagonal (trade-route-planner) rule classes are still pending. See ADR-0011.
 - **Non-root container user and `.dockerignore`.** ADR-0026 documents both gaps; blockers
   for internet-reachable deployment.
 - **`eureka-server` does not inherit `gt-parent`.** It skips Error Prone + NullAway.
@@ -191,6 +199,15 @@ here so they are not forgotten:
 - **jqwik property-based tests not yet written.** Dependency declared in ADR-0006;
   `*Properties.java` suffix reserved in the surefire include list but empty in practice.
   `@ParameterizedTest` + `@MethodSource` covers most cases today.
+- **Long-term metrics retention (Thanos) has no ADR.** `docker-compose.observability.yml`
+  wires Thanos sidecar/store/query/compactor + MinIO, but no ADR owns the decision; compose
+  comments reference a non-existent "ADR-0037 §B3" (0037 covers traces/logs, not metrics).
+- **Tail-sampling collector HA.** ADR-0037 notes that production needs a load-balancing layer so
+  all spans of one trace reach a single Collector; no ADR owns that prod topology.
+- **`telemetry.adapter` (stream|kafka) switch.** Documented in ADR-0009 but absent from every
+  `application.yml` — either ship the switch or drop it from the ADR.
+- **Uniform API `error` code.** Not every `GlobalExceptionHandler` branch emits a stable
+  SCREAMING_SNAKE `error` field (some carry only `details`). Flagged in ADR-0015; convergence TBD.
 
 ---
 

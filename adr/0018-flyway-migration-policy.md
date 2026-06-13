@@ -7,9 +7,10 @@
 
 ## Context
 
-Only `starport-registry` persists domain data (ADR-0007). We need rules for schema
+Only `starport-registry` persists domain data (→ ADR-0007). We need rules for schema
 evolution, for tolerating a mutable seed-data migration (`V2__test_data.sql`), and for
-deciding whether referential integrity lives in the DB or in the service layer.
+deciding whether referential integrity lives in the DB or in the service layer. The
+current set is V1–V4, V6, V7 (no V5).
 
 ---
 
@@ -23,12 +24,12 @@ only (`V<NN>__*.sql`), no `R__*`.
 spring:
   flyway:
     enabled: true
-    validate-on-migrate: false   # V2/V5 seed data is allowed to drift
+    validate-on-migrate: false   # V2 seed data is allowed to drift
 ```
 
-- Structural migrations (V1, V3, V4, V6) are **immutable** once merged. Any change ships
-  as V<N+1>.
-- Only seed migrations (V2, V5) may be edited, and changes must be additive +
+- Structural migrations (V1, V3, V4, V6, V7) are **immutable** once merged. Any change
+  ships as V<N+1>.
+- Only the seed migration (V2) may be edited, and changes must be additive +
   idempotent (`INSERT ... WHERE NOT EXISTS`).
 - **No foreign keys.** `starport_id`, `customer_id`, etc. are plain `BIGINT` columns.
   The service layer validates existence and throws `*NotFoundException` (ADR-0015) on

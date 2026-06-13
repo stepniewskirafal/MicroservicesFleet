@@ -1,0 +1,23 @@
+# Production overrides (active only with spring.profiles.active=prod). The default config is tuned
+# for local/Docker and is intentionally NOT production-safe.
+spring:
+  cloud:
+    stream:
+      kafka:
+        binder:
+          # Topics are provisioned by ops in prod, not auto-created by the app.
+          autoCreateTopics: false
+
+management:
+  tracing:
+    sampling:
+      # 100% sampling (dev default) is too costly at production volume; sample 10% (still env-tunable).
+      probability: ${TRACE_SAMPLING:0.1}
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.type.descriptor.sql.BasicBinder: warn

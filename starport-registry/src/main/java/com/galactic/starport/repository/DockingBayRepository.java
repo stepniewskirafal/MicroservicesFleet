@@ -21,6 +21,9 @@ interface DockingBayRepository extends JpaRepository<DockingBayEntity, Long> {
                        SELECT 1
                        FROM reservation r
                        WHERE docking_bay.id = r.docking_bay_id
+                         -- CANCELLED reservations (incl. reaped/compensated orphan HOLDs) no longer
+                         -- occupy the bay; only HOLD and CONFIRMED block an overlapping window.
+                         AND r.status <> 'CANCELLED'
                          AND ( r.start_at < :endAt
                          AND r.end_at   > :startAt ))
                     FOR UPDATE SKIP LOCKED

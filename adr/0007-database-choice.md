@@ -55,5 +55,7 @@ spring:
 ## References
 
 - ADR-0010 — Resilience Patterns (Transactional Outbox)
+- ADR-0013 — `open-in-view: false`
+- ADR-0018 — Flyway Migration Policy
 - PostgreSQL JSONB — https://www.postgresql.org/docs/current/datatype-json.html
 - Testcontainers PostgreSQL — https://testcontainers.com/modules/postgresql/

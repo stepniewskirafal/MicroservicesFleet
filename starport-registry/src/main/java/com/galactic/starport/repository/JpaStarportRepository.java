@@ -8,7 +8,9 @@ import com.galactic.starport.service.Route;
 import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.StarportNotFoundException;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,5 +71,33 @@ class JpaStarportRepository implements StarportPersistenceFacade {
     @Override
     public boolean starportExistsByCode(String code) {
         return starportRepository.existsByCode(code);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> findAllStarportCodes() {
+        return Set.copyOf(starportRepository.findAllCodes());
+    }
+
+    @Override
+    @Transactional
+    public void cancelHold(Long reservationId) {
+        reservationRepository.findById(reservationId).ifPresent(entity -> {
+            // Guard: only a still-pending HOLD is compensable. If it already CONFIRMED (a late success)
+            // or CANCELLED, leave it alone — never cancel a confirmed reservation.
+            if (entity.getStatus() == ReservationEntity.ReservationStatus.HOLD) {
+                entity.cancel();
+            }
+        });
+    }
+
+    @Override
+    @Transactional
+    public int reapStaleHolds(Instant cutoff) {
+        return reservationRepository.cancelStaleHolds(
+                ReservationEntity.ReservationStatus.HOLD,
+                ReservationEntity.ReservationStatus.CANCELLED,
+                cutoff,
+                Instant.now());
     }
 }

@@ -45,7 +45,7 @@ public abstract class BaseAcceptanceTest {
 
     static void stubDefaultRoutePlan() {
         wireMock.stubFor(
-                WireMock.post(WireMock.urlEqualTo("/routes/plan"))
+                WireMock.post(WireMock.urlEqualTo("/api/v1/routes/plan"))
                         .willReturn(
                                 WireMock.aResponse()
                                         .withStatus(200)

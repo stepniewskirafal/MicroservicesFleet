@@ -440,6 +440,47 @@
         "showHeader": true,
         "sortBy": [{ "displayName": "Obłożenie", "desc": true }]
       }
+    },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Konwersja rezerwacji — % zakończonych confirmed",
+      "description": "Odsetek prób rezerwacji zakończonych zatwierdzeniem (outcome=confirmed) względem wszystkich prób. Realny KPI biznesowy: spadek = tracimy konwersję — skoreluj z odrzuceniami per klasa powyżej. Przeniesione z wycofanego 'Microservices Fleet Dashboard'.",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "x": 0, "y": 61, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(reservations_total{outcome=\"confirmed\"}[$__rate_interval])) / clamp_min(sum(rate(reservations_total[$__rate_interval])), 1e-9)",
+          "legendFormat": "% confirmed",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#f43f5e", "value": null },
+              { "color": "#f59e0b", "value": 75 },
+              { "color": "#10b981", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
     }
   ],
   "refresh": "30s",
@@ -455,6 +496,6 @@
   "timezone": "browser",
   "title": "Biznes — Przychody i zajętość doków",
   "uid": "business-revenue-executive",
-  "version": 4,
+  "version": 5,
   "weekStart": ""
 }

@@ -40,4 +40,11 @@ class CreateHoldReservationService implements HoldReservationFacade {
                     return reservationId;
                 });
     }
+
+    @Override
+    public void cancelHold(Long reservationId) {
+        Objects.requireNonNull(reservationId, "reservationId must not be null");
+        persistenceFacade.cancelHold(reservationId);
+        log.info("HOLD cancelled (compensation): reservationId={}", reservationId);
+    }
 }

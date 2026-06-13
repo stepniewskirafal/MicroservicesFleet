@@ -23,6 +23,10 @@ spring:
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
+          # ADR-0017: enable Micrometer Observation on the binder so the producer injects
+          # traceparent into the outgoing RoutePlannedEvent — otherwise telemetry-pipeline
+          # cannot continue the trace across the Kafka hop.
+          enable-observation: true
           autoCreateTopics: true
           autoAddPartitions: false
           configuration:
@@ -62,9 +66,9 @@ management:
       enabled: true
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://tempo:4318/v1/traces}
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
     logging:
-      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://alloy:4318/v1/logs}
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://localhost:4318/v1/logs}
       transport: http
   endpoints:
     web:

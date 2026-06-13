@@ -1,35 +1,5 @@
 name: microservices_fleet
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Top-level entry point. The stack is split into two files merged here via
-# `include:` (Docker Compose ≥ 2.20):
-#
-#   docker-compose.observability.yml — tempo, prometheus, loki, alloy, grafana
-#   docker-compose.apps.yml          — eureka, postgres, kafka, kafka-ui,
-#                                       api-gateway + app replicas
-#
-# `include` merges both into THIS single project (microservices_fleet) before
-# validation, so cross-file deps work (apps depend_on tempo/alloy from the
-# observability file) and one volume namespace (grafana-data) is shared.
-#
-# Two networks isolate the tiers:
-#   app           — the application plane (eureka, postgres, kafka, gateway,
-#                   replicas)
-#   observability — the monitoring plane (loki, grafana)
-# Bridge services join BOTH so telemetry can cross: tempo (traces in), alloy
-# (logs in) and prometheus (scrapes app metrics + loki). Both networks are
-# declared in the included files where their services live.
-#
-# Run the whole stack from here as before:
-#   docker compose up -d --build
-#   docker compose ps
-#   docker compose down -v
-#
-# Operate on just one tier without leaving this project (names are global):
-#   docker compose up -d alloy grafana loki tempo prometheus      # observability
-#   docker compose up -d api-gateway eureka postgres kafka ...     # apps
-# ─────────────────────────────────────────────────────────────────────────────
-
 include:
   - docker-compose.observability.yml
   - docker-compose.apps.yml

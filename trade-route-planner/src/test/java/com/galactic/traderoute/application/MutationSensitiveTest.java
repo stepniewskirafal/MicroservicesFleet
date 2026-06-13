@@ -3,6 +3,7 @@ package com.galactic.traderoute.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
 import com.galactic.traderoute.domain.model.PlannedRoute;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.domain.model.RouteRequest;
@@ -32,7 +33,8 @@ class MutationSensitiveTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        service = new PlanRouteService(meterRegistry, ObservationRegistry.NOOP, event -> {});
+        service = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {});
     }
 
     // ── Fuel-range boundary (kills CONDITIONALS_BOUNDARY mutants) ─────────────

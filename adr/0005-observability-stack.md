@@ -2,6 +2,8 @@
 
 **Status:** Accepted — 2026-02-28
 
+> **Note:** Apps now export OTLP to the **OTel Collector** (`otel-collector:4318`), not directly to Tempo/Loki; tail sampling lives in the Collector. The current authority on the trace/log pipeline is **ADR-0037**. This ADR remains the authority on the *stack choice* (Prometheus + Loki + Grafana + Tempo).
+
 ---
 
 ## Context
@@ -12,29 +14,27 @@ All three services must emit traces, metrics, and logs from the first commit, co
 
 ## Decision
 
-Adopt the **PLG stack — Prometheus + Loki + Grafana — with Grafana Tempo for traces**, all reached via **OTLP**. Five compose services: `prometheus`, `grafana`, `tempo`, `loki`, and `zipkin` (kept as a secondary trace sink during transition). Log collector is covered by ADR-0032.
+Adopt the **PLG stack — Prometheus + Loki + Grafana — with Grafana Tempo for traces**. Metrics are pulled by Prometheus from `/actuator/prometheus`; traces and logs are pushed via **OTLP** to the OTel Collector, which fans out to Tempo and Loki (pipeline owned by → ADR-0037). Core compose services: `prometheus`, `grafana`, `tempo`, `loki`, `otel-collector`. Log collector (infra stdout) → ADR-0032.
 
 ```yaml
 management:
-  opentelemetry:
-    tracing.export.otlp.endpoint: http://tempo:4318/v1/traces
+  otlp.tracing.endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://otel-collector:4318/v1/traces}
+  tracing.sampling.probability: 1.0   # all spans to the collector; tail sampling decides there (ADR-0037)
   metrics.distribution:
     percentiles-histogram:
       starport.reservation.reserve.time: true
     slo:
       starport.reservation.reserve.time: 50ms,100ms,250ms,500ms,1s,2s,5s
-  tracing.sampling.probability: 1.0
-  endpoints.web.exposure.include: health,info,metrics,prometheus
 ```
 
-Conventions: low-cardinality tags on Prometheus metrics only; high-cardinality (e.g. `reservationId`) goes to `highCardinalityKeyValue` on the trace.
+Actuator endpoint exposure → ADR-0027. Metric naming/cardinality conventions (low-cardinality tags on metrics; high-cardinality on traces) → ADR-0030.
 
 ---
 
 ## Why
 
 - **Single pane of glass.** Grafana correlates Tempo traces ↔ Prometheus histograms ↔ Loki logs by `traceId`.
-- **Native Micrometer / OTLP.** No sidecars or vendor agents; `micrometer-tracing-bridge-otel` ships spans directly.
+- **Native Micrometer / OTLP.** No sidecars or vendor agents; `micrometer-tracing-bridge-otel` exports spans over OTLP to the collector.
 - **Open-source, zero lock-in.** No API keys, no per-host billing; runs offline.
 - **SLO buckets via config.** Histogram boundaries change without recompiling.
 - **Exemplars enabled** (`--enable-feature=exemplar-storage`) — drill from a slow P99 sample to the exact trace.
@@ -51,8 +51,9 @@ Conventions: low-cardinality tags on Prometheus metrics only; high-cardinality (
 
 ## References
 
-- ADR-0004 — Messaging vs HTTP
-- ADR-0032 — Log Collector: Grafana Alloy
+- ADR-0037 — Tail sampling via OTel Collector (current trace/log pipeline authority)
+- ADR-0032 — Log Collector: Grafana Alloy (infra stdout)
+- ADR-0030 — Metrics Naming & Cardinality
+- ADR-0033 — Exemplars
 - Micrometer Observation API — https://micrometer.io/docs/observation
 - Grafana Tempo — https://grafana.com/oss/tempo/
-- Prometheus exemplars — https://prometheus.io/docs/practices/exemplars/

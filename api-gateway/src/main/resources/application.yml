@@ -20,10 +20,11 @@ spring:
           predicates:
             - Path=/api/v1/starports/**
           # No rewrite — backend expects the full /api/v1/starports/** path.
-        - id: trade-route-planner
-          uri: lb://trade-route-planner
-          predicates:
-            - Path=/routes/**
+        # trade-route-planner is intentionally NOT routed here. It is an internal-only
+        # service: starport-registry reaches it directly via lb://trade-route-planner
+        # (Eureka client-side LB), never through the gateway. Exposing /api/v1/routes/**
+        # publicly was redundant attack surface — removed so the planner has no public
+        # ingress. ADR-0031.
 
 eureka:
   client:
@@ -49,14 +50,15 @@ management:
   tracing:
     sampling:
       probability: ${TRACE_SAMPLING:1.0}
-  opentelemetry:
-    tracing:
-      export:
-        otlp:
-          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
   otlp:
+    # Correct Spring Boot property is `management.otlp.tracing.endpoint`. The previous
+    # `management.opentelemetry.tracing.export.otlp.endpoint` is not a recognised key, so the
+    # exporter fell back to the default localhost:4318 and every gateway span failed to export
+    # (0 traces in Tempo). All other services use this same `management.otlp.tracing.endpoint`.
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
     logging:
-      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://alloy:4318/v1/logs}
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://localhost:4318/v1/logs}
       transport: http
 
 logging:

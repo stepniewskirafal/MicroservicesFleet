@@ -3,6 +3,7 @@ package com.galactic.starport.repository;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -17,6 +18,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
@@ -65,6 +67,13 @@ class ReservationEntity {
 
     private Instant updatedAt;
 
+    // Optimistic lock: guards against lost updates when the confirm path and the compensation/reaper
+    // path touch the same reservation concurrently. A conflicting commit fails fast instead of one
+    // silently overwriting the other.
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = true, cascade = CascadeType.ALL)
     @JoinColumn(name = "route_id", nullable = true)
     private RouteEntity route;
@@ -92,6 +101,12 @@ class ReservationEntity {
             this.route = null;
         }
         this.status = ReservationStatus.CONFIRMED;
+        this.updatedAt = Instant.now();
+    }
+
+    /** Release this reservation (compensation for an orphaned HOLD, or reaper cleanup). */
+    public void cancel() {
+        this.status = ReservationStatus.CANCELLED;
         this.updatedAt = Instant.now();
     }
 

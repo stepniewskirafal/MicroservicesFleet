@@ -40,17 +40,25 @@ Observation.createNotStarted("reservations.outbox.append", observationRegistry)
 tag, must be bounded (≤ ~50 values). `highCardinalityKeyValue` → trace tag only, never
 exported to Prometheus. Established low-cardinality vocabulary: `starport`, `shipClass`,
 `outcome`, `eventType`, `binding`, `errorType`, `reason`, `severity`. ID-shaped values
-are always high-cardinality.
+(`reservationId`, `originPortId`, `destinationPortId`) are always high-cardinality —
+e.g. `MicrometerRouteMetricsAdapter` puts port IDs on the span, never on a Prometheus
+label.
+
+**`starport` is whitelisted, not trusted.** A `starport` tag comes from a request path
+variable, so an unbounded value could explode cardinality. `StarportTagSanitizer`
+(`StarportCodeAllowlist`) loads the known starport codes on `ApplicationReadyEvent` and
+maps any unknown code to the literal `"other"` before it becomes the `starport` label on
+the `reservations` counter (`starport`, `shipClass`, `outcome`). Tags are fail-closed by
+construction, not by reviewer vigilance.
 
 **SLO histogram buckets live in `application.yml`, not code** — operations tunes what
 "fast" means without a rebuild (ADR-0005):
 
 ```yaml
-management.metrics.distribution:
-  percentiles-histogram:
-    reservations.hold.allocate: true
-  slo:
-    reservations.hold.allocate: 10ms, 50ms, 100ms, 500ms, 1s, 2s
+management.metrics.distribution.slo:
+  reservations.hold.allocate: 5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s
+  reservations.fees.calculate: 1ms,5ms,10ms,50ms,100ms
+  reservations.outbox.append:  1ms,5ms,10ms,25ms,50ms,100ms,250ms,500ms
 ```
 
 **Metric names are contracts, tested.** Every critical observation has a

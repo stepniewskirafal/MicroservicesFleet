@@ -54,5 +54,6 @@ asserts expected spans and low-cardinality tags so metrics/traces can't be silen
 
 - ADR-0001 — Architecture Styles per Service
 - ADR-0011 — Architecture Rules & Guardrails (ArchUnit)
+- ADR-0029 — Acceptance Test Fixtures
 - Testcontainers — https://testcontainers.com/
 - PIT — https://pitest.org/

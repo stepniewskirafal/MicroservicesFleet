@@ -3,6 +3,7 @@ package com.galactic.starport.service.routeplanner;
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -19,7 +20,7 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
-    private static final String ROUTE_PLAN_URI = "/routes/plan";
+    private static final String ROUTE_PLAN_URI = "/api/v1/routes/plan";
     private static final String OBSERVATION_NAME = "reservations.route.plan";
     private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
     private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
@@ -46,6 +47,7 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     }
 
     @Override
+    @Retry(name = "trade-route-planner")
     @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
     public Route calculateRoute(ReserveBayCommand command) {
         Objects.requireNonNull(command, "command must not be null");

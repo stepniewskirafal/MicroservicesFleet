@@ -28,7 +28,7 @@ spring:
     password: ${DB_PASS:postgres}
   cloud.stream.kafka.binder.brokers: ${KAFKA_BROKERS:localhost:9092}
 eureka.client.serviceUrl.defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
-telemetry.adapter: ${TELEMETRY_ADAPTER:stream}   # stream | kafka — feature switch
+telemetry.adapter: ${TELEMETRY_ADAPTER:stream}   # stream | kafka — feature switch <!-- TODO: verify against code (not found in any application.yml) -->
 ```
 
 Secrets (`DB_PASS`, broker credentials) only ever arrive as env vars; `.env` files

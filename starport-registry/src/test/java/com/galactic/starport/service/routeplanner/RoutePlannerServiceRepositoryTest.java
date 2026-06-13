@@ -82,7 +82,7 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
     void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
         wireMock.resetAll();
         wireMock.stubFor(
-                post(urlEqualTo("/routes/plan"))
+                post(urlEqualTo("/api/v1/routes/plan"))
                         .willReturn(
                                 aResponse()
                                         .withStatus(422)

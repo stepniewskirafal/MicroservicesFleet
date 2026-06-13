@@ -16,10 +16,10 @@ Adopt **Spring Cloud Netflix Eureka** as the central registry. Services self-reg
 
 ```yaml
 spring.cloud.discovery.enabled: true
-eureka.client.serviceUrl.defaultZone: http://discovery:8761/eureka
+eureka.client.serviceUrl.defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}  # Compose: http://eureka:8761/eureka
 ```
 
-A dedicated `discovery-server` module runs Eureka; production deploys 3 replicas behind TLS.
+A dedicated `eureka-server` module runs the registry (Compose service `eureka`, port 8761). Operational tuning (heartbeat/eviction) → ADR-0028.
 
 ---
 

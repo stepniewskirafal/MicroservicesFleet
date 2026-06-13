@@ -18,12 +18,13 @@ review team needs a single concrete one to reject PRs against.
 Four top-level packages under `com.galactic.traderoute`:
 
 ```
-domain/        pure Java + records. No Spring imports.
-port/in/       *UseCase interfaces (driving) — one method each
-port/out/      *Publisher / *Gateway / *Repository (driven) — role names, not tech
-application/   @Service implementations of in-ports; depend on out-ports only
-adapter/in/rest, adapter/out/kafka — the only place frameworks may live
-config/        @Configuration beans for cross-cutting concerns
+domain/model/  pure Java + records. No Spring imports.
+port/in/       *UseCase interfaces (driving) — one method each (PlanRouteUseCase)
+port/out/      *Publisher / *Port / *Gateway (driven) — role names, not tech
+               (RouteEventPublisher, RouteMetricsPort)
+application/   in-port implementations; plain classes, depend on out-ports only
+adapter/in/rest, adapter/out/kafka, adapter/out/metrics — the only place frameworks live
+config/        @Configuration that wires the application core as @Bean
 ```
 
 Inner layers (`domain`, `port`, `application`) must not import from `adapter/`. ArchUnit
@@ -31,11 +32,16 @@ will enforce this (ADR-0011); reviewers enforce it until then.
 
 Rules:
 
-- In-port naming: `*UseCase`, one method per use case.
-- Out-port naming: role-describing (`RouteEventPublisher`, not `KafkaEventPublisher`).
+- **The application core is framework-free.** `PlanRouteService` is a plain class with no
+  Spring stereotype; `RoutePlanningConfig` (`@Configuration`) instantiates it as a
+  `@Bean`, injecting the out-port beans. Keeping `@Service`/`@Component` out of
+  `application/` makes the domain genuinely Spring-free, not just conventionally so.
+- In-port naming: `*UseCase`, one method per use case (`PlanRouteUseCase`).
+- Out-port naming: role-describing (`RouteEventPublisher` / `RouteMetricsPort`, not
+  `KafkaEventPublisher`).
 - Domain records, no setters. Lombok `@Builder` allowed; `@Data`/`@Setter` forbidden on
   domain types (mutability breaks event semantics).
-- Controllers depend on in-port interfaces, never on `@Service` classes directly.
+- Controllers depend on in-port interfaces, never on the concrete impl directly.
 - Outbound adapters encapsulate transport (binding name, headers, partition key).
 - Each application-service entry point wraps work in a Micrometer `Observation`
   (ADR-0005).

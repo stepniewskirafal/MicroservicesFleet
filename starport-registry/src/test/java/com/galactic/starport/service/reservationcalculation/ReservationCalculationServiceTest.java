@@ -1,12 +1,14 @@
 package com.galactic.starport.service.reservationcalculation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import com.galactic.starport.service.feecalculator.FeeCalculator;
 import com.galactic.starport.service.routeplanner.RoutePlanner;
+import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +67,19 @@ class ReservationCalculationServiceTest {
         assertThat(result.reservationId()).isEqualTo(10L);
         assertThat(result.calculatedFee()).isEqualByComparingTo(BigDecimal.valueOf(50));
         assertThat(result.route()).isNull();
+    }
+
+    @Test
+    void should_propagate_domain_exception_unwrapped_when_route_planning_fails() {
+        // Regression: the route planner throws inside a CompletableFuture, so without unwrapping
+        // CompletionException the typed RouteUnavailableException would never surface (→ HTTP 500).
+        Long reservationId = 7L;
+        ReserveBayCommand cmd = aCommand(true);
+
+        given(feeCalculator.calculateFee(cmd)).willReturn(BigDecimal.valueOf(100));
+        given(routePlanner.calculateRoute(cmd)).willThrow(new RouteUnavailableException("ORIG", "DEST"));
+
+        assertThatThrownBy(() -> service.calculate(reservationId, cmd)).isInstanceOf(RouteUnavailableException.class);
     }
 
     private static ReserveBayCommand aCommand(boolean requestRoute) {

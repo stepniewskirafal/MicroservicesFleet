@@ -18,7 +18,7 @@ Assign one style per service:
 - **Service B — Trade Route Planner:** **Hexagonal (Ports & Adapters)** — core domain behind ports; adapters for REST (in/out), Postgres, external HTTP clients (embargo/astro data).
 - **Service C — Telemetry Pipeline:** **Pipes & Filters** — stateless filters chained over Kafka (Spring Cloud Stream).
 
-Boundaries are enforced per-service via ArchUnit (no `api → infrastructure` in A; no Spring in B's domain; no persistence inside C's filters).
+Boundaries are enforced per-service via ArchUnit (no `api → infrastructure` in A; no Spring in B's domain; no persistence inside C's filters) → rules owned by ADR-0011. Per-style conventions: Hexagonal → ADR-0021, Pipes & Filters → ADR-0022.
 
 ---
 
@@ -41,6 +41,8 @@ Boundaries are enforced per-service via ArchUnit (no `api → infrastructure` in
 
 ## References
 
+- ADR-0011 — Architecture Rules & Guardrails (ArchUnit)
+- ADR-0021 — Hexagonal Conventions
+- ADR-0022 — Pipes & Filters Conventions
 - Eric Evans — *Domain-Driven Design*
 - Alistair Cockburn — *Ports & Adapters*
-- Spring Cloud Stream — Pipes & Filters reference

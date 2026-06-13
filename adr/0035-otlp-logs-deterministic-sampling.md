@@ -1,8 +1,16 @@
+> **Superseded by ADR-0037 — kept for historical context only.**
+
 # 0035 — Logs via OTLP push + deterministic trace-keyed sampling
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0037](0037-tail-sampling-otel-collector.md)
 **Date:** 2026-05-27
 **Supersedes:** 0034
+
+> **Forward note:** App logs no longer flow through Alloy and are no longer
+> sampled. Per ADR-0037 apps push OTLP (traces + logs) to the **OTel Collector**;
+> logs go 100% to Loki, traces are tail-sampled in the collector. The OTLP
+> receiver, severity filters and per-traceId `probabilistic_sampler` described
+> below were removed from `config.alloy`; Alloy now scrapes infra stdout only.
 
 ---
 

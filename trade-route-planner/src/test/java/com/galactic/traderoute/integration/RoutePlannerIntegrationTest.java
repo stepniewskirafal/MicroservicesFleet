@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.galactic.traderoute.port.out.RouteEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -33,13 +35,18 @@ import org.springframework.test.web.servlet.MvcResult;
 @Execution(ExecutionMode.SAME_THREAD)
 class RoutePlannerIntegrationTest {
 
-    private static final String URL = "/routes/plan";
+    private static final String URL = "/api/v1/routes/plan";
 
     @Autowired
     MockMvc mvc;
 
     @Autowired
     ObjectMapper objectMapper;
+
+    // Stub the outbound Kafka port: this test covers the HTTP pipeline, not event delivery, and the
+    // real StreamBridge would block ~60s on broker metadata without a broker.
+    @MockitoBean
+    RouteEventPublisher routeEventPublisher;
 
     // ── Happy path ────────────────────────────────────────────────────────────
 

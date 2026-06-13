@@ -34,17 +34,22 @@ that depend on ordering, god-DTOs that grow ad-hoc fields per stage.
 6. **Every filter emits Micrometer counters** with low-cardinality labels (ADR-0005).
    High-cardinality data (`shipId`, `alertId`) goes in trace baggage (ADR-0017).
 
-Composition uses an explicit lambda over `andThen` so the null short-circuit is
-visible:
+Composition goes through a small `PipelineBuilder.stage(...)` chain rather than raw
+`andThen`, so the null short-circuit lives in one place (`stage` returns `null` early
+when its input is `null`) instead of being re-implemented per filter. The terminal
+`Function` is the binder-bound `@Bean`:
 
 ```java
-return raw -> {
-    ValidatedTelemetry v = validation.apply(raw);
-    if (v == null) return null;
-    EnrichedTelemetry e = enrichment.apply(v);
-    AggregatedTelemetry a = aggregation.apply(e);
-    return anomaly.apply(a);   // null → no alert published
-};
+@Bean
+Function<RawTelemetry, AnomalyAlert> telemetryPipeline(
+        ValidationFilter validation, EnrichmentFilter enrichment,
+        AggregationFilter aggregation, AnomalyDetectionFilter anomaly) {
+    return PipelineBuilder.start(validation)   // RawTelemetry → ValidatedTelemetry, null = drop
+            .stage(enrichment)
+            .stage(aggregation)
+            .stage(anomaly)                    // null → no alert published
+            .build();
+}
 ```
 
 ---

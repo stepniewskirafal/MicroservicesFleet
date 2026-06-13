@@ -180,12 +180,14 @@
                 <configuration>
                     <testFramework>JUNIT5</testFramework>
                     <testMode>MOCKMVC</testMode>
-                    <baseClassMappings>
-                        <baseClassMapping>
-                            <contractPackageRegex>.*routes.*</contractPackageRegex>
-                            <baseClassFQN>com.galactic.traderoute.contract.RoutesBase</baseClassFQN>
-                        </baseClassMapping>
-                    </baseClassMappings>
+                    <!--
+                        Single base class for every generated contract test. The previous
+                        baseClassMappings (regex → FQN) was silently not matching, so the generated
+                        test extended nothing and failed to bootstrap Spring. baseClassForTests is
+                        unconditional. The generated test still lands in the plugin's default package,
+                        so RoutesBase declares its config via @SpringBootTest(classes = ...).
+                    -->
+                    <baseClassForTests>com.galactic.traderoute.contract.RoutesBase</baseClassForTests>
                 </configuration>
             </plugin>
             <!-- PITest: mutation testing — run with: mvn test-compile org.pitest:pitest-maven:mutationCoverage -->

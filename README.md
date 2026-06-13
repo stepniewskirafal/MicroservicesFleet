@@ -1,23 +1,23 @@
 # 🪐 Sci-Fi Microservices Fleet
 
-A **three-service microfleet** set in a sci-fi universe. Each service uses a **different
-architecture style**:
+A **three-service microfleet** set in a galactic trade universe — a learning project that
+demonstrates three different architecture styles, end-to-end distributed tracing, and a
+production-shaped observability stack, all runnable from a single `docker compose up`.
 
-1. **Layered** — starport-registry
-2. **Hexagonal (Ports & Adapters)** — trade-route-planner
-3. **Pipes & Filters** — telemetry-pipeline
+> **Status — implemented & running.** All three business services run with ≥2 replicas,
+> register in Eureka, sit behind a single Spring Cloud Gateway (`:8080`), produce/consume
+> Kafka events, and are **fully observable** (metrics, traces, logs) through an OpenTelemetry
+> Collector → Prometheus / Tempo / Loki pipeline. Every non-trivial decision is captured in
+> **37 ADRs** (0000–0037) under [`adr/`](adr/README.md).
 
-Plus `eureka-server` for service discovery.
-
-> **Status — implemented.** All three services are running, registered in Eureka,
-> fronted by a Spring Cloud Gateway (single public ingress on :8080 — ADR-0031),
-> producing / consuming Kafka events, wired into a Prometheus + Grafana + Tempo + Loki
-> observability stack, covered by a multi-layer test pyramid, and documented by
-> **32 ADRs** in [`adr/`](adr/README.md).
-
-**Stack:** Java 21 (Project Loom / Virtual Threads), Spring Boot 3.5.6, Spring Cloud 2025,
-Spring Cloud Stream + Kafka (KRaft), Spring Data JPA + Flyway + PostgreSQL 16,
-Resilience4j, Micrometer Observation + OpenTelemetry, Testcontainers, JUnit 5.
+| | |
+|---|---|
+| **Runtime** | Java 21 · Virtual Threads |
+| **Framework** | Spring Boot 3.5.6 · Spring Cloud 2025.0.0 |
+| **Messaging** | Apache Kafka 3.7 (KRaft) · Spring Cloud Stream |
+| **Data** | PostgreSQL 16 · Spring Data JPA · Flyway |
+| **Observability** | OTel Collector · Prometheus · Grafana · Tempo · Loki · Alloy |
+| **Build / QA** | Maven multi-module · Testcontainers · JUnit 5 · PIT · ArchUnit · Error Prone / NullAway · Spotless |
 
 ---
 
@@ -26,494 +26,428 @@ Resilience4j, Micrometer Observation + OpenTelemetry, Testcontainers, JUnit 5.
 ```bash
 # From repo root:
 cd infra/docker
-docker compose up --build -d
+docker compose up --build -d        # merges docker-compose.apps.yml + .observability.yml
 
-# Wait for healthchecks (roughly 60-90 s on first run).
+# Wait for healthchecks (roughly 60–90 s on first run)
 docker compose ps
 
-# Smoke test — create a reservation (via api-gateway on :8080)
+# Smoke test — create a reservation (via the api-gateway on :8080)
 curl -X POST http://localhost:8080/api/v1/starports/ABC/reservations \
   -H "Content-Type: application/json" \
   -d '{
     "customerCode": "CUST-001",
-    "shipCode": "SHIP-001",
-    "shipClass": "C",
-    "startAt": "2026-05-01T10:00:00Z",
-    "endAt":   "2026-05-01T11:00:00Z",
+    "shipCode": "SS-Enterprise-01",
+    "shipClass": "SCOUT",
+    "startAt": "2031-05-01T10:00:00Z",
+    "endAt":   "2031-05-01T11:00:00Z",
     "requestRoute": false,
     "originPortId": null
   }'
 ```
 
-Tear down with `docker compose down` (add `-v` to also wipe Grafana / Prometheus volumes).
+Tear down with `docker compose down` (add `-v` to also wipe Grafana / Prometheus / MinIO volumes).
+Postgres is intentionally ephemeral (tmpfs) — every restart wipes the DB and Flyway replays the seed.
 
 ---
 
-## 🔗 URL Reference
+## 2. Tech Stack
 
-**Only the api-gateway binds a host port for business traffic** — application instances
-live on the internal Docker network and are reached through Eureka-resolved `lb://`
-URIs (ADR-0031). This matches a production topology: one ingress, many replicas
-behind it, no client ever learns an instance-specific URL.
-
-| Component              | URL                                               | Notes                                                   |
+| Concern | Technology | ADR |
 |---|---|---|
-| **api-gateway** (public ingress) | http://localhost:8080                         | Routes `/api/v1/starports/**` → starport-registry, `/routes/**` → trade-route-planner (ADR-0031) |
-| Gateway actuator routes          | http://localhost:8080/actuator/gateway/routes | List active routing rules — useful when a call 404s     |
-| Eureka dashboard       | http://localhost:8761                             | Service registry UI; shows live replicas per service     |
-| Kafka UI               | http://localhost:8085                             | Topic / consumer-group browser                          |
-| Kafka bootstrap        | `localhost:9092` (TCP)                            | For Postman / IDE / `kafka-console-consumer.sh`          |
-| PostgreSQL             | `localhost:5432` (DB `starports`, user `postgres`/`postgres`) | Dev-convenience DB access for `psql`, IDE tools |
-| Prometheus             | http://localhost:9090                             | Metrics scrape                                          |
-| Grafana                | http://localhost:3000 (`admin` / `admin`)         | Unified dashboards (Prom + Tempo + Loki)                |
-| Tempo                  | http://localhost:3200                             | Distributed traces API                                  |
-| Loki                   | http://localhost:3100                             | Log aggregation                                         |
+| Language / Runtime | **Java 21** + Virtual Threads (Project Loom) | ADR-0012 |
+| Framework | **Spring Boot 3.5.6** + **Spring Cloud 2025.0.0** | ADR-0025 |
+| Service discovery | Netflix **Eureka** (standalone for dev) | ADR-0002, 0028 |
+| Public ingress | **Spring Cloud Gateway** + Eureka (`lb://`) — single host-bound port | ADR-0031 |
+| HTTP load balancing | **Spring Cloud LoadBalancer** (client-side, round-robin) | ADR-0003 |
+| Sync HTTP resilience | **Resilience4j** circuit breaker + retry + short timeouts | ADR-0014 |
+| Messaging | **Apache Kafka 3.7 (KRaft)** via Spring Cloud Stream (StreamBridge + functional beans) | ADR-0004, 0016, 0019 |
+| Event delivery | Transactional **Outbox** + polling relay (at-least-once) | ADR-0010 |
+| Persistence | **PostgreSQL 16** + Spring Data JPA + **Flyway** | ADR-0007, 0018 |
+| Concurrency safety | `SELECT … FOR UPDATE SKIP LOCKED` + range-overlap query + `@Version` | ADR-0020 |
+| Telemetry hub | **OTel Collector** (tail sampling for traces, 100% logs) | ADR-0037 |
+| Metrics | Micrometer Observation API → **Prometheus** (+ Thanos long-term) | ADR-0005, 0030 |
+| Traces | OTLP → Collector → **Tempo** | ADR-0017, 0037 |
+| Logs | OTLP appender (apps) + **Alloy** (infra stdout) → **Loki** | ADR-0035, 0037 |
+| Dashboards | **Grafana** (auto-provisioned) | ADR-0005, 0033 |
+| Validation | Jakarta Bean Validation + Chain of Responsibility | ADR-0023 |
+| Testing | **JUnit 5** + **Testcontainers** + `TestObservationRegistry` + **PIT** + **ArchUnit** | ADR-0006, 0029, 0011 |
+| Build | Maven multi-module + BOM pinning + **Error Prone / NullAway** + **Spotless** | ADR-0025 |
+| Container | Multi-stage Dockerfile (Temurin 21 JRE, container-aware JVM) | ADR-0026 |
+| Deployment | Docker Compose (2 replicas per service) | ADR-0008 |
 
-**Application instances** (`starport-registry-1/2`, `trade-route-planner-1/2`,
-`telemetry-pipeline-1/2`) have **no host port binding** — they listen only on the
-Compose network. Every replica of a given service uses the same internal port
-(starport-registry on 8081, trade-route-planner on 8082, telemetry-pipeline on 8090)
-— uniqueness comes from container / hostname, not port (ADR-0031).
+---
 
-**Why?** With `:8081` and `:8084` both exposed, a client could hard-code an
-instance URL and bypass the load balancer. The gateway + Eureka setup forces every
-request to go through discovery → LB → pick a live replica. That is the production
-shape.
+## 3. Domain — The Galactic Trade Network
 
-**Debugging a single instance** (without re-exposing ports):
+A fictional interstellar logistics network. Each service models one bounded context and is built
+with a **deliberately different architecture style** so the same project can demonstrate all three.
 
-```bash
-docker compose exec starport-registry-1 wget -qO- http://localhost:8081/actuator/health
-docker compose exec starport-registry-2 wget -qO- http://localhost:8081/actuator/health
-# Or from the gateway container:
-docker compose exec api-gateway wget -qO- http://starport-registry-1:8081/actuator/health
+### Starport Registry — *Layered architecture*
+The system of record for **starports, docking bays, customers, ships and reservations**. It owns the
+only database, runs the pessimistic-locking reservation flow, calculates fees, and publishes domain
+events through a transactional outbox. A classic **API → Application → Domain → Infrastructure**
+layering fits because the logic is transaction- and persistence-centric.
+
+### Trade Route Planner — *Hexagonal (Ports & Adapters)*
+Computes legal/optimal **trade routes** (ETA + risk score) between star systems. It is called
+synchronously by Starport Registry over `lb://` and emits `RoutePlanned` events. The **core domain
+behind ports**, with REST and Kafka pushed out to adapters, keeps the routing logic framework-free
+and easy to test in isolation.
+
+### Telemetry Pipeline — *Pipes & Filters*
+Ingests real-time starship **telemetry** and enriches/aggregates/scores it through a chain of
+filters, raising alerts on anomalies. It also consumes the reservation and route events to produce
+enriched streams. A **stateless filter chain** (one stateful aggregation stage) is the natural fit
+for streaming transformation. **It has no REST API** and is not routed through the gateway.
+
+---
+
+## 4. System Architecture Diagram
+
+```
+                                   ┌─────────────────────────────┐
+                          :8080    │        api-gateway          │   (only host-bound app port)
+        User ───────────────────►  │  Spring Cloud Gateway (lb://)│
+                                   └──────────────┬──────────────┘
+                         /api/v1/starports/**     │   (no public route to the planner)
+                                                  ▼
+   ┌────────────────────────┐    HTTP  lb://trade-route-planner   ┌────────────────────────┐
+   │   starport-registry    │ ─────────────────────────────────► │   trade-route-planner   │
+   │   (×2 replicas, :8081) │   POST /api/v1/routes/plan          │   (×2 replicas, :8082)  │
+   │                        │   (internal-only; no gateway route) │                         │
+   └───────────┬────────────┘                                     └───────────┬────────────┘
+               │ outbox → Kafka                                                │ Kafka
+               │ starport.reservations                                        │ starport.route-planned
+               └───────────────────────────────┬──────────────────────────────┘
+                                                ▼
+                                   ┌────────────────────────┐        telemetry.raw  ─────┐
+                                   │   telemetry-pipeline    │  ◄────  (external producer)│
+                                   │   (×2 replicas, :8090)  │  ───►  telemetry.alerts /  │
+                                   └────────────────────────┘        enriched-* topics    │
+                                                                                          
+   ── all services ──►  OTel Collector :4318  ──►  tail-sample ──►  Tempo (traces)
+                                              └──►  100%        ──►  Loki  (logs)
+   Prometheus :9090  ──►  scrapes each service's /actuator/prometheus
+   Alloy  ──►  scrapes INFRA container stdout (kafka, postgres, grafana…) ──►  Loki
 ```
 
-Instance health is also visible in Eureka (http://localhost:8761) and in the Prometheus
-`up{job="starport-registry"}` metric, which scrapes both replicas over the Compose
-network.
+Every business service registers with **Eureka** (`:8761`); the gateway and Starport Registry
+resolve targets via `lb://service-name`, so no client ever learns an instance-specific URL.
 
----
+### Service dependency map
 
-## 🗂️ Project Structure
+Who depends on whom at **runtime** (a service will not become healthy until its hard dependencies are up — `depends_on: service_healthy` in Compose):
 
-```
-MicroservicesFleet/
-├── adr/                            # 32 Architecture Decision Records + template + index
-├── api-gateway/                    # Spring Cloud Gateway — single public ingress (port 8080, ADR-0031)
-├── eureka-server/                  # Netflix Eureka service registry (port 8761)
-├── starport-registry/              # Layered — reservations, billing, outbox publisher
-│   └── src/main/java/com/galactic/starport/
-│       ├── controller/             # REST + DTO records + GlobalExceptionHandler
-│       ├── service/                # Domain + use-case services
-│       │   ├── holdreservation/    # TX1: pessimistic-lock bay + insert HOLD
-│       │   ├── confirmreservation/ # TX2: finalise CONFIRMED + publish events
-│       │   ├── feecalculator/      # Fee computation (DistributionSummary)
-│       │   ├── routeplanner/       # Resilience4j-wrapped HTTP client → Service B
-│       │   ├── reservationcalculation/  # Virtual-thread fee+route parallelism
-│       │   ├── validation/         # Chain of Responsibility rules (ADR-0023)
-│       │   └── outbox/             # Outbox appender + inbox publisher (ADR-0010)
-│       ├── repository/             # JPA entities + ReservationMapper (ADR-0024)
-│       └── config/                 # @Configuration beans (RestClient, Aspects)
-├── trade-route-planner/            # Hexagonal — route planning (ports 8082/8083)
-│   └── src/main/java/com/galactic/traderoute/
-│       ├── domain/model/           # Pure records (ADR-0021)
-│       ├── port/{in,out}/          # Driving + driven ports
-│       ├── application/            # Use-case services (implement in-ports)
-│       └── adapter/{in/rest,out/kafka}/  # Framework code lives here only
-├── telemetry-pipeline/             # Pipes & Filters (ports 8090/8091)
-│   └── src/main/java/com/galactic/telemetry/
-│       ├── model/                  # Records — one per pipeline stage (ADR-0022)
-│       ├── filter/                 # Function<IN,OUT> filters (stateless + 1 stateful)
-│       ├── pipeline/               # @Configuration composing the function chain
-│       └── config/                 # Threshold properties (@ConfigurationProperties)
-├── infra/docker/                   # Compose stack
-│   ├── docker-compose.yml          # 15+ services (app × 2 each + observability)
-│   ├── grafana/                    # Auto-provisioned datasources + dashboards
-│   ├── prometheus/                 # Scrape config
-│   ├── tempo.yml / loki.yml / alloy/config.alloy
-├── scripts/                        # Load-test PowerShell scripts
-├── plany/                          # Throughput / concurrency design notes
-├── pom.xml                         # Aggregator (BOMs + plugins — ADR-0025)
-├── README.md                       # You are here
-├── README_2.md                     # HOLD/CONFIRM flow + HTTP/event contracts
-└── readme3.md                      # Load-balancing + service-discovery deep-dive
-```
-
-`eureka-server` has no business code — it's a thin `@EnableEurekaServer` wrapper.
-
----
-
-## 🎯 Mission Goals (all met)
-
-1. ✅ Three independent microservices with style-appropriate internals (ADR-0001, 0021, 0022).
-2. ✅ Eureka-based service discovery + Spring Cloud LoadBalancer (ADR-0002, 0003).
-3. ✅ Observability (PLG + Tempo) from day zero (ADR-0005, 0017, 0030).
-4. ✅ Test pyramid: unit + contract + repository + E2E + architecture (ADR-0006, 0029).
-5. ✅ ≥2 instances of each service in Docker Compose (ADR-0008, 0026).
-6. ✅ Single public ingress via Spring Cloud Gateway; no host-bound instance ports (ADR-0031).
-7. ✅ **32 ADRs** covering every non-trivial decision (see [`adr/README.md`](adr/README.md)).
-
----
-
-## 🧭 The Sci-Fi Domain
-
-We’re building a **Galactic Trade Network**:
-
-### 1) **Starport Registry** — *Layered architecture*
-Tracks starports, docking bays, fees, and availability.
-- Layers: **API** → **Application** → **Domain** → **Infrastructure**
-
-### 2) **Trade Route Planner** — *Hexagonal architecture*
-Computes legal and optimal trade routes across star systems.
-- **Core domain** behind ports
-- Adapters for persistence, embargo lists, astro charts
-
-### 3) **Telemetry Pipeline** — *Pipes & Filters*
-Processes real-time starship telemetry: enrich, aggregate, detect anomalies.
-- Stateless filters connected in a chain
-
----
-
-## 🔧 Tech Stack (as-built)
-
-| Concern               | Choice                                                             | ADR                 |
+| Service | Hard runtime deps | Talks to (purpose) |
 |---|---|---|
-| Language / Runtime    | Java 21 (virtual threads enabled)                                  | ADR-0012            |
-| Framework             | Spring Boot 3.5.6 + Spring Cloud 2025.0.0                          | ADR-0025            |
-| Service discovery     | Netflix Eureka (standalone for dev)                                | ADR-0002, 0028      |
-| Public ingress        | Spring Cloud Gateway + Eureka (`lb://`) — single host-bound port   | ADR-0031            |
-| HTTP load balancing   | Spring Cloud LoadBalancer (client-side, `lb://...`)                | ADR-0003            |
-| Sync HTTP resilience  | Resilience4j circuit breaker + short timeouts                      | ADR-0014            |
-| Messaging             | Apache Kafka 3.7 (KRaft) via Spring Cloud Stream                   | ADR-0004, 0016, 0019 |
-| Event delivery        | Transactional Outbox + polling relay                               | ADR-0010            |
-| Persistence           | PostgreSQL 16 + Spring Data JPA + Flyway                           | ADR-0007, 0018      |
-| Concurrency safety    | `SELECT ... FOR UPDATE SKIP LOCKED` + range-overlap query          | ADR-0020            |
-| Observability         | Prometheus + Grafana + Tempo + Loki over OTLP                      | ADR-0005, 0017      |
-| Metrics conventions   | Micrometer Observation API, two-tier cardinality                   | ADR-0030            |
-| Validation            | Jakarta Bean Validation + Chain of Responsibility rules            | ADR-0023            |
-| Testing               | JUnit 5 + Testcontainers + `TestObservationRegistry` + PIT         | ADR-0006, 0029      |
-| Build                 | Maven multi-module + BOM pinning + Error Prone / NullAway          | ADR-0025            |
-| Container             | Multi-stage Dockerfile (Temurin 21 JRE Alpine, container-aware JVM) | ADR-0026           |
-| Deployment            | Docker Compose (2 replicas per service)                            | ADR-0008            |
-| Config management     | Env-var overrides + Spring profiles                                | ADR-0009            |
+| **api-gateway** | eureka, otel-collector | → starport-registry (HTTP via `lb://`). Does **not** route to trade-route-planner — planner is internal-only |
+| **starport-registry** | eureka, **postgres**, kafka, otel-collector | → trade-route-planner (HTTP `lb://`); → Kafka (outbox publish); ← Postgres (only DB owner) |
+| **trade-route-planner** | eureka, kafka, otel-collector | → Kafka (direct `StreamBridge` publish); **no DB** — ETA/risk computed in-memory |
+| **telemetry-pipeline** | eureka, kafka, otel-collector | ← Kafka (consumes `telemetry.raw`, `starport.reservations`, `starport.route-planned`); → Kafka (alerts/enriched); **no DB, no REST API** |
+| **eureka** | — | registry for all of the above |
+| **otel-collector** | tempo, loki | ← all apps (OTLP traces + logs); → Tempo, → Loki |
+| **prometheus** | — | scrapes every app's `/actuator/prometheus` (pull) |
+| **alloy** | loki | scrapes **infra** container stdout → Loki |
+
+**Direction of coupling.** The only synchronous service-to-service call is **starport-registry → trade-route-planner** (HTTP). Everything else is **asynchronous via Kafka** and one-directional: producers never wait for telemetry. telemetry-pipeline is a pure sink/transformer — nothing calls back into it.
+
+**Build-time dependency:** all modules inherit the root `pom.xml` (`gt-parent`), which pins Spring Boot, Spring Cloud, the Micrometer/OTel BOMs and the shared OTLP logback appender (ADR-0025, ADR-0037).
+
+### Request lifecycle — when DB, Kafka and filters actually fire
+
+A single `requestRoute=true` reservation, step by step (verified against the code):
+
+1. **HTTP in.** `api-gateway` matches `/api/v1/starports/**`, resolves a live `starport-registry` replica via Eureka + LoadBalancer, forwards the request. `ReservationController.create()` maps the JSON to a command.
+2. **Validation (no I/O writes).** `ReserveBayValidationService` runs the Chain of Responsibility: time validity → start-starport exists → destination-starport exists.
+3. **DB write #1 — TX1 (HOLD).** `CreateHoldReservationService` (own `@Transactional`) runs `SELECT … FOR UPDATE SKIP LOCKED` to grab a free bay, then `INSERT`s the reservation in status `HOLD`. **This transaction commits on its own** before the external call.
+4. **Parallel fee + route (virtual threads).** `reservationCalculationFacade` fans out on virtual threads (ADR-0012): one branch calls `trade-route-planner` over HTTP (`POST /api/v1/routes/plan`, 200 ms/2 s timeouts, wrapped in `@CircuitBreaker` + `@Retry`); the other computes the fee. The planner computes ETA + riskScore **in memory (no DB)** and publishes `RoutePlanned` to `starport.route-planned` with a **direct `StreamBridge.send()` — no outbox**, synchronously inside the `/plan` call.
+5. **DB write #2 — TX2 (CONFIRM + outbox).** `ConfirmReservationService` (own `@Transactional`) updates the reservation `HOLD → CONFIRMED`, writes the `route` row, and in the **same transaction** `OutboxAppender` `INSERT`s a `ReservationConfirmed` row into `event_outbox`. **No Kafka call happens here.** If anything between TX1 and TX2 fails, a `finally` block releases the HOLD (compensation).
+6. **HTTP out.** `201 Created` returns to the user — Kafka publication of the reservation event has **not** happened yet.
+7. **Async Kafka publish.** A scheduled relay (`InboxPublisher.pollAndPublish`, `@Scheduled` ~5–10 s) drains `event_outbox` and `StreamBridge.send()`s each row to `starport.reservations`, marking it `SENT`. This is the **at-least-once** boundary (ADR-0010).
+8. **Filters run.** For **every** message on `starport.reservations` / `starport.route-planned` / `telemetry.raw`, telemetry-pipeline applies the matching Spring Cloud Function. The main `telemetryPipeline` is a composed chain (`validation → enrichment → aggregation → anomaly`, `Function.andThen`): a `null` from any stage short-circuits the rest (message dropped), each stage is timed (`telemetry.filter.*`), and only `AggregationFilter` holds state (per-`(ship,sensor)` Welford windows). A non-null `AnomalyAlert` is published to `telemetry.alerts`.
+
+> **The two key timing facts:** (a) in starport-registry, **Kafka is never published in the request thread** — only an outbox row is written; a background relay publishes later. (b) trade-route-planner has **no outbox** — it publishes `RoutePlanned` directly and synchronously while planning.
 
 ---
 
-## ⚙️ Environment Variables
+## 5. Process Flows
 
-All services follow the `${ENV_VAR:default}` pattern (ADR-0009). Compose
-(`infra/docker/docker-compose.yml`) sets these per container; `./mvnw spring-boot:run`
-falls back to the defaults suited for local `localhost`.
-
-| Variable                              | Default                                             | Scope                    |
-|---|---|---|
-| `PORT`                                | `8080` (api-gateway) / `8081` (starport-registry) / `8082` (trade-route-planner) / `8090` (telemetry-pipeline) / `8761` (eureka-server) | All services |
-| `DB_URL`                              | `jdbc:postgresql://localhost:5432/starports`        | starport-registry only   |
-| `DB_USER` / `DB_PASS`                 | `postgres` / `postgres`                             | starport-registry only   |
-| `KAFKA_BROKERS`                       | `localhost:9092`                                    | All app services         |
-| `EUREKA_URL`                          | `http://localhost:8761/eureka`                      | All app services         |
-| `EUREKA_SELF_PRESERVATION`            | `false` (dev) — set `true` for prod (ADR-0028)      | eureka-server            |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`  | `http://tempo:4318/v1/traces`                       | All app services         |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`    | `http://tempo:4318/v1/logs`                         | All app services         |
-| `TRACE_SAMPLING`                      | `1.0` (dev; drop to `0.1` in prod — ADR-0017)       | All app services         |
-
-Secrets (DB password, broker credentials) must **never** be committed to YAML; pass them
-only through environment variables.
-
----
-
-## 📐 Architecture Style Requirements
-
-### Starport Registry — **Layered**
-- REST controllers → service layer → domain → Spring Data JPA
-- Example: `POST /api/v1/starports/{code}/reservations` (see HTTP Contracts below)
-
-### Trade Route Planner — **Hexagonal**
-- Core domain with **ports** (use cases) and **adapters**
-- Adapters: REST (API), Postgres (persistence), HTTP clients (embargo/astro data)
-
-### Telemetry Pipeline — **Pipes & Filters**
-- Kafka topic → `ValidationFilter` → `EnrichmentFilter` → `AggregationFilter` → `AnomalyDetectionFilter` → sinks
-- Implement with **Spring Cloud Stream**
-
----
-
-## 🔌 Service Discovery & Networking
-
-- Stand up **Eureka Server** (or Consul)
-- Each service registers itself
-- HTTP calls use **`lb://service-name`** (Spring Cloud LoadBalancer)
-- Each service runs in **≥2 instances**
-
----
-
-## 👀 Observability (as-built)
-
-- **Traces** — Micrometer Observation API → OTLP → Tempo. Trace context propagates over
-  HTTP (Spring Cloud LoadBalancer auto-instrumentation) and Kafka (manual
-  `SenderContext` / `ReceiverContext` on the outbox — ADR-0017).
-- **Metrics** — `/actuator/prometheus` scraped by Prometheus. Naming convention:
-  `reservations.*`, `routes.*`, `telemetry.*` (ADR-0030). Sample custom metrics:
-  - `reservations.created.total{starport, shipClass, outcome}`
-  - `reservations.hold.allocate` (Timer + histogram with SLO buckets)
-  - `reservations.fees.calculated.amount` (DistributionSummary, `cr`)
-  - `reservations.outbox.dead.letter{eventType, binding}`
-  - `routes.planned.count`, `routes.risk.score`
-  - `telemetry.messages.received`, `telemetry.anomalies.detected{severity}`
-- **Logs** — Grafana Alloy tails Docker container stdout → Loki. Every log line prefixed with
-  `[service,traceId,spanId]` so Grafana's "Logs for this span" button works.
-- **Correlation** — `reservationId` / `routeId` ride in OpenTelemetry baggage; visible
-  in traces and in log MDC (ADR-0017).
-
-Grafana is pre-provisioned with six dashboards under
-`infra/docker/grafana/provisioning/dashboards/` (distributed tracing, logs/traces/metrics,
-executive revenue, SLO / error budget, resource USE, and success/error exemplars).
-
----
-
-## 🧪 Testing Strategy (as-built)
-
-Five-layer test pyramid (ADR-0006, 0029):
-
-| Layer              | Suffix                    | Runner     | Infrastructure             |
-|---|---|---|---|
-| Unit               | `*Test.java` / `*Properties.java` | Surefire   | none                       |
-| Contract           | `*ContractTest.java`      | Failsafe   | `@WebMvcTest` + Mockito    |
-| Repository         | `*RepositoryTest.java`    | Failsafe   | Testcontainers Postgres    |
-| Acceptance / E2E   | `*E2ETest.java`           | Failsafe   | Testcontainers Postgres    |
-| Architecture       | ArchUnit (planned)        | Surefire   | none (ADR-0011)            |
-
-**Run tests:**
-
-```bash
-./mvnw test                     # unit only (fast, seconds)
-./mvnw verify                   # full pyramid (Testcontainers — needs Docker)
-./mvnw test -T 1C -Pfast        # unit + skip Spotless / Error Prone (fastest inner loop)
-./mvnw pitest:mutationCoverage  # mutation testing (slow, explicit)
-```
-
-Acceptance tests extend `BaseAcceptanceTest` — one `@ServiceConnection` Postgres per JVM,
-truncate/seed DSL, `@ResourceLock("DB_TRUNCATE")` for parallel isolation,
-`TestObservationRegistry` to assert metric / span contracts (ADR-0029).
-
----
-
-## 📄 Architecture Decision Records
-
-**31 ADRs** live in [`adr/`](adr/README.md) — see that directory's `README.md` for the
-full index with per-concern and per-service maps, plus a list of known gaps and
-follow-up items. High-level grouping:
-
-**Foundations** — ADR-0001 (architecture styles), ADR-0002 (Eureka), ADR-0003 (LB),
-ADR-0004 (HTTP vs Kafka), ADR-0005 (observability stack), ADR-0006 (testing strategy),
-ADR-0007 (Postgres), ADR-0008 (Compose topology), ADR-0009 (config), ADR-0010 (outbox),
-ADR-0011 (ArchUnit + Spotless + PIT).
-
-**Concurrency & data** — ADR-0012 (virtual threads), ADR-0013 (OSIV off),
-ADR-0018 (Flyway + no-FK), ADR-0020 (pessimistic lock + SKIP LOCKED).
-
-**Integration** — ADR-0014 (HTTP resilience), ADR-0015 (error model + versioning),
-ADR-0016 (Kafka topology + retry), ADR-0017 (tracing propagation),
-ADR-0019 (StreamBridge + functional beans).
-
-**Implementation conventions** — ADR-0021 (Hexagonal rules), ADR-0022 (Pipes & Filters
-rules), ADR-0023 (validation strategy), ADR-0024 (DTO / domain / entity separation).
-
-**Build, deploy, operate** — ADR-0025 (Maven multi-module + BOM + static analysis),
-ADR-0026 (container strategy), ADR-0027 (actuator exposure), ADR-0028 (Eureka tuning),
-ADR-0029 (test fixtures), ADR-0030 (metrics naming & cardinality).
-
-> New architectural decisions **must** ship with an ADR. See the template at
-> [`adr/0000-template.md`](adr/0000-template.md).
-
----
-
-# 🧭 System Integration Guide — Starport Registry (A), Trade Route Planner (B), Telemetry Pipeline (C)
-
-## Topology & Roles
-
-- **Service A — Starport Registry (Layered)**  
-  **Calls**: Service B over HTTP (service discovery).  
-  **Emits**: `StarportReservationCreated`, `TariffCalculated`, `IncidentRecorded` …
-
-- **Service B — Trade Route Planner (Hexagonal)**  
-  **Called by**: A (HTTP).  
-  **Emits**: `RoutePlanned`, `RouteReplanned`, `RouteRejected` …
-
-- **Service C — Telemetry Pipeline (Pipes & Filters)**  
-  **Consumes**: events from A & B.  
-  **Publishes**: enriched events (`*.enriched`) & alerts.
-
----
-
-## High-Level Flows
-
-### Flow 1 — Reserve Docking Bay & Plan a Route
+### Flow A — Reserve docking bay + route planning (happy path)
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as User
-    participant A as Starport Registry
-    participant B as Trade Route Planner
-    participant K as Kafka/Redpanda
-    participant C as Telemetry Pipeline
+    participant G as api-gateway
+    participant A as starport-registry
+    participant B as trade-route-planner
+    participant K as Kafka
+    participant C as telemetry-pipeline
 
-    U->>A: POST /starports/{id}/reservations
-    A->>B: HTTP POST /routes/plan via lb://
-    A-->>K: Event: StarportReservationCreated
-    B-->>K: Event: RoutePlanned
-    K-->>C: Consume both events
-    C->>C: validate → enrich → aggregate → detect anomaly
-    C-->>K: Publish enriched events
-    A-->>U: 201 Created + reservationId + route ETA
+    U->>G: POST /api/v1/starports/ABC/reservations (requestRoute=true)
+    G->>A: lb:// route → starport-registry replica
+    A->>A: validate (time + start/destination starport exist)
+    A->>A: TX1 — findFreeBay (FOR UPDATE SKIP LOCKED) → INSERT reservation (HOLD), commit
+    par on virtual threads (ADR-0012)
+        A->>B: HTTP POST /api/v1/routes/plan via lb:// (200ms/2s timeouts, CB + retry)
+        B->>B: compute ETA + riskScore (in-memory, no DB)
+        B-)K: StreamBridge.send → starport.route-planned (direct, NO outbox)
+        B-->>A: 200 {etaHours, riskScore}
+    and
+        A->>A: compute fee
+    end
+    A->>A: TX2 — UPDATE HOLD→CONFIRMED + INSERT route + INSERT event_outbox (same tx)
+    A-->>U: 201 Created {reservationId, bay, feeCharged, route}
+    Note over A,K: later — outbox relay @Scheduled (~5–10s) drains event_outbox → StreamBridge → starport.reservations
+    K-->>C: telemetry consumes route + reservation events → filter chain → enriched / alerts
 ```
 
-### Flow 2 — Dynamic Re-Route
+### Flow B — Reserve docking bay, no route (`requestRoute: false`)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant A as Starport Registry
-    participant B as Trade Route Planner
-    participant K as Kafka/Redpanda
-    participant C as Telemetry Pipeline
+    participant U as User
+    participant A as starport-registry
+    participant K as Kafka
+    participant C as telemetry-pipeline
 
-    A-->>K: Event: IncidentRecorded
-    K-->>C: Consume IncidentRecorded
-    C-->>B: HTTP POST /routes/replan-suggestion
-    B-->>K: Event: RouteReplanned
+    U->>A: POST /reservations (requestRoute=false, originPortId=null)
+    A->>A: TX1 — findFreeBay (SKIP LOCKED) → INSERT HOLD, commit
+    Note over A: no call to trade-route-planner — fee computed locally
+    A->>A: TX2 — UPDATE HOLD→CONFIRMED + INSERT event_outbox (same tx)
+    A-->>U: 201 Created {reservationId, bay, feeCharged, route:null}
+    Note over A,K: later — outbox relay @Scheduled (~5–10s) → starport.reservations
+    K-->>C: telemetry consumes → enrich
+```
+
+### Flow C — Circuit breaker open (route unavailable)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant A as starport-registry
+    participant B as trade-route-planner
+
+    U->>A: POST /reservations (requestRoute=true)
+    A->>A: TX1 — HOLD allocated
+    A->>B: POST /api/v1/routes/plan
+    Note over A,B: failures exceed 50% over the sliding window
+    B--xA: timeout / 5xx — Resilience4j trips OPEN
+    A->>A: fallback → RouteUnavailableException → release HOLD
+    A-->>U: 409 ROUTE_UNAVAILABLE
+```
+
+### Flow D — Concurrent reservation conflict
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U1 as Client 1
+    participant U2 as Client 2
+    participant A as starport-registry
+    participant DB as Postgres
+
+    par Same bay, overlapping window
+        U1->>A: POST /reservations
+        and
+        U2->>A: POST /reservations
+    end
+    A->>DB: SELECT … FOR UPDATE SKIP LOCKED  (both)
+    DB-->>A: Client 1 locks the only free row — Client 2 skips it → 0 rows
+    A-->>U1: 201 Created
+    A-->>U2: 409 NO_DOCKING_BAYS_AVAILABLE
+```
+
+### Flow E — Telemetry pipeline (Pipes & Filters)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant K as telemetry.raw
+    participant V as ValidationFilter
+    participant E as EnrichmentFilter
+    participant Ag as AggregationFilter
+    participant An as AnomalyDetectionFilter
+    participant Out as telemetry.alerts
+
+    K->>V: raw telemetry record
+    V->>E: valid payloads (invalid → nulled/dropped)
+    E->>Ag: + shipClass / sector / threshold lookup
+    Ag->>An: rolling window (Welford running stats — the one stateful filter)
+    An->>Out: threshold + 3σ breach → alert (null = no alert)
 ```
 
 ---
 
-## HTTP Contracts (as-built)
+## 6. HTTP API Reference
 
-### External — User → Starport Registry
-`POST /api/v1/starports/{code}/reservations`
+### `POST /api/v1/starports/{code}/reservations` — external, via gateway `:8080`
 
-**Request** (`ReservationCreateRequest`, Jakarta-validated per ADR-0023):
+Creates (HOLD → CONFIRM) a docking-bay reservation, optionally planning a route.
+
+**Request** (`ReservationCreateRequest`, Jakarta-validated — ADR-0023):
+
 ```json
 {
   "customerCode": "CUST-001",
-  "shipCode": "SHIP-001",
-  "shipClass": "C",
-  "startAt": "2026-05-01T10:00:00Z",
-  "endAt":   "2026-05-01T11:00:00Z",
+  "shipCode": "SS-Enterprise-01",
+  "shipClass": "SCOUT",
+  "startAt": "2031-05-01T10:00:00Z",
+  "endAt":   "2031-05-01T11:00:00Z",
   "requestRoute": true,
-  "originPortId": "BETA"
+  "originPortId": "ALPHA-BASE"
 }
 ```
 
+| Field | Type | Constraint |
+|---|---|---|
+| `customerCode` | string | required, non-blank, must exist |
+| `shipCode` | string | required, non-blank, must exist |
+| `shipClass` | enum | required — `SCOUT` / `FREIGHTER` / `CRUISER` |
+| `startAt` / `endAt` | ISO-8601 UTC | required, future, `startAt < endAt` |
+| `requestRoute` | boolean | required |
+| `originPortId` | string \| null | required when `requestRoute=true` |
+
 **Response 201 Created** (`ReservationResponse`):
+
 ```json
 {
   "reservationId": 42,
   "starportCode": "ABC",
   "bayNumber": 7,
-  "startAt": "2026-05-01T10:00:00Z",
-  "endAt":   "2026-05-01T11:00:00Z",
+  "startAt": "2031-05-01T10:00:00Z",
+  "endAt":   "2031-05-01T11:00:00Z",
   "feeCharged": 1480.00,
   "route": { "routeCode": "ROUTE-9F21", "etaHours": 18.7, "riskScore": 0.32 }
 }
 ```
 
-**Error responses** (ADR-0015 — `Map<String,String>` with stable `error` codes):
+**Error responses** (ADR-0015 — stable `error` codes):
 
-| Status | Body `error`              | Cause                                                 |
+| Status | `error` code | Cause |
 |---|---|---|
-| 400    | `MALFORMED_REQUEST`       | Invalid JSON                                          |
-| 404    | `STARPORT_NOT_FOUND` / `CUSTOMER_NOT_FOUND` / `SHIP_NOT_FOUND` | Unknown reference code           |
-| 409    | `NO_DOCKING_BAYS_AVAILABLE` | Pessimistic lock returned 0 rows (ADR-0020)          |
-| 409    | `ROUTE_UNAVAILABLE`       | Circuit breaker open on trade-route-planner (ADR-0014) |
-| 422    | `VALIDATION_FAILED`       | Bean Validation rejected the payload                  |
-| 422    | `INVALID_RESERVATION_TIME` | Rule chain: `startAt >= endAt`                       |
+| 400 | `MALFORMED_REQUEST` | Invalid/broken JSON, wrong type, unknown `shipClass` value |
+| 404 | `STARPORT_NOT_FOUND` / `CUSTOMER_NOT_FOUND` / `SHIP_NOT_FOUND` | Unknown reference code |
+| 409 | `NO_DOCKING_BAYS_AVAILABLE` | Pessimistic lock returned 0 rows (ADR-0020) |
+| 409 | `ROUTE_UNAVAILABLE` | Circuit breaker open on trade-route-planner (ADR-0014) |
+| 415 | *(unsupported media type)* | Empty body / missing `Content-Type` |
+| 422 | `VALIDATION_FAILED` | Bean Validation rejected the payload (missing/blank field) |
+| 422 | `INVALID_RESERVATION_TIME` | Rule chain: `startAt >= endAt`, past dates |
 
-### Internal — Starport Registry → Trade Route Planner
-`POST http://trade-route-planner/routes/plan` (resolved via `lb://` — ADR-0003)
+### `POST /api/v1/routes/plan` — trade-route-planner
+
+The route-planning contract. **Server-to-server only:** Starport Registry calls it via
+`http://trade-route-planner/api/v1/routes/plan` (resolved by `lb://`) during reservation
+confirmation. It is **not** exposed through the gateway — there is no public route for
+`/api/v1/routes/**`, and the planner binds no host port, so it is unreachable from outside
+the `app` network (ADR-0031).
+
+The planner is **stateless and DB-free** — ETA is derived from ship class, riskScore from a deterministic corridor hash. On success it publishes `RoutePlanned` to `starport.route-planned` via a **direct `StreamBridge.send()`** (no outbox).
 
 **Request** (`PlanRouteRequest`):
+
 ```json
 {
-  "originPortId": "BETA",
+  "originPortId": "ALPHA-BASE",
   "destinationPortId": "ABC",
-  "shipProfile": { "shipClass": "C", "fuelRangeLY": 24.0 }
+  "shipProfile": { "shipClass": "SCOUT", "fuelRangeLY": 24.0 }
 }
 ```
 
 **Response 200 OK** (`PlanRouteResponse`):
+
 ```json
-{ "routeId": "ROUTE-9F21", "etaHours": 18.7, "riskScore": 0.32, "correlationId": "..." }
+{ "routeId": "ROUTE-9F21", "etaHours": 18.7, "riskScore": 0.32, "correlationId": "…" }
 ```
 
-Wrapped on the caller side with timeouts (connect 200 ms / read 2 s) and a Resilience4j
-circuit breaker (ADR-0014).
+**Caller-side resilience (from `starport-registry/application.yml`):**
+
+| Parameter | Value |
+|---|---|
+| Connect timeout | `200 ms` |
+| Read timeout | `2000 ms` |
+| Circuit breaker | sliding window 10, min 5 calls, 50% failure threshold, open 10 s, half-open 3 |
+| Retry | `max-attempts: 2` (one retry), `100 ms` wait, on `RouteUnavailableException` |
+
+### Other endpoints
+
+- **Actuator** on every service: `/actuator/health`, `/info`, `/metrics`, `/prometheus`, `/liveness`, `/readiness`.
+- **Gateway**: `/actuator/gateway/routes` lists the active routing rules.
+- **telemetry-pipeline** has no business REST API — it is Kafka-driven only.
 
 ---
 
-## Kafka Topology (as-built, ADR-0016)
+## 7. Kafka Topology
 
-Namespaces — `starport.*` (owned by starport-registry + trade-route-planner) and
-`telemetry.*` (owned by telemetry-pipeline).
+Namespaces: `starport.*` (owned by starport-registry + trade-route-planner) and `telemetry.*`
+(owned by telemetry-pipeline). Topic destinations are the wire contract; binding names are the
+Spring Cloud Stream function bindings.
 
-| Topic                              | Producer                                  | Consumer(s)                               | Partitions |
-|---|---|---|---|
-| `starport.reservations`            | starport-registry (`reservationCreated-out-0`) | telemetry-pipeline (`reservationPipeline-in-0`) | 3 |
-| `starport.tariffs`                 | starport-registry (`tariffCalculated-out-0`)   | —                                         | default    |
-| `starport.route-changes`           | starport-registry (`routeChanged-out-0`)       | —                                         | default    |
-| `starport.route-planned`           | trade-route-planner (`routePlanned-out-0`)     | telemetry-pipeline (`routePipeline-in-0`) | default    |
-| `telemetry.raw`                    | *(external producer)*                          | telemetry-pipeline (`telemetryPipeline-in-0`) | default  |
-| `telemetry.alerts`                 | telemetry-pipeline (`telemetryPipeline-out-0`) | —                                         | default    |
-| `telemetry.enriched-reservations`  | telemetry-pipeline (`reservationPipeline-out-0`) | —                                       | default    |
-| `telemetry.enriched-routes`        | telemetry-pipeline (`routePipeline-out-0`)     | —                                         | default    |
+| Topic | Producer (binding) | Consumer (binding) | Partitions | Retry | DLQ |
+|---|---|---|---|---|---|
+| `starport.reservations` | starport-registry (`reservationConfirmed-out-0`) | telemetry-pipeline (`reservationPipeline-in-0`) | 3 | 3 × 1 s | `starport.reservations.dlq` |
+| `starport.route-planned` | trade-route-planner (`routePlanned-out-0`) | telemetry-pipeline (`routePipeline-in-0`) | default (2) | 3 × 1 s | `starport.route-planned.dlq` |
+| `telemetry.raw` | *(external producer)* | telemetry-pipeline (`telemetryPipeline-in-0`) | default (2) | 3 × 1 s | `telemetry.raw.dlq` |
+| `telemetry.alerts` | telemetry-pipeline (`telemetryPipeline-out-0`) | — | default (2) | — | — |
+| `telemetry.enriched-reservations` | telemetry-pipeline (`reservationPipeline-out-0`) | — | default (2) | — | — |
+| `telemetry.enriched-routes` | telemetry-pipeline (`routePipeline-out-0`) | — | default (2) | — | — |
 
-**Delivery guarantees** — at-least-once via Transactional Outbox on the producer side
-(ADR-0010); consumers idempotent where semantically required. Consumer retry is
-`max-attempts: 3` with 1 s back-off; no DLQ topics yet (ADR-0016 follow-up).
+> Topics are auto-created on first publish (`autoCreateTopics: true`). The default partition count
+> is `2` (broker `KAFKA_NUM_PARTITIONS`); `starport.reservations` is grown to **3** via
+> `autoAddPartitions: true` on the producer (ADR-0019).
+
+**Delivery guarantee.** The two producers differ by design:
+- **starport-registry → `starport.reservations`** uses a **transactional outbox** — the event row is
+  written in the same DB transaction as the reservation, then drained to Kafka by a polling relay
+  (`InboxPublisher`, ~5–10 s) — giving **at-least-once** delivery even across crashes (ADR-0010).
+- **trade-route-planner → `starport.route-planned`** has no database, so it publishes **directly and
+  synchronously** via `StreamBridge.send()` inside the `/plan` call (no outbox; a failed send throws).
+
+Telemetry consumers are idempotent where semantics require it and route poison/deserialization
+failures to per-binding **DLQ** topics after `max-attempts: 3`.
 
 ---
 
-## 🗃️ Database Schema (starport-registry)
+## 8. Database Schema (starport-registry only)
 
-Only `starport-registry` has a database (ADR-0018). All DDL lives in
+Only `starport-registry` has a database (ADR-0018). DDL lives in
 `starport-registry/src/main/resources/db/migration/` as Flyway versioned migrations:
 
-| Migration                                      | Purpose                                           |
+| Migration | Purpose |
 |---|---|
-| `V1__starport_basic_model.sql`                 | Core aggregates                                   |
-| `V2__test_data.sql`                            | Baseline seed (2 starports, 1 customer / ship / bay) |
-| `V3__create_event_outbox.sql`                  | Outbox table + `(status, created_at)` index      |
-| `V4__reservation_indexes.sql`                  | Composite indexes for `findFreeBay` hot path     |
-| `V5__expand_test_data.sql`                     | Larger idempotent seed for load tests            |
-| `V6__lookup_indexes.sql`                       | Indexes on `code` columns (starport, customer, ship) |
+| `V1__starport_basic_model.sql` | Core aggregates + ID sequences (`INCREMENT BY 10`, pooled-lo) |
+| `V2__test_data.sql` | Baseline seed (starports `ABC` / `ALPHA-BASE`, `CUST-001`, `SS-Enterprise-01`, bays) |
+| `V3__create_event_outbox.sql` | `event_outbox` table + `(status, created_at)` index |
+| `V4__reservation_indexes.sql` | Composite indexes for the `findFreeBay` hot path |
+| `V6__lookup_indexes.sql` | Indexes on `code` columns (starport / customer / ship) |
+| `V7__reservation_optimistic_lock.sql` | Adds `reservation.version` for `@Version` optimistic locking |
 
-Core tables (all IDs `BIGINT GENERATED BY DEFAULT AS IDENTITY`):
+Core tables (IDs are `BIGINT` from per-table sequences; `event_outbox` uses `GENERATED BY DEFAULT AS IDENTITY`):
 
 - **`starport`** — `code`, `name`, `description`, `created_at`, `updated_at`.
 - **`docking_bay`** — `starport_id`, `bay_label`, `ship_class`, `status`. Target of the
-  `SELECT ... FOR UPDATE SKIP LOCKED` pessimistic lock (ADR-0020).
+  `FOR UPDATE SKIP LOCKED` lock (ADR-0020).
 - **`customer`** — `customer_code`, `name`, timestamps.
 - **`ship`** — `customer_id`, `ship_code`, `ship_class`.
-- **`reservation`** — `starport_id`, `docking_bay_id`, `customer_id`, `ship_id`,
-  `start_at`, `end_at`, `fee_charged`, `status` (`HOLD` / `CONFIRMED` / `CANCELLED`),
-  `route_id`, timestamps. The overlap-check query runs against `(start_at, end_at)`.
-- **`route`** — one-to-one with reservation when `requestRoute=true`.
+- **`reservation`** — `starport_id`, `docking_bay_id`, `customer_id`, `ship_id`, `start_at`,
+  `end_at`, `fee_charged` (`NUMERIC(14,2)`), `status` (`HOLD` / `CONFIRMED` / `CANCELLED`),
+  `route_id`, `version`, timestamps. Overlap is checked against `(start_at, end_at)`.
+- **`route`** — `reservation_id`, `route_code`, `start_port_code`, `destination_port_code`,
+  `eta_light_years`, `risk_score` (one row per reservation when `requestRoute=true`).
 - **`event_outbox`** — `event_type`, `binding`, `message_key`, `payload_json` (JSONB),
-  `headers_json` (JSONB), `status`, `attempts`, timestamps. Drained by
-  `InboxPublisher` (ADR-0010).
+  `headers_json` (JSONB), `status` (`PENDING` / `SENT` / `FAILED`), `attempts`, `created_at`,
+  `sent_at`. Drained by the outbox relay (ADR-0010).
 
-**No foreign keys by design** — every `*_id` column is a plain `BIGINT` with a
-`-- references X.id (no FK by design)` comment. Trade-off explained in ADR-0018:
-insert-order-independent test seeding at the cost of losing DB-level referential
-integrity. The application layer (`ReserveBayValidationService` — ADR-0023) enforces
-existence before any write.
+The query that makes reservation concurrency safe:
 
 ```sql
--- The one query that makes reservation concurrency safe (ADR-0020)
+-- ADR-0020: pick a free bay and lock it; concurrent callers SKIP the locked row.
 SELECT db.* FROM docking_bay db
 WHERE db.starport_id = :starportId
-  AND db.class = :shipClass
+  AND db.ship_class  = :shipClass
+  AND db.status = 'ACTIVE'
   AND NOT EXISTS (
       SELECT 1 FROM reservation r
       WHERE db.id = r.docking_bay_id
@@ -523,235 +457,214 @@ LIMIT 1
 FOR UPDATE SKIP LOCKED;
 ```
 
----
-
-## Service C — Pipes & Filters (as-built)
-
-Filter chain (telemetry-pipeline, ADR-0022):
-
-```
-telemetry.raw
-  → ValidationFilter       (null-out invalid payloads)
-  → EnrichmentFilter       (shipClass, sector, threshold lookup)
-  → AggregationFilter      (rolling window, Welford running stats — the single stateful filter)
-  → AnomalyDetectionFilter (threshold + 3σ; null means "no alert")
-  → telemetry.alerts
-```
-
-Two secondary pipelines enrich events from other services:
-
-```
-starport.reservations   → reservationPipeline → telemetry.enriched-reservations
-starport.route-planned  → routePipeline       → telemetry.enriched-routes
-```
-
-All three pipelines are `@Bean Function<IN, OUT>` registered via
-`spring.cloud.function.definition` and wired to Kafka by Spring Cloud Stream (ADR-0019).
+**No foreign keys by design (ADR-0018).** Every `*_id` is a plain `BIGINT` with a
+`-- references X.id (no FK by design)` comment. The trade-off: insert-order-independent test
+seeding at the cost of DB-level referential integrity; the application layer
+(`ReserveBayValidationService` — ADR-0023) enforces existence before any write.
 
 ---
 
-## 🧠 Business Cases
+## 9. Observability Stack
 
-### Service A (Layered)
-- Reserve Docking Bay & Request Route
-- Dynamic Tariffing
-- Record Port Incident
-- Maintenance Scheduling
-- Security Clearance Check
+Apps push **traces** and **logs** over OTLP to a single **OTel Collector** (`otel-collector:4318`) —
+never directly to Tempo or Loki. The Collector is the central hub (ADR-0037).
 
-```
-POST http://localhost:8080/api/v1/starports/ABC/reservations
-Content-Type: application/json
-Accept: application/json
+### Traces
 
-{
-  "customerCode": "CUST-001",
-  "shipCode": "SHIP-001",
-  "shipClass": "C",
-  "startAt": "2026-05-01T10:00:00Z",
-  "endAt":   "2026-05-01T11:00:00Z",
-  "requestRoute": false,
-  "originPortId": null
-}
-```
+Spring Boot (micrometer-tracing-bridge-otel) exports **100% of spans** over OTLP to the Collector
+(`management.tracing.sampling.probability: 1.0` — every span reaches the Collector; the Collector
+decides what to keep). The Collector applies **tail sampling**:
 
-### Service B (Hexagonal)
-- Plan Legal Route
-- Re-Plan on Enriched Alert
-- Fuel-Optimized Routing
-- Priority Cargo Path
-- Embargo-Aware Routing
+| Policy | Keep |
+|---|---|
+| `keep-errors` (status_code) | 100% of traces with any ERROR span |
+| `keep-slow` (latency) | 100% of traces slower than **2 s** |
+| `baseline-1pct` (probabilistic) | **1%** of everything else |
 
-### Service C (Pipes & Filters)
-- Cross-Event Conflict Detection
-- Blockade Risk Escalation
-- Congestion Drift Detection
-- SLA Watchdog for Express Priority
-- Sanity/Integrity Guard
+`decision_wait: 10 s` buffers all spans of a trace before deciding (covers e2e latency + the
+~5 s BatchSpanProcessor flush). Kept traces are written to **Tempo**. Trace context propagates over
+HTTP (LoadBalancer auto-instrumentation) and over Kafka via `enable-observation: true` on every
+binder (ADR-0017). Business IDs `reservationId` / `routeId` ride in OpenTelemetry baggage.
+
+### Metrics
+
+Micrometer Observation API exposes `/actuator/prometheus`; **Prometheus** scrapes each replica.
+Histograms are activated by the presence of `slo:` buckets (no client-side percentiles — they don't
+aggregate across replicas; use `histogram_quantile()` over `_bucket` in PromQL). Long-term storage
+is offloaded to **Thanos** (Prometheus keeps only 6 h locally; sidecar → MinIO → store/query).
+
+Representative custom metrics (ADR-0030, two-tier cardinality):
+
+| Metric | Type | Tags |
+|---|---|---|
+| `reservations.hold.allocate` | Timer + histogram | — |
+| `reservations.fees.calculate` | Timer | — |
+| `reservations.route.plan` | Timer | — |
+| `reservations.confirm` | Timer | — |
+| `reservations.outbox.append` | Timer | — |
+| `reservations.inbox.publish` / `inbox.poll.duration` | Timer | — |
+| `reservations.created.total` | Counter | `starport`, `shipClass`, `outcome` |
+| `reservations.outbox.dead.letter` | Counter | `eventType`, `binding` |
+| `routes.plan` | Timer + histogram | (planner) |
+| `telemetry.filter.{validation,enrichment,aggregation,anomaly}` | Timer | (per stage) |
+| `telemetry.anomalies.detected` | Counter | `severity` |
+| `events.reservation.lag` | Timer | end-to-end produce→consume lag |
+
+### Logs
+
+- **Apps** → OTel logback appender → OTLP → **OTel Collector** → **Loki** (**100%, no sampling** —
+  the only sure guarantee that "trace in Tempo ⇒ log in Loki").
+- **Infra** (kafka, postgres, grafana, prometheus, tempo, loki, kafka-ui, otel-collector) → **Grafana Alloy**
+  scrapes Docker stdout → Loki. Alloy explicitly **drops** the application containers (they already
+  push OTLP) — see `alloy/config.alloy`.
+- **Label convention:** `service_name` (native OTLP→Loki mapping from the `service.name` resource
+  attribute; Alloy mirrors it for infra — ADR-0037 §B1).
+- **Trace correlation:** every log line carries `[service, traceId, spanId]`, so Grafana's
+  "Logs for this span" button jumps straight from a trace to its logs.
+
+### Grafana dashboards
+
+Auto-provisioned under `infra/docker/grafana/provisioning/dashboards/`:
+
+- **`distributed_tracing.json`** — request rate, HTTP latency p50/p95/p99, error rate,
+  circuit-breaker state, async outbox/inbox tracing, Tempo explorer, service dependency graph.
+- **`business-revenue-executive.json`** — executive revenue view: total/▵ revenue, revenue per port
+  & ship class, avg revenue per reservation, rejection rate, live dock occupancy.
+- **`slo-error-budget.json`** — availability & latency SLOs with 30-day error-budget burn-rate and
+  top budget consumers (5xx by service / endpoint).
+- **`resources_use.json`** — USE method (Utilization · Saturation · Errors) for JVM, Hikari, Kafka
+  client, and the outbox queue. (Under virtual threads `tomcat_threads_*` is unreliable — web
+  saturation is read from `http_server_requests_active_seconds_count`.)
+- **`exemplars-success-error.json`** — success/error drill-down with exemplars linking latency
+  histograms to the originating traces (ADR-0033).
 
 ---
 
-## 📚 Related Documents
+## 10. URL Reference
 
-- [`adr/README.md`](adr/README.md) — indexed catalogue of 31 ADRs with per-concern and
-  per-service maps, plus a list of known production-readiness gaps.
-- [`README_2.md`](README_2.md) — detailed end-to-end flow, HTTP contracts, and event
-  contracts with Mermaid diagrams (HOLD/CONFIRM, rejection paths, Idempotency-Key
-  header design notes).
-- [`readme3.md`](readme3.md) — deep-dive on Load Balancing and Service Discovery with
-  code snippets, deployment topology, and request-flow walkthrough.
-- [`plany/plan-obsluga-setek-requestow.md`](plany/plan-obsluga-setek-requestow.md) —
-  concurrency / throughput plan that motivated ADR-0012 (virtual threads) and
-  ADR-0013 (OSIV off) + HikariCP sizing.
-- [`starport-registry/inbox_outbox_pattern_15_minute_spring_boot_talk.md`](starport-registry/inbox_outbox_pattern_15_minute_spring_boot_talk.md)
-  — supplementary learning notes on the Outbox pattern (ADR-0010).
+Only the **api-gateway** binds a host port for business traffic; app replicas live on the internal
+`app` network and are reached via Eureka-resolved `lb://` URIs (ADR-0031).
 
----
+| Component | URL | Notes |
+|---|---|---|
+| **api-gateway** (public ingress) | http://localhost:8080 | `/api/v1/starports/**` → starport-registry. The planner is **not** routed — `/api/v1/routes/**` is internal-only |
+| Gateway routes | http://localhost:8080/actuator/gateway/routes | List active routing rules |
+| Eureka dashboard | http://localhost:8761 | Service registry UI; live replicas per service |
+| Kafka UI | http://localhost:8085 | Topic / consumer-group browser |
+| Kafka bootstrap | `localhost:9092` (TCP) | Host clients (Postman / IDE); containers use `kafka:9093` |
+| PostgreSQL | `localhost:5432` (`starports`, `postgres`/`postgres`) | Dev DB access (ephemeral tmpfs) |
+| **OTel Collector** | `localhost:4318` (HTTP) / `4317` (gRPC) | OTLP traces + logs in (host/IDE runs) |
+| Prometheus | http://localhost:9090 | Metrics scrape (6 h local retention) |
+| Thanos Query | http://localhost:10902 | Long-term / global metrics view |
+| MinIO console | http://localhost:9001 | Thanos object store (creds from `.env`) |
+| Grafana | http://localhost:3000 (`admin`/`admin`) | Unified Prometheus + Tempo + Loki dashboards |
+| Tempo | http://localhost:3200 | Trace API (OTLP `:4318` is internal-only now — ADR-0037) |
+| Loki | http://localhost:3100 | Log aggregation |
+| Alloy | http://localhost:12345 | Debug UI (infra-log scraper only) |
 
-## 👨‍💻 Development Workflow
-
-**Iterate on a single service** without rebuilding the whole stack:
+App instances (`starport-registry-1/2` :8081, `trade-route-planner-1/2` :8082,
+`telemetry-pipeline-1/2` :8090) have **no host port binding**. Debug a single instance via:
 
 ```bash
-# Rebuild + redeploy only starport-registry (both replicas)
-cd infra/docker
-docker compose up --build -d starport-registry-1 starport-registry-2
-
-# Or run one service outside Compose against the Compose infra
-# (Postgres, Kafka, Eureka stay up; kill only the app you want to debug):
-docker compose stop starport-registry-1 starport-registry-2
-cd ../../starport-registry
-./mvnw spring-boot:run    # picks up localhost:* defaults → Compose services
-```
-
-**Tail logs for one service**:
-
-```bash
-docker compose logs -f starport-registry-1
-docker compose logs -f --tail=100 trade-route-planner-1 telemetry-pipeline-1
-```
-
-**Inspect live state** (useful during debugging):
-
-- Eureka-registered instances — http://localhost:8761
-- Kafka topic contents — http://localhost:8085 (Kafka UI)
-- Outbox backlog — `docker compose exec postgres psql -U postgres -d starports -c "SELECT status, COUNT(*) FROM event_outbox GROUP BY status;"`
-- Live traces — http://localhost:3000 → Explore → Tempo → latest 20 traces
-- Live metrics — http://localhost:3000 → pre-provisioned dashboards
-
-**Reset local state** (nukes DBs, Kafka topics, Grafana prefs):
-
-```bash
-cd infra/docker
-docker compose down -v
+docker compose exec starport-registry-1 wget -qO- http://localhost:8081/actuator/health
 ```
 
 ---
 
-## 📊 Grafana Dashboards
+## 11. Project Structure
 
-Pre-provisioned under `infra/docker/grafana/provisioning/dashboards/`:
-
-- **`distributed_tracing.json`** — end-to-end request tracing. Panels: total request
-  rate, HTTP request latency (p99), HTTP error rate, P50/P95/P99 histograms, circuit-breaker
-  state for `trade-route-planner`, async outbox/inbox event tracing, Tempo trace explorer,
-  service dependency graph. Scoped by a `$job` template variable.
-- **`logs_traces_metrics.json`** — unified business + infrastructure view. Panels:
-  fee revenue rate (cr/hour), reservation conversion rate, failure rate, JVM heap,
-  CPU / memory, reservation HTTP duration, fee amount distribution, outbox dead-letter
-  counter, inbox throughput.
-- **`business-revenue-executive.json`** — executive revenue view (CEO-level). Panels:
-  total revenue over range, revenue/h trend, revenue per port / ship class, average
-  revenue per reservation, reservation rejection rate per class, live dock occupancy.
-- **`slo-error-budget.json`** — availability & latency SLOs with 30-day error-budget
-  burn-rate and top budget consumers (5xx by service / endpoint).
-- **`resources_use.json`** — USE method (Utilization · Saturation · Errors) for JVM,
-  Tomcat / Hikari thread pools, Kafka consumer/producer, and the outbox queue.
-- **`exemplars-success-error.json`** — success/error drill-down with exemplars linking
-  latency histograms to the originating traces (ADR-0033).
-
-Open http://localhost:3000 (admin / admin) → Dashboards → Browse.
-
----
-
-## 🩺 Troubleshooting
-
-**"Services don't appear in Eureka for ~30 s"**
-Not a bug — ADR-0028 keeps eviction aggressive (5 s) in dev, but client lease renewal
-is still 10 s. First registration after `docker compose up` typically takes 15–20 s;
-dependent services wait on `service_healthy` by design.
-
-**"A `lb://` HTTP call returns 5xx right after a restart"**
-The local registry cache may hold a dead instance for up to `registry-fetch-interval-seconds`
-(5 s in dev). Spring Cloud LoadBalancer will rotate to another instance on the next
-call. If it keeps failing, check http://localhost:8761 — the dead instance should be
-gone within ~30 s (lease expiration).
-
-**"Kafka topic doesn't exist"**
-`autoCreateTopics: true` is on for all services — topics are created on first
-publish. If you scrape a topic that no producer has touched yet, Kafka UI shows it
-empty/missing; produce a message or check the producer logs.
-
-**"Reservation returns 409 `NO_DOCKING_BAYS_AVAILABLE` on the first request"**
-The seed data (V2 / V5 migrations) includes a bounded set of bays. Under load test,
-send non-overlapping time windows (ADR-0020 pessimistic lock returns empty if every
-bay is reserved during the requested window). The load-test script handles this with
-`$dayBase = $ScriptId * 100`.
-
-**"Tests fail with `Testcontainers could not start Postgres`"**
-Docker Desktop must be running. On low-RAM machines, close the Compose stack first
-(`docker compose down`) — Testcontainers + full Compose can exceed 8 GB RAM.
-
-**"Outbox events stuck in `PENDING`"**
-Check `InboxPublisher` logs — Kafka broker unreachable is the usual cause. Query
-the `attempts` column; after `max-attempts: 10` the event is marked `FAILED`
-and the `reservations.outbox.dead.letter` counter increments (dashboard panel).
+```
+MicroservicesFleet/
+├── adr/                            # 37 ADRs (0000–0037) + template + index
+├── api-gateway/                    # Spring Cloud Gateway — single public ingress (:8080, ADR-0031)
+├── eureka-server/                  # Netflix Eureka registry (:8761) — @EnableEurekaServer wrapper
+├── starport-registry/              # Layered — reservations, fees, outbox publisher
+│   └── src/main/java/com/galactic/starport/
+│       ├── controller/             # REST + DTO records + GlobalExceptionHandler
+│       ├── service/                # holdreservation / confirmreservation / feecalculator /
+│       │                           #   routeplanner / validation (ADR-0023) / outbox (ADR-0010)
+│       ├── repository/             # JPA entities + ReservationMapper (ADR-0024)
+│       └── config/                 # @Configuration beans (RestClient, aspects)
+├── trade-route-planner/            # Hexagonal — route planning (:8082)
+│   └── src/main/java/com/galactic/traderoute/
+│       ├── domain/model/           # Pure records (ADR-0021)
+│       ├── port/{in,out}/          # Driving + driven ports
+│       ├── application/            # Use-case services
+│       └── adapter/{in/rest,out/kafka}/  # Framework code lives here only
+├── telemetry-pipeline/             # Pipes & Filters (:8090) — no REST API
+│   └── src/main/java/com/galactic/telemetry/
+│       ├── model/                  # Records — one per pipeline stage (ADR-0022)
+│       ├── filter/                 # Function<IN,OUT> filters (stateless + 1 stateful)
+│       ├── pipeline/               # @Configuration composing the function chain
+│       └── config/                 # Threshold @ConfigurationProperties
+├── infra/docker/                   # Compose stack
+│   ├── docker-compose.yml          # include: apps + observability
+│   ├── docker-compose.apps.yml     # eureka, postgres, kafka, gateway, app ×2 each
+│   ├── docker-compose.observability.yml  # tempo, prometheus, loki, alloy, grafana, otel-collector, thanos, minio
+│   ├── otel-collector/collector.yaml     # OTLP receivers + tail sampling pipelines (ADR-0037)
+│   ├── alloy/config.alloy          # infra-stdout scraper → Loki (ADR-0037)
+│   ├── grafana/                    # provisioning + tempo.yml / loki config
+│   ├── prometheus/                 # scrape config
+│   └── thanos/                     # objstore.yml (MinIO)
+├── scripts/                        # load-test.ps1 / load-test-all.ps1
+├── plany/                          # throughput / concurrency design notes
+├── pom.xml                         # Aggregator (BOMs + plugins — ADR-0025)
+└── README.md                       # You are here
+```
 
 ---
 
-## 🛠️ Load Testing
+## 12. Environment Variables
 
-Two PowerShell scripts in `scripts/` (ADR-style load testing — no Gatling / JMeter
-dependency):
+All services follow the `${ENV_VAR:default}` pattern (ADR-0009). Compose sets these per container;
+`./mvnw spring-boot:run` falls back to `localhost` defaults.
+
+| Variable | Default | Scope |
+|---|---|---|
+| `PORT` | `8080` gateway / `8081` starport / `8082` planner / `8090` telemetry / `8761` eureka | all services |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/starports` | starport-registry only |
+| `DB_USER` / `DB_PASS` | `postgres` / `postgres` | starport-registry only |
+| `KAFKA_BROKERS` | `localhost:9092` (Compose: `kafka:9093`) | all app services |
+| `EUREKA_URL` | `http://localhost:8761/eureka` (Compose: `http://eureka:8761/eureka`) | all app services |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://otel-collector:4318/v1/traces` | all app services |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | `http://otel-collector:4318/v1/logs` | all app services |
+| `OTEL_BSP_SCHEDULE_DELAY` | `1000` (best-effort BSP flush; may be ignored — see ADR-0037 §B2) | all app services |
+| `TRACE_SAMPLING` | `1.0` (all spans to Collector; the Collector tail-samples) | all app services |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | from `.env` (dev: `minio` / `minio123`) | MinIO / Thanos |
+
+> The `localhost` default for `OTEL_EXPORTER_OTLP_*` is `http://localhost:4318/...` (set in each
+> `application.yml`); the Collector publishes host port `4318`, so IDE runs export to the same hub.
+> Secrets must be passed only through environment variables — never committed to YAML.
+
+---
+
+## Load Testing
 
 ```powershell
-# Single script: 100 interleaved requests (50 "good" + 50 "bad") at one time-band
-# Default -Base is http://localhost:8080 (the gateway; ADR-0031)
+# 100 interleaved requests (50 good + 50 bad) at one non-overlapping time band; default -Base is :8080
 powershell -ExecutionPolicy Bypass -File scripts/load-test.ps1 -ScriptId 1
 
-# Fanout: runs 5 scripts in parallel with non-overlapping time bands (500 total requests)
+# Fan-out: 5 scripts in parallel, non-overlapping day bands (500 total requests)
 powershell -ExecutionPolicy Bypass -File scripts/load-test-all.ps1
 ```
 
-Expected: ~250 `201 Created` (good requests) + ~250 client errors (`400/404/409/422/415`
-— deliberately malformed). Mismatched counts indicate a behaviour regression.
+Expected aggregate: ~250 `201 Created` + ~250 deliberate client errors (`400/404/409/415/422`).
+A mismatch count > 0 signals a behaviour regression.
 
 ---
 
-## 🔗 References
+## Architecture Decision Records
 
-- [Spring Boot Reference](https://docs.spring.io/spring-boot/docs/current/reference/html/)
-- [Spring Cloud Reference](https://docs.spring.io/spring-cloud/docs/current/reference/html/)
-- [Spring Cloud Stream](https://docs.spring.io/spring-cloud-stream/docs/current/reference/html/)
-- [Micrometer Observation API](https://micrometer.io/docs/observation)
-- [Resilience4j](https://resilience4j.readme.io/)
-- [Testcontainers](https://testcontainers.com/)
-- [Awesome ADRs](https://github.com/joelparkerhenderson/architecture-decision-record)
-- [Michael Nygard — Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions.html)
-- [Layered Architecture](https://martinfowler.com/bliki/PresentationDomainDataLayering.html)
-- [Hexagonal Architecture — Cockburn](https://alistair.cockburn.us/hexagonal-architecture/)
-- [Pipes & Filters — Microsoft](https://learn.microsoft.com/en-us/azure/architecture/patterns/pipes-and-filters)
-- [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html)
+**37 ADRs (0000–0037)** live in [`adr/`](adr/README.md) with per-concern and per-service maps.
+Current authorities to note:
 
----
+- **ADR-0037 — tail sampling in the OTel Collector** is the current observability authority.
+  It **supersedes** the log-sampling chain **0034 ← 0035 ← 0037** and the dual-sink design
+  **0036 ← 0037**; treat 0034/0035/0036 as historical only.
+- Traces are tail-sampled (errors 100% · latency > 2 s 100% · rest 1%); **logs are not sampled**
+  (100% to Loki).
+- Application logs go via the OTLP logback appender → OTel Collector → Loki. **Alloy handles infra
+  container stdout only** (it does not tail application stdout).
 
-## ✅ Definition of Done
-
-- [x] Services run with ≥2 instances and discover each other via Eureka.
-- [x] Metrics, traces, and logs available in Grafana dashboards (auto-provisioned).
-- [x] Unit, contract, repository, and E2E tests pass; mutation testing configured.
-- [x] 32 ADRs written, versioned, and indexed.
-- [x] Demo flow (reservation create → route plan → Kafka publish → telemetry enrichment)
-      working end-to-end under Compose.
-- [ ] *Production-readiness items tracked in `adr/README.md` § "Known gaps" — out of
-      scope for the demo.*
+> New architectural decisions must ship with an ADR — see [`adr/0000-template.md`](adr/0000-template.md).
+```

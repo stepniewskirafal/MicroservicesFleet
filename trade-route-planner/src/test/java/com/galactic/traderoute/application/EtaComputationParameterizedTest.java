@@ -3,6 +3,7 @@ package com.galactic.traderoute.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
 import com.galactic.traderoute.domain.model.PlannedRoute;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.domain.model.RouteRequest;
@@ -21,8 +22,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Execution(ExecutionMode.CONCURRENT)
 class EtaComputationParameterizedTest {
 
-    private final PlanRouteService service =
-            new PlanRouteService(new SimpleMeterRegistry(), ObservationRegistry.NOOP, event -> {});
+    private final PlanRouteService service = new PlanRouteService(
+            new MicrometerRouteMetricsAdapter(new SimpleMeterRegistry(), ObservationRegistry.NOOP), event -> {});
 
     @ParameterizedTest(name = "[{index}] shipClass={0} → ETA in [{1}, {2}]")
     @CsvSource({

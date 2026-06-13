@@ -44,9 +44,10 @@ class FeeCalculatorProperties {
     }
 
     @Property
-    void fee_scales_linearly_with_hours(
+    void fee_scales_linearly_within_standard_tariff_tier(
             @ForAll("validShipClasses") ReserveBayCommand.ShipClass shipClass,
-            @ForAll @IntRange(min = 1, max = 360) int hours) {
+            // Linearity holds only below the 24h long-stay discount threshold (start is off-peak 00:00).
+            @ForAll @IntRange(min = 1, max = 23) int hours) {
         // given
         Instant start = Instant.parse("2004-01-01T00:00:00Z");
         ReserveBayCommand singleHourCmd = ReserveBayCommand.builder()

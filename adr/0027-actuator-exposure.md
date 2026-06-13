@@ -33,15 +33,18 @@ management:
         enabled: true
 ```
 
-Eureka drops `metrics` from its include list (no custom Micrometer counters worth
-inspecting); otherwise identical.
+`eureka-server` drops `metrics` from its include list (no custom Micrometer counters
+worth inspecting); `api-gateway` adds `gateway` (route introspection,
+`/actuator/gateway/routes`). Otherwise identical across services.
 
 **Deliberately NOT exposed**: `env`, `configprops`, `heapdump`, `threaddump`,
 `loggers` (write), `shutdown`. Each leaks secrets, memory, or grants runtime mutation.
 
-**`show-details: always`** — Compose healthchecks need the body; humans need to see
-which subcomponent failed during incidents. Operators and attackers see the same thing;
-acceptable in Compose, must become `when-authorized` in prod.
+**`show-details: always` in base, `when-authorized` in prod.** Compose healthchecks need
+the body and humans need to see which subcomponent failed during incidents, so the base
+`application.yml` exposes details unauthenticated — acceptable on the Compose network.
+Each service's `application-prod.yml` overrides this to `show-details: when-authorized`,
+so the hardening is real config, not just a checklist item.
 
 **Management on the business port.** `management.server.port` not set. Simplifies
 Compose and shares the Tomcat pool (cheap on virtual threads, ADR-0012). Couples
@@ -92,7 +95,7 @@ follow-up.
 
 - [ ] Management on a non-public interface, or Spring Security with scrape principal, or
   network-policy enforcement
-- [ ] `show-details: when-authorized`
+- [x] `show-details: when-authorized` — done in every `application-prod.yml`
 - [ ] `build-info` + git metadata populated
 - [ ] Consider `auditevents` with a durable sink
 - [ ] Wire K8s liveness/readiness to the individual probes, not the composite

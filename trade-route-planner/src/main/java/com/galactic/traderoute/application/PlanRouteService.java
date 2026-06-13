@@ -6,93 +6,97 @@ import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.domain.model.RouteRequest;
 import com.galactic.traderoute.port.in.PlanRouteUseCase;
 import com.galactic.traderoute.port.out.RouteEventPublisher;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.DistributionSummary;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
+import com.galactic.traderoute.port.out.RouteMetricsPort;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.slf4j.MDC;
 
-@Service
 @Slf4j
 public class PlanRouteService implements PlanRouteUseCase {
 
     private static final double MIN_FUEL_RANGE_LY = 1.0;
-    private static final String OBSERVATION_NAME = "routes.plan";
-    private static final String METRIC_SUCCESS = "routes.planned.count";
-    private static final String METRIC_REJECTED = "routes.rejected.count";
-    private static final String METRIC_RISK_SCORE = "routes.risk.score";
-    private static final String METRIC_ETA_HOURS = "routes.eta.hours";
+    private static final String REJECTION_INSUFFICIENT_RANGE = "INSUFFICIENT_RANGE";
     private static final double BASE_ETA_SCOUT = 8.0;
     private static final double BASE_ETA_FREIGHTER = 18.0;
     private static final double BASE_ETA_CRUISER = 12.0;
     private static final double BASE_ETA_DEFAULT = 20.0;
     private static final double RISK_ETA_MULTIPLIER = 10.0;
+    private static final int RISK_BUCKETS = 10_000;
     private static final String ROUTE_ID_PREFIX = "ROUTE-";
     private static final int ROUTE_ID_SUFFIX_LENGTH = 8;
 
-    private final ObservationRegistry observationRegistry;
-    private final MeterRegistry meterRegistry;
+    private final RouteMetricsPort metrics;
     private final RouteEventPublisher routeEventPublisher;
-    private final Counter plannedCounter;
-    private final DistributionSummary riskScoreSummary;
 
-    public PlanRouteService(
-            MeterRegistry meterRegistry,
-            ObservationRegistry observationRegistry,
-            RouteEventPublisher routeEventPublisher) {
-        this.observationRegistry = observationRegistry;
-        this.meterRegistry = meterRegistry;
+    public PlanRouteService(RouteMetricsPort metrics, RouteEventPublisher routeEventPublisher) {
+        this.metrics = metrics;
         this.routeEventPublisher = routeEventPublisher;
-        this.plannedCounter = Counter.builder(METRIC_SUCCESS)
-                .description("Number of successfully planned routes")
-                .register(meterRegistry);
-        this.riskScoreSummary = DistributionSummary.builder(METRIC_RISK_SCORE)
-                .description("Distribution of route risk scores (0=safe, 1=dangerous)")
-                .register(meterRegistry);
     }
 
     @Override
     public PlannedRoute planRoute(RouteRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("originPortId", request.originPortId())
-                .lowCardinalityKeyValue("destinationPortId", request.destinationPortId())
-                .lowCardinalityKeyValue("shipClass", request.shipClass())
-                .observe(() -> doPlan(request));
+        return metrics.observePlan(request, () -> doPlan(request));
     }
 
     private PlannedRoute doPlan(RouteRequest request) {
         validateFuelRange(request);
 
-        double riskScore = ThreadLocalRandom.current().nextDouble(0.0, 1.0);
+        double riskScore = computeRiskScore(request);
         double etaHours = computeEta(request, riskScore);
         String routeId = generateRouteId();
 
-        log.info(
-                "Route planned: {} from {} to {} — eta={}h risk={}",
-                routeId,
-                request.originPortId(),
-                request.destinationPortId(),
-                etaHours,
-                riskScore);
+        // routeId is generated here (not propagated via baggage), so push it into MDC for the OTLP log
+        // appender (captureMdcAttributes: routeId) — covers this log line and the publisher's.
+        MDC.put("routeId", routeId);
+        try {
+            log.info(
+                    "Route planned: {} from {} to {} — eta={}h risk={}",
+                    routeId,
+                    request.originPortId(),
+                    request.destinationPortId(),
+                    etaHours,
+                    riskScore);
 
-        recordMetrics(request, riskScore, etaHours);
+            PlannedRoute result = PlannedRoute.builder()
+                    .routeId(routeId)
+                    .etaHours(etaHours)
+                    .riskScore(riskScore)
+                    .build();
 
-        PlannedRoute result = PlannedRoute.builder()
-                .routeId(routeId)
-                .etaHours(etaHours)
-                .riskScore(riskScore)
-                .build();
+            // Publish the event BEFORE recording success metrics: a route only counts as "planned"
+            // once its RoutePlannedEvent is on the wire. Recording metrics first over-counts
+            // routes.planned.count (and the ETA/risk summaries) whenever publishing fails. On failure
+            // we record routes.publish.failed and propagate (no outbox here yet — the event is lost),
+            // so recordPlanned() never runs and the success counter is not inflated.
+            try {
+                publishRouteEvent(request, routeId, etaHours, riskScore);
+            } catch (RuntimeException ex) {
+                metrics.recordPublishFailed(request);
+                throw ex;
+            }
+            metrics.recordPlanned(request, result);
 
-        publishRouteEvent(request, routeId, etaHours, riskScore);
+            return result;
+        } finally {
+            MDC.remove("routeId");
+        }
+    }
 
-        return result;
+    private double computeRiskScore(RouteRequest request) {
+        // Deterministic "ion-storm density" of the hyperspace corridor linking the two ports.
+        // The same corridor always yields the same risk — reproducible and explainable, unlike the
+        // previous dice-roll. Symmetric: A→B and B→A share a corridor, so they share a hazard rating.
+        String origin = request.originPortId().trim().toUpperCase();
+        String destination = request.destinationPortId().trim().toUpperCase();
+        String corridor = origin.compareTo(destination) <= 0
+                ? origin + "::" + destination
+                : destination + "::" + origin;
+        // Fold the stable String hash into a uniform value in [0.0, 1.0).
+        int bucket = Math.floorMod(corridor.hashCode(), RISK_BUCKETS);
+        return (double) bucket / RISK_BUCKETS;
     }
 
     private String generateRouteId() {
@@ -101,19 +105,6 @@ public class PlanRouteService implements PlanRouteUseCase {
                         .toString()
                         .substring(0, ROUTE_ID_SUFFIX_LENGTH)
                         .toUpperCase();
-    }
-
-    private void recordMetrics(RouteRequest request, double riskScore, double etaHours) {
-        riskScoreSummary.record(riskScore);
-
-        DistributionSummary.builder(METRIC_ETA_HOURS)
-                .description("Distribution of planned route ETA in hours")
-                .baseUnit("hours")
-                .tag("shipClass", request.shipClass())
-                .register(meterRegistry)
-                .record(etaHours);
-
-        plannedCounter.increment();
     }
 
     private void publishRouteEvent(RouteRequest request, String routeId, double etaHours, double riskScore) {
@@ -130,14 +121,9 @@ public class PlanRouteService implements PlanRouteUseCase {
 
     private void validateFuelRange(RouteRequest request) {
         if (request.fuelRangeLY() < MIN_FUEL_RANGE_LY) {
-            // Tag with rejection reason to enable filtering by cause in dashboards.
-            Counter.builder(METRIC_REJECTED)
-                    .description("Number of rejected route planning attempts")
-                    .tag("reason", "INSUFFICIENT_RANGE")
-                    .register(meterRegistry)
-                    .increment();
+            metrics.recordRejected(request, REJECTION_INSUFFICIENT_RANGE);
             throw new RouteRejectionException(
-                    "INSUFFICIENT_RANGE",
+                    REJECTION_INSUFFICIENT_RANGE,
                     "Required minimum fuel range is " + MIN_FUEL_RANGE_LY + " LY, but ship only has "
                             + request.fuelRangeLY() + " LY");
         }

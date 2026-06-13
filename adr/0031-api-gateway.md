@@ -28,10 +28,18 @@ spring.cloud.gateway.routes:
   - id: starport-registry
     uri: lb://starport-registry
     predicates: [ Path=/api/v1/starports/** ]
-  - id: trade-route-planner
-    uri: lb://trade-route-planner
-    predicates: [ Path=/routes/** ]
 ```
+
+Only **starport-registry** is publicly routed. **trade-route-planner is internal-only:**
+its sole caller is starport-registry, which reaches it directly via `lb://trade-route-planner`
+(Eureka client-side LB, ADR-0003) — never through the gateway. Routing `/api/v1/routes/**`
+publicly added attack surface with no caller, so it is **not** exposed. The planner binds no
+host port either, so it is unreachable from outside the `app` network.
+
+> **Amendment (2026-06-15).** The original decision also routed `/api/v1/routes/** →
+> trade-route-planner`. That route was removed: the planner has no external client and the
+> gateway never sat on the starport→planner path. A service is public only when an external
+> client needs it.
 
 Compose changes:
 

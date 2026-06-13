@@ -10,9 +10,11 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 
 import com.galactic.starport.service.confirmreservation.ConfirmReservationFacade;
+import com.galactic.starport.service.confirmreservation.ReservationConfirmationException;
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
+import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.Tracer;
@@ -53,7 +55,8 @@ class ReservationServiceTest {
                 reservationValidator,
                 reservationCalculationFacade,
                 new SimpleMeterRegistry(),
-                Tracer.NOOP);
+                Tracer.NOOP,
+                starport -> starport);
     }
 
     @Test
@@ -126,6 +129,64 @@ class ReservationServiceTest {
         reservationService.reserveBay(cmd);
 
         then(confirmReservationFacade).should().confirmReservation(eq(calc), eq("DEF"));
+    }
+
+    @Test
+    void should_compensate_hold_when_route_planning_fails() {
+        ReserveBayCommand cmd = aCommand();
+        Long reservationId = 5L;
+        given(holdReservationFacade.createHoldReservation(cmd)).willReturn(reservationId);
+        given(reservationCalculationFacade.calculate(reservationId, cmd))
+                .willThrow(new RouteUnavailableException("ALPHA-BASE", "DEF"));
+
+        assertThatThrownBy(() -> reservationService.reserveBay(cmd)).isInstanceOf(RouteUnavailableException.class);
+
+        // Orphan prevention: the committed HOLD must be released when confirm can't complete.
+        then(holdReservationFacade).should().cancelHold(reservationId);
+    }
+
+    @Test
+    void should_compensate_hold_when_confirmation_fails() {
+        ReserveBayCommand cmd = aCommand();
+        Long reservationId = 6L;
+        ReservationCalculation calc = new ReservationCalculation(reservationId, BigDecimal.TEN, null);
+        given(holdReservationFacade.createHoldReservation(cmd)).willReturn(reservationId);
+        given(reservationCalculationFacade.calculate(reservationId, cmd)).willReturn(calc);
+        given(confirmReservationFacade.confirmReservation(calc, "DEF"))
+                .willThrow(new ReservationConfirmationException(reservationId));
+
+        assertThatThrownBy(() -> reservationService.reserveBay(cmd))
+                .isInstanceOf(ReservationConfirmationException.class);
+
+        then(holdReservationFacade).should().cancelHold(reservationId);
+    }
+
+    @Test
+    void should_not_compensate_hold_on_success() {
+        ReserveBayCommand cmd = aCommand();
+        Long reservationId = 7L;
+        ReservationCalculation calc = new ReservationCalculation(reservationId, BigDecimal.TEN, null);
+        given(holdReservationFacade.createHoldReservation(cmd)).willReturn(reservationId);
+        given(reservationCalculationFacade.calculate(reservationId, cmd)).willReturn(calc);
+        given(confirmReservationFacade.confirmReservation(calc, "DEF"))
+                .willReturn(Reservation.builder().id(reservationId).build());
+
+        reservationService.reserveBay(cmd);
+
+        then(holdReservationFacade).should(never()).cancelHold(any());
+    }
+
+    @Test
+    void should_not_compensate_when_no_bay_available() {
+        ReserveBayCommand cmd = aCommand();
+        given(holdReservationFacade.createHoldReservation(cmd))
+                .willThrow(new NoDockingBaysAvailableException("DEF", "SCOUT", cmd.startAt(), cmd.endAt()));
+
+        assertThatThrownBy(() -> reservationService.reserveBay(cmd))
+                .isInstanceOf(NoDockingBaysAvailableException.class);
+
+        // No HOLD was created, so there is nothing to compensate.
+        then(holdReservationFacade).should(never()).cancelHold(any());
     }
 
     private static ReserveBayCommand aCommand() {

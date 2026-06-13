@@ -27,7 +27,9 @@ in force.
 Dotted kebab-case after the prefix. The prefix encodes ownership, not data shape.
 
 **Binding names** — Spring Cloud Stream convention
-`<purpose><-in|-out>-<ordinal>` (e.g. `reservationCreated-out-0`).
+`<purpose><-in|-out>-<ordinal>` (e.g. `reservationConfirmed-out-0` →
+`starport.reservations`). The name matches the event type `ReservationConfirmed`; the
+destination topic is the wire contract.
 
 **Consumer retry** — every consumer declares:
 
@@ -37,18 +39,23 @@ consumer:
   back-off-initial-interval: 1000
 ```
 
-Default multiplier (2.0). After 3 attempts the message is dropped today (DLQ topic
-planned — see Caveats). The transactional outbox (ADR-0010) is the producer-side DLQ
-analogue: `event_outbox.status = FAILED` after `app.max-attempts: 10`, tracked by
-`reservations.outbox.dead.letter`.
+Default multiplier (2.0). telemetry-pipeline's three consumers set `enableDlq: true`
+with `dlqName: <topic>.dlq`, so a payload that fails conversion/deserialization (before
+the function runs) lands on a `.dlq` topic after the retries instead of vanishing.
+Filter exceptions inside the pipeline are handled, counted and dropped by
+`PipelineBuilder`. The transactional outbox (→ ADR-0010) is the producer-side DLQ
+analogue: `event_outbox.status = FAILED` after `app.max-attempts: 10`.
 
-**Partitioning** — `starport.reservations` is 3-partitioned, keyed by `reservationId`
-in the outbox publisher so all events for one reservation stay in order.
-`StreamBridgeRouteEventPublisher` sets `KafkaHeaders.KEY` on every send.
+**Partitioning** — `reservationConfirmed-out-0` declares `partitionCount: 3` with
+`partitionKeyExpression: headers['kafka_messageKey']`, so all events for one reservation
+stay in order. `InboxPublisher` sets `KafkaHeaders.KEY` (the reservation key) on every
+outbox send.
 
-**Auto-create** — `autoCreateTopics: true` everywhere. `autoAddPartitions: true` only
-on consumers of externally-produced topics (telemetry-pipeline); `false` on producers
-so they cannot silently grow partition counts.
+**Auto-create** — `autoCreateTopics: true` everywhere. `autoAddPartitions: true` on
+telemetry-pipeline (consumer of externally-produced topics) **and** on starport-registry,
+because its `reservationConfirmed-out-0` producer needs `partitionCount: 3` but a
+telemetry consumer may auto-create `starport.reservations` with 1 partition first;
+without it the producer binding fails provisioning. trade-route-planner keeps `false`.
 
 **Consumer group** — telemetry-pipeline's three bindings share group
 `telemetry-pipeline`. Different destinations, same group → multiple instances rebalance
@@ -82,8 +89,9 @@ cleanly per ADR-0008.
 
 ## Caveats
 
-- **No DLQ topic configured yet.** Exhausted retries are dropped (logged with trace
-  ID). Follow-up: `enableDlq: true`, `dlqName: <topic>.dlq` per binding.
+- **DLQ on consumers only.** telemetry-pipeline routes poison messages to `<topic>.dlq`;
+  the starport-registry producer side relies on the outbox `FAILED` status instead. No
+  automated DLQ replay/drain job exists yet.
 - **Replication factor not pinned.** Broker default (1) is fine locally; production
   must set ≥3 with `requiredAcks: all` and `min.insync.replicas: 2`.
 - **No Kafka ACLs.** `starport.*` ownership is convention, not enforcement.

@@ -1,8 +1,15 @@
+> **Superseded by ADR-0037 — kept for historical context only.**
+
 # 0036 — Dual log sinks: full firehose on stdout, 10% sampled in Loki
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0037](0037-tail-sampling-otel-collector.md)
 **Date:** 2026-06-07
 **Related:** 0035 (OTLP sampling), 0032 (Alloy)
+
+> **Forward note:** The Loki tier is no longer sampled. Per ADR-0037 apps push
+> logs via OTLP to the OTel Collector, which writes **100%** to Loki; tail
+> sampling applies to traces only. The stdout firehose still exists, but the
+> "10% in Loki" tier described below is gone — Loki now holds every log line.
 
 ---
 

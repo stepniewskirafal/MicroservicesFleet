@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import com.galactic.traderoute.port.in.PlanRouteUseCase;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Execution(ExecutionMode.SAME_THREAD)
 class RoutePlannerExceptionHandlerTest {
 
-    private static final String URL = "/routes/plan";
+    private static final String URL = "/api/v1/routes/plan";
 
     @Autowired
     MockMvc mvc;
@@ -116,6 +117,16 @@ class RoutePlannerExceptionHandlerTest {
     void should_return_400_for_completely_empty_body() throws Exception {
         mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(""))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void should_return_502_when_event_publishing_fails() throws Exception {
+        given(planRouteUseCase.planRoute(any())).willThrow(new EventPublishingException("broker unavailable"));
+
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(validRequest()))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("ROUTE_EVENT_PUBLISH_FAILED"))
+                .andExpect(jsonPath("$.details").isString());
     }
 
     @Test

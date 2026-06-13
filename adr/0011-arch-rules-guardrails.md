@@ -29,8 +29,10 @@ Enforce three orthogonal guardrails, all as Maven plugins (no external services)
   (E2E/Repository/Contract excluded). Run explicitly via `mvn pitest:mutationCoverage`
   — not part of default `mvn verify` because of its CPU cost.
 
-**Known gap:** `archunit-junit5` is on the classpath but rule classes per service have
-not yet been authored; they are written as each service's implementation lands.
+**Known gap:** `archunit-junit5` is on the classpath; rules are authored per service as
+its implementation lands. `telemetry-pipeline` has `PipesAndFiltersArchitectureTest`;
+the Layered (starport-registry) and Hexagonal (trade-route-planner) rule classes are
+still pending.
 
 ---
 

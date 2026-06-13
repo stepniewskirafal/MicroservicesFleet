@@ -34,7 +34,7 @@ eureka:
     wait-time-in-ms-when-sync-empty: 0
 ```
 
-Every client service tightens its lease and fetch:
+Every client service tightens its lease so a dead instance expires fast:
 
 ```yaml
 eureka:
@@ -42,9 +42,14 @@ eureka:
     lease-renewal-interval-in-seconds: 10      # default 30
     lease-expiration-duration-in-seconds: 30   # default 90
     prefer-ip-address: true
-    instance-id: ${spring.application.name}:${HOSTNAME:unknown}:${server.port}
-  client:
-    registry-fetch-interval-seconds: 5         # default 30
+    instance-id: ${spring.application.name}:${spring.cloud.client.hostname:${HOSTNAME:unknown}}:${server.port}
+```
+
+`api-gateway` additionally pulls the registry faster so routing reacts to scale events
+quickly — it is the one client whose fetch latency users feel:
+
+```yaml
+eureka.client.registry-fetch-interval-seconds: 5   # default 30
 ```
 
 Compose gates every application service on `eureka { condition: service_healthy }`
@@ -56,8 +61,9 @@ Compose gates every application service on `eureka { condition: service_healthy 
 
 - **Predictable dev loop.** Restart a container, traffic reroutes in ~15 s — no
   "ghost instance" debugging.
-- **Env-var override discipline (ADR-0009).** Production hardens via manifest, not code:
-  `EUREKA_SELF_PRESERVATION=true` flips the protective default back on.
+- **Env-var override discipline (ADR-0009).** Production hardens via profile/manifest,
+  not code: `application-prod.yml` already sets `enable-self-preservation: true`, and
+  `EUREKA_SELF_PRESERVATION=true` flips the protective default back on in any profile.
 - **Standalone is correct for a single-node demo.** No peers, no replication, no
   self-registration loop.
 - **Startup ordering.** Healthcheck-gated `depends_on` removes the race where a service
@@ -78,8 +84,8 @@ Compose gates every application service on `eureka { condition: service_healthy 
 ## Production gaps (follow-up ADR)
 
 - Run ≥3 Eureka peers; set `register-with-eureka: true` and `service-url.defaultZone`.
-- Re-enable self-preservation (`EUREKA_SELF_PRESERVATION=true`) and relax eviction back
-  toward defaults.
+- Relax eviction back toward defaults (self-preservation is already re-enabled by the
+  `prod` profile).
 - Revert client heartbeats to 30 s / 90 s once the fleet grows past ~15 services.
 - Zone awareness (`metadataMap.zone` + zone-preferring LB).
 - Secure registry endpoints (Spring Security / mTLS) — same gap as ADR-0027.

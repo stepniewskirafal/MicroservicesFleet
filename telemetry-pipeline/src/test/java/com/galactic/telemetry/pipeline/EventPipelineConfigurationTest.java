@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.galactic.telemetry.model.EnrichedReservationEvent;
 import com.galactic.telemetry.model.EnrichedRouteEvent;
-import com.galactic.telemetry.model.ReservationCreatedEvent;
+import com.galactic.telemetry.model.ReservationConfirmedEvent;
 import com.galactic.telemetry.model.RoutePlannedEvent;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -36,12 +36,12 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_compute_duration_when_both_dates_present() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
             Instant start = Instant.parse("2026-01-01T10:00:00Z");
             Instant end = Instant.parse("2026-01-01T15:30:00Z");
-            ReservationCreatedEvent event = aReservationEvent(start, end);
+            ReservationConfirmedEvent event = aReservationEvent(start, end);
 
             EnrichedReservationEvent result = pipeline.apply(event);
 
@@ -50,10 +50,10 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_default_duration_to_zero_when_start_is_null() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
-            ReservationCreatedEvent event = aReservationEvent(null, Instant.now());
+            ReservationConfirmedEvent event = aReservationEvent(null, Instant.now());
 
             EnrichedReservationEvent result = pipeline.apply(event);
 
@@ -62,10 +62,10 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_default_duration_to_zero_when_end_is_null() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
-            ReservationCreatedEvent event = aReservationEvent(Instant.now(), null);
+            ReservationConfirmedEvent event = aReservationEvent(Instant.now(), null);
 
             EnrichedReservationEvent result = pipeline.apply(event);
 
@@ -74,7 +74,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_set_event_type_to_reservation_confirmed() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
             EnrichedReservationEvent result = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
@@ -84,7 +84,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_set_processed_by_to_telemetry_pipeline() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
             EnrichedReservationEvent result = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
@@ -94,10 +94,10 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_preserve_all_original_fields() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
-            ReservationCreatedEvent event = new ReservationCreatedEvent(
+            ReservationConfirmedEvent event = new ReservationConfirmedEvent(
                     42L,
                     "CONFIRMED",
                     "SP-01",
@@ -124,7 +124,7 @@ class EventPipelineConfigurationTest {
 
         @Test
         void should_increment_received_and_enriched_counters() {
-            Function<ReservationCreatedEvent, EnrichedReservationEvent> pipeline =
+            Function<ReservationConfirmedEvent, EnrichedReservationEvent> pipeline =
                     config.reservationPipeline(meterRegistry);
 
             var unused1 = pipeline.apply(aReservationEvent(Instant.now(), Instant.now()));
@@ -205,8 +205,8 @@ class EventPipelineConfigurationTest {
         }
     }
 
-    private static ReservationCreatedEvent aReservationEvent(Instant start, Instant end) {
-        return new ReservationCreatedEvent(
+    private static ReservationConfirmedEvent aReservationEvent(Instant start, Instant end) {
+        return new ReservationConfirmedEvent(
                 1L,
                 "CONFIRMED",
                 "SP-01",

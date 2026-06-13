@@ -30,8 +30,12 @@ Each replica registers a unique Eureka instance-id:
 eureka.instance.instance-id: ${spring.application.name}:${HOSTNAME:unknown}:${server.port}
 ```
 
+Single ingress: only the API gateway publishes a host port (`8080:8080`); all app
+replicas use `expose:` only (internal: starport-registry 8081, trade-route-planner
+8082, telemetry-pipeline 8090) and are reached via the gateway (→ ADR-0031).
+
 Eureka and PostgreSQL expose Docker health checks; dependents use
-`condition: service_healthy`. Kafka exposes two listeners
+`condition: service_healthy`. Kafka advertises two listeners
 (`PLAINTEXT_HOST://localhost:9092`, `PLAINTEXT_DOCKER://kafka:9093`) so host clients
 and containers can both reach it.
 
@@ -61,5 +65,6 @@ and containers can both reach it.
 
 - ADR-0002 — Service Discovery Mechanism (Eureka)
 - ADR-0005 — Observability Stack
+- ADR-0031 — API Gateway (single ingress)
 - Docker Compose — https://docs.docker.com/compose/
 - Kafka KRaft — https://kafka.apache.org/documentation/#kraft

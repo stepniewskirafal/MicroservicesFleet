@@ -1,0 +1,13 @@
+# Production overrides (active only with spring.profiles.active=prod). The default config above is
+# tuned for local/Docker and is intentionally NOT production-safe.
+eureka:
+  server:
+    # Re-enable self-preservation: in prod a network partition or GC pause must NOT cascade-evict
+    # otherwise-healthy instances. Disabled only for fast dev iteration.
+    enable-self-preservation: true
+
+management:
+  endpoint:
+    health:
+      # Don't leak internal component details to anonymous callers in prod.
+      show-details: when-authorized

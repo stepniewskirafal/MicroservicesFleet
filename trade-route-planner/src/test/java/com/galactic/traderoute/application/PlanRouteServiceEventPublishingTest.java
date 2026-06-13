@@ -1,7 +1,10 @@
 package com.galactic.traderoute.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
+import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
 import com.galactic.traderoute.domain.model.PlannedRoute;
 import com.galactic.traderoute.domain.model.RoutePlannedEvent;
 import com.galactic.traderoute.domain.model.RouteRequest;
@@ -30,7 +33,8 @@ class PlanRouteServiceEventPublishingTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         publishedEvents = new ArrayList<>();
-        service = new PlanRouteService(meterRegistry, ObservationRegistry.NOOP, publishedEvents::add);
+        service = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), publishedEvents::add);
     }
 
     @Test
@@ -103,6 +107,24 @@ class PlanRouteServiceEventPublishingTest {
         PlannedRoute route = service.planRoute(aRequest("scout", 10.0));
 
         assertThat(route.etaHours()).isBetween(8.0, 18.0);
+    }
+
+    @Test
+    void should_record_publish_failed_and_not_count_planned_when_publishing_fails() {
+        // CRITICAL-2: route computed, but the event fails to publish (broker down). The success
+        // counter must NOT be incremented (no over-count) and a dedicated failure metric must record
+        // the lost event. The exception propagates so the controller can map it to 502.
+        PlanRouteService failingService = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {
+                    throw new EventPublishingException("broker unavailable");
+                });
+
+        assertThatThrownBy(() -> failingService.planRoute(aRequest("SCOUT", 10.0)))
+                .isInstanceOf(EventPublishingException.class);
+
+        assertThat(meterRegistry.get("routes.publish.failed").counter().count()).isEqualTo(1.0);
+        // Success counter exists (eagerly registered) but must remain at zero — no dual-write inflation.
+        assertThat(meterRegistry.get("routes.planned.count").counter().count()).isZero();
     }
 
     private static RouteRequest aRequest(String shipClass, double fuelRangeLY) {

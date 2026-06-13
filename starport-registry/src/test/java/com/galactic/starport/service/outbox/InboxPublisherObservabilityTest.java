@@ -6,8 +6,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.galactic.starport.repository.OutboxEventEntity;
-import com.galactic.starport.repository.OutboxEventJpaRepository;
+import com.galactic.starport.repository.OutboxEventRepositoryFacade;
+import com.galactic.starport.repository.OutboxFailureOutcome;
+import com.galactic.starport.repository.PendingOutboxEvent;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.tck.MeterRegistryAssert;
@@ -27,7 +28,7 @@ class InboxPublisherObservabilityTest {
 
     private TestObservationRegistry observationRegistry;
     private SimpleMeterRegistry meterRegistry;
-    private OutboxEventJpaRepository repo;
+    private OutboxEventRepositoryFacade outboxFacade;
     private StreamBridge streamBridge;
 
     private static final int BATCH_SIZE = 50;
@@ -39,23 +40,23 @@ class InboxPublisherObservabilityTest {
     void setUp() {
         observationRegistry = TestObservationRegistry.create();
         meterRegistry = new SimpleMeterRegistry();
-        repo = mock(OutboxEventJpaRepository.class);
+        outboxFacade = mock(OutboxEventRepositoryFacade.class);
         streamBridge = mock(StreamBridge.class);
-        publisher =
-                new InboxPublisher(repo, streamBridge, observationRegistry, meterRegistry, BATCH_SIZE, MAX_ATTEMPTS);
+        publisher = new InboxPublisher(
+                outboxFacade, streamBridge, observationRegistry, meterRegistry, BATCH_SIZE, MAX_ATTEMPTS);
     }
 
     @Test
     void pollAndPublishEmitsObservationAndRecordsMetricsOnSuccessPath() {
-        OutboxEventEntity e = new OutboxEventEntity();
-        e.setId(10L);
-        e.setBinding("reservations-out");
-        e.setEventType("ReservationConfirmed");
-        e.setMessageKey("10");
-        e.setPayloadJson(Map.of("reservationId", 10));
-        e.setHeadersJson(Map.of("contentType", "application/json"));
+        PendingOutboxEvent e = new PendingOutboxEvent(
+                10L,
+                "reservations-out",
+                "ReservationConfirmed",
+                "10",
+                Map.of("reservationId", 10),
+                Map.of("contentType", "application/json"));
 
-        when(repo.lockBatchPending(BATCH_SIZE)).thenReturn(List.of(e));
+        when(outboxFacade.lockPendingBatch(BATCH_SIZE)).thenReturn(List.of(e));
         when(streamBridge.send(eq("reservations-out"), any(Message.class))).thenReturn(true);
 
         publisher.pollAndPublish();
@@ -86,15 +87,16 @@ class InboxPublisherObservabilityTest {
 
     @Test
     void pollAndPublishRecordsPollDurationWithOutcomeErrorWhenStreamBridgeReturnsFalse() {
-        OutboxEventEntity e = new OutboxEventEntity();
-        e.setId(11L);
-        e.setBinding("reservations-out");
-        e.setEventType("ReservationConfirmed");
-        e.setMessageKey("11");
-        e.setPayloadJson(Map.of("reservationId", 11));
-        e.setHeadersJson(Map.of("contentType", "application/json"));
+        PendingOutboxEvent e = new PendingOutboxEvent(
+                11L,
+                "reservations-out",
+                "ReservationConfirmed",
+                "11",
+                Map.of("reservationId", 11),
+                Map.of("contentType", "application/json"));
 
-        when(repo.lockBatchPending(BATCH_SIZE)).thenReturn(List.of(e));
+        when(outboxFacade.lockPendingBatch(BATCH_SIZE)).thenReturn(List.of(e));
+        when(outboxFacade.recordFailure(11L, MAX_ATTEMPTS)).thenReturn(new OutboxFailureOutcome(1, false));
         when(streamBridge.send(eq("reservations-out"), any(Message.class))).thenReturn(false);
 
         publisher.pollAndPublish();
@@ -120,7 +122,7 @@ class InboxPublisherObservabilityTest {
 
     @Test
     void pollAndPublishRecordsPollDurationWithOutcomeEmptyWhenNoEventsFound() {
-        when(repo.lockBatchPending(BATCH_SIZE)).thenReturn(List.of());
+        when(outboxFacade.lockPendingBatch(BATCH_SIZE)).thenReturn(List.of());
 
         publisher.pollAndPublish();
 

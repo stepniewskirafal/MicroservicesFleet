@@ -22,9 +22,13 @@ inherit `gt-parent:1.0.0` (the root). `eureka-server` (and `api-gateway`) inheri
 `spring-boot-starter-parent` directly — known, intentional gap (see Why/known-gap).
 
 **BOM pinning, no inline versions.** `<dependencyManagement>` imports three BOMs:
-`spring-cloud-dependencies:2025.0.0`, `micrometer-bom:1.16.0`,
-`opentelemetry-bom:1.46.0`. Modules declare dependencies without `<version>`. A fleet
-upgrade is one line in the root.
+`spring-cloud-dependencies:2025.0.0`, `micrometer-bom:1.16.0`, and
+`opentelemetry-instrumentation-bom-alpha:2.15.0-alpha` (which transitively pins OTel
+core 1.49.0 + incubator 1.49.0-alpha + the logback appender as one tested set — it
+replaced a bare `opentelemetry-bom` that left the incubator artifact unmanaged and
+crashed the appender with `AbstractMethodError`). Modules declare dependencies without
+`<version>`; a fleet upgrade is one line in the root. <!-- keep this train-aligned with
+the Spring Boot 3.5.6 OTel version; see api-gateway/eureka-server which re-import it -->.
 
 **Java 21**, no preview features (driven by ADR-0012, virtual threads).
 

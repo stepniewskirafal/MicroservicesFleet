@@ -20,7 +20,7 @@ The three-service fleet (Starport Registry A, Trade Route Planner B, Telemetry P
 | A → C, B → C: publish domain events | Kafka via Outbox | Fire-and-forget; receiver must not block A's tx. |
 | C → B: re-plan on anomaly (future) | HTTP | Targeted command with an expected result. |
 
-Outbox: events saved transactionally to `event_outbox`, then a poller (`app.poll-interval-ms`, default 30 s) publishes via `StreamBridge`.
+Producers publish via `StreamBridge` (no raw `KafkaTemplate`); consumers are functional `@Bean Function<>` (→ ADR-0019). Durable event delivery uses the transactional outbox (`event_outbox` + polling relay) → ADR-0010.
 
 ---
 
@@ -42,7 +42,8 @@ Outbox: events saved transactionally to `event_outbox`, then a poller (`app.poll
 
 ## References
 
-- ADR-0002 — Service Discovery: Eureka
 - ADR-0003 — HTTP Load Balancing
 - ADR-0010 — Resilience Patterns (Transactional Outbox)
+- ADR-0016 — Kafka Topology
+- ADR-0019 — Kafka Programming Model (StreamBridge + functional consumers)
 - Hohpe & Woolf — *Enterprise Integration Patterns*

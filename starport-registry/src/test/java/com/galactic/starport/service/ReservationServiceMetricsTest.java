@@ -49,7 +49,8 @@ class ReservationServiceMetricsTest {
                 validateReservationCommandService,
                 reservationCalculationFacade,
                 meterRegistry,
-                Tracer.NOOP);
+                Tracer.NOOP,
+                starport -> starport);
     }
 
     /*

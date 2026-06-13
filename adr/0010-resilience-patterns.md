@@ -7,9 +7,9 @@
 
 ## Context
 
-Starport Registry publishes business-critical events (`ReservationConfirmed`,
-`TariffCalculated`, `RouteChanged`) to Kafka and may call Trade Route Planner over HTTP.
-A lost event breaks downstream billing/telemetry; a Kafka outage must not fail
+Starport Registry publishes a business-critical event (`ReservationConfirmed` →
+`starport.reservations`) to Kafka and calls Trade Route Planner over HTTP during the
+reservation flow. A lost event breaks downstream telemetry; a Kafka outage must not fail
 reservations; a Trade Route Planner outage must not cascade.
 
 ---
@@ -20,23 +20,22 @@ Use the **Transactional Outbox Pattern with a polling relay** for events. The
 `event_outbox` row is written in the same PostgreSQL transaction as the domain state
 (via `OutboxWriter` with `Propagation.MANDATORY`). A `@Scheduled` poller reads
 `PENDING` rows, publishes via Spring Cloud Stream `StreamBridge`, and transitions
-status to `SENT` / `FAILED`. OTel trace context is injected into `headers_json` at
-append time so consumers continue the trace.
+status to `SENT` / `FAILED`. Trace context is propagated across the append→publish gap
+via Micrometer `SenderContext`/`ReceiverContext` (→ ADR-0017).
 
 ```yaml
 app:
-  poll-interval-ms: 30000   # delay between cycles
-  batch-size: 50            # rows per cycle
-  max-attempts: 10          # FAILED after this many retries
+  poll-interval-ms: 5000   # delay between cycles
+  batch-size: 200          # rows per cycle
+  max-attempts: 10         # FAILED after this many retries
 ```
 
-For the HTTP call to Trade Route Planner: `requestRoute=false` short-circuits entirely.
-When a real HTTP call replaces the in-process simulator, wrap it with 2s connect / 5s
-read timeouts, 1 retry, and a fallback to `Optional.empty()` → controller responds 409.
+The HTTP call to Trade Route Planner is live and protected by a timeout + circuit
+breaker + fail-fast fallback (→ ADR-0014); failure surfaces as HTTP 409 (→ ADR-0015).
 
-**Known gap (multi-instance):** the current poller is single-threaded
-(`spring.task.scheduling.pool.size: 1`); running two service replicas can double-publish.
-Fix is `SELECT … FOR UPDATE SKIP LOCKED` on the polling query.
+**Known gap (multi-instance):** the poller does not yet use row-level locking; running
+two service replicas can double-publish. Fix is `SELECT … FOR UPDATE SKIP LOCKED` on the
+polling query.
 
 ---
 

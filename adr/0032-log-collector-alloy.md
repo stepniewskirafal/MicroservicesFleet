@@ -3,6 +3,13 @@
 **Status:** Accepted
 **Date:** 2026-05-17
 
+> **Scope note (ADR-0037):** Alloy's role is now **infra stdout only**. App
+> telemetry (traces + logs) goes apps → OTLP → **OTel Collector** → Tempo/Loki.
+> Alloy keeps scraping Docker stdout for non-OTLP containers (kafka, postgres,
+> loki, tempo, grafana, prometheus, kafka-ui, otel-collector). The
+> collector-choice decision below still stands; only the set of sources Alloy
+> handles shrank. See `infra/docker/alloy/config.alloy`.
+
 ---
 
 ## Context
@@ -48,4 +55,5 @@ queries stay unchanged. The old `infra/docker/promtail/` directory is deleted.
 ## References
 
 - ADR-0005 — Observability Stack (this ADR refines the collector choice only).
+- ADR-0037 — Tail sampling via OTel Collector (narrows Alloy to infra stdout).
 - Grafana Alloy docs — https://grafana.com/docs/alloy/latest/

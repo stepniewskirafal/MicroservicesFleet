@@ -16,25 +16,28 @@ endpoints today the migration is not yet worth it.
 
 ## Decision
 
-**Error body shape** — flat `Map<String, String>` with `error` (stable
-`SCREAMING_SNAKE_CASE` code) and `details` (human-readable). Route rejections from B use
-a typed `RouteRejectedResponse(error, reason, details)` record. Both fields map cleanly
-onto a future `ProblemDetail` migration (`error → title`, `details → detail`).
+**Error body shape** — flat `Map<String, String>`. A `SCREAMING_SNAKE_CASE` `error`
+code is set on the codes clients branch on (`ROUTE_UNAVAILABLE`); validation/not-found
+bodies carry only `details` (field→message for validation). Route rejections from B use
+a typed `RouteRejectedResponse(error, reason, details)` record. `details` maps cleanly
+onto a future `ProblemDetail.detail`. <!-- TODO: not every handler emits a stable
+`error` code yet; converging the not-found/conflict bodies on one is a follow-up. -->
 
-**Exception → status mapping** (authoritative):
+**Exception → status mapping** (authoritative — `GlobalExceptionHandler`, A):
 
-| Exception                          | Status | `error`                     |
-|------------------------------------|--------|-----------------------------|
-| `MethodArgumentNotValidException`  | 422    | `VALIDATION_FAILED`         |
-| `HttpMessageNotReadableException`  | 400    | `MALFORMED_REQUEST`         |
-| `NoDockingBaysAvailableException`  | 409    | `NO_DOCKING_BAYS_AVAILABLE` |
-| `InvalidReservationTimeException`  | 422    | `INVALID_RESERVATION_TIME`  |
-| `StarportNotFoundException`        | 404    | `STARPORT_NOT_FOUND`        |
-| `CustomerNotFoundException`        | 404    | `CUSTOMER_NOT_FOUND`        |
-| `ShipNotFoundException`            | 404    | `SHIP_NOT_FOUND`            |
-| `RouteUnavailableException`        | 409    | `ROUTE_UNAVAILABLE`         |
-| `RouteRejectionException` (B)      | 422    | per-rejection code          |
-| Uncaught `RuntimeException`        | 500    | `INTERNAL_ERROR`            |
+| Exception                                              | Status | body                          |
+|--------------------------------------------------------|--------|-------------------------------|
+| `MethodArgumentNotValidException` / `HandlerMethodValidationException` | 422 | field→message map  |
+| `HttpMessageNotReadableException`                      | 400    | `error: "Malformed JSON"`     |
+| `NoDockingBaysAvailableException`                      | 409    | `details` only                |
+| `InvalidReservationTimeException`                      | 422    | `details` only                |
+| `StarportNotFoundException` / `CustomerNotFoundException` / `ShipNotFoundException` | 404 | `details` only |
+| `RouteUnavailableException`                            | 409    | `error: "ROUTE_UNAVAILABLE"`  |
+| Uncaught `RuntimeException`                            | 500    | `error: "Internal server error"` |
+
+Trade-route-planner (B, `RoutePlannerExceptionHandler`): `RouteRejectionException` → 422
+`RouteRejectedResponse("ROUTE_REJECTED", reason, details)`; `EventPublishingException` →
+502 `ROUTE_EVENT_PUBLISH_FAILED`; validation/malformed/uncaught mirror A.
 
 **409 vs 422** — 409 = well-formed request, conflicts with server state. 422 = valid
 JSON, semantically invalid.
@@ -51,8 +54,8 @@ handling is via the consumer retry / DLQ pipeline (ADR-0016).
 
 ## Why
 
-- **Stable contracts.** Clients match on `error` codes; `409 + ROUTE_UNAVAILABLE` is
-  unambiguous in a way that bare `409` is not.
+- **Stable contracts where it counts.** Clients branch on the `error` code that drives
+  behaviour; `409 + ROUTE_UNAVAILABLE` is unambiguous in a way that bare `409` is not.
 - **Minimal surface.** Two fields, one shape; trivial to assert in
   `*ContractTest.java`.
 - **Future-proof.** Migrating to `ProblemDetail` is additive — no client breaks.

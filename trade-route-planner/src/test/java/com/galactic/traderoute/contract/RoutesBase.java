@@ -1,11 +1,14 @@
 package com.galactic.traderoute.contract;
 
+import com.galactic.traderoute.TradeRoutePlannerApplication;
+import com.galactic.traderoute.port.out.RouteEventPublisher;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
@@ -22,13 +25,22 @@ import org.springframework.web.context.WebApplicationContext;
  *   mvn spring-cloud-contract:generateTests test   # explicit generate + test
  * </pre>
  */
-@SpringBootTest
+// Explicit config classes: the generated RoutesTest lands in the plugin's default package
+// (org.springframework.cloud.contract.verifier.tests), so the default upward search for a
+// @SpringBootConfiguration would fail. Declaring the app class here makes the context load
+// regardless of the generated test's package.
+@SpringBootTest(classes = TradeRoutePlannerApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 public abstract class RoutesBase {
 
     @Autowired
     WebApplicationContext context;
+
+    // Stub the outbound Kafka port: contract tests verify the HTTP contract, not event delivery,
+    // and the real StreamBridge would block ~60s on broker metadata without a broker.
+    @MockitoBean
+    RouteEventPublisher routeEventPublisher;
 
     @BeforeEach
     public void setup() {

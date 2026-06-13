@@ -4,6 +4,8 @@ import com.galactic.telemetry.model.AggregatedTelemetry;
 import com.galactic.telemetry.model.EnrichedTelemetry;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -12,16 +14,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Computes rolling-window statistics per (shipId, sensorType) pair.
+ * Computes running statistics per (shipId, sensorType) pair — this is the one <b>stateful</b>
+ * filter in the pipeline.
  *
- * <p>Implementation note: this filter maintains an in-memory sliding window using exponential
- * moving averages. The ConcurrentHashMap holds only derived statistics (not raw data), keeping
- * memory bounded. The map is keyed by (shipId + sensorType) and entries expire when the window
- * duration elapses without new data.
+ * <p>Implementation: each key holds a {@link WindowState} accumulating a <em>cumulative</em> mean,
+ * max and variance via Welford's online algorithm (not an exponential moving average — older
+ * samples are weighted equally with newer ones). The window is <b>tumbling, not sliding</b>: it is
+ * never trimmed sample-by-sample; instead the whole window resets once {@code DEFAULT_WINDOW} (5
+ * min) elapses between {@code windowStart} and the incoming timestamp. The {@link ConcurrentHashMap}
+ * holds only derived statistics (not raw samples). Memory is <b>hard-capped</b> at {@code
+ * MAX_WINDOWS}: eviction first drops expired windows and, if a burst of distinct <em>fresh</em> keys
+ * still exceeds the cap, evicts the least-recently-updated windows (LRU) — so a flood of new
+ * (ship,sensor) pairs cannot grow the map without bound.
  *
- * <p>For Kafka Streams-based stateful aggregation (with fault tolerance via changelogs), this could
- * be replaced with a KStream/KTable processor. The current approach keeps the filter simple and
- * testable for moderate throughput.
+ * <p>For true sliding-window or EMA semantics with fault tolerance (changelog-backed), this could be
+ * replaced by a Kafka Streams KStream/KTable processor. The current approach keeps the filter simple
+ * and unit-testable for moderate throughput.
  */
 public class AggregationFilter implements Function<EnrichedTelemetry, AggregatedTelemetry> {
 
@@ -36,7 +44,7 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
     @Override
     public AggregatedTelemetry apply(EnrichedTelemetry enriched) {
         if (operationCount.incrementAndGet() % EVICTION_INTERVAL == 0) {
-            evictExpiredWindows(enriched.timestamp());
+            evictWindows(enriched.timestamp());
         }
         String key = enriched.shipId() + ":" + enriched.sensorType().name();
         Instant now = enriched.timestamp();
@@ -77,17 +85,36 @@ public class AggregationFilter implements Function<EnrichedTelemetry, Aggregated
         return Duration.between(state.windowStart, now).compareTo(DEFAULT_WINDOW) > 0;
     }
 
-    private void evictExpiredWindows(Instant now) {
+    private void evictWindows(Instant now) {
         if (windows.size() <= MAX_WINDOWS) {
             return;
         }
+        // Cheap first pass: drop windows whose tumbling interval has already elapsed.
         windows.entrySet().removeIf(entry -> isExpired(entry.getValue(), now));
-        log.debug("Evicted expired windows, remaining: {}", windows.size());
+
+        // Hard cap: expiry alone does NOT bound memory when a burst of >MAX_WINDOWS distinct, still
+        // fresh (ship,sensor) keys arrives. Evict the least-recently-updated windows (smallest
+        // windowEnd) until back at capacity, so the map can never grow without bound.
+        int overflow = windows.size() - MAX_WINDOWS;
+        if (overflow > 0) {
+            windows.entrySet().stream()
+                    .sorted(Comparator.comparing(entry -> entry.getValue().windowEnd))
+                    .limit(overflow)
+                    .map(Map.Entry::getKey)
+                    .toList()
+                    .forEach(windows::remove);
+            log.warn("AggregationFilter hard cap reached — evicted {} least-recently-updated window(s)", overflow);
+        }
     }
 
     // Visible for testing
     void clearWindows() {
         windows.clear();
+    }
+
+    // Visible for testing
+    int activeWindowCount() {
+        return windows.size();
     }
 
     static final class WindowState {

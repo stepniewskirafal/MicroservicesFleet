@@ -138,6 +138,9 @@ services:
   thanos-store:
     image: quay.io/thanos/thanos:v0.36.1
     container_name: thanos-store
+    # Thanos image runs as uid 1001; a freshly recreated named volume (after `down -v`) is
+    # root-owned, so the non-root process can't mkdir its --data-dir. Run as root for the dev stack.
+    user: root
     environment:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
@@ -183,6 +186,8 @@ services:
   thanos-compactor:
     image: quay.io/thanos/thanos:v0.36.1
     container_name: thanos-compactor
+    # Same as thanos-store: write to a root-owned fresh volume as root in the dev stack.
+    user: root
     environment:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
@@ -196,7 +201,7 @@ services:
       - --retention.resolution-5m=90d       # downsample 5m: 90 dni
       - --retention.resolution-1h=365d      # downsample 1h: rok
       - --compact.concurrency=1
-      - --downsampling.concurrency=1
+      - --downsample.concurrency=1
     volumes:
       - thanos-compact-data:/var/thanos/compact
       - ./thanos/objstore.yml:/etc/thanos/objstore.yml:ro
@@ -209,12 +214,16 @@ services:
 
   # ── OTel Collector — centralny hub observability (ADR-0037) ─────────────────
   # traces: apps → OTLP → tail_sampling → Tempo; logs: apps → OTLP → 100% → Loki.
-  # Brak host-portów: Tempo zajmuje hosta 4318, a apps i tak sięgają collectora
-  # przez sieć `app` jako otel-collector:4318.
+  # Host 4318 opublikowany: aplikacje uruchamiane z IDE (na hoście) eksportują OTLP
+  # tutaj (host 4318 zwolniony po ADR-0037 — Tempo już go nie zajmuje). Aplikacje
+  # w sieci `app` nadal sięgają collectora jako otel-collector:4318.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.119.0
     container_name: otel-collector
     command: ["--config=/etc/otelcol/collector.yaml"]
+    ports:
+      - "4318:4318"   # OTLP HTTP (traces + logs) — host/IDE runs
+      - "4317:4317"   # OTLP gRPC
     volumes:
       - ./otel-collector/collector.yaml:/etc/otelcol/collector.yaml:ro
     networks:

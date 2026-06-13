@@ -56,17 +56,18 @@ class StreamBridgeRouteEventPublisherTest {
     }
 
     @Test
-    void should_set_event_as_payload() {
+    void should_map_event_to_wire_dto_payload() {
         when(streamBridge.send(any(), any())).thenReturn(true);
         RoutePlannedEvent event = anEvent("ROUTE-PAY00");
 
         publisher.publish(event);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<Message<RoutePlannedEvent>> captor = ArgumentCaptor.forClass(Message.class);
+        ArgumentCaptor<Message<RoutePlannedMessage>> captor = ArgumentCaptor.forClass(Message.class);
         verify(streamBridge).send(any(), captor.capture());
 
-        assertThat(captor.getValue().getPayload()).isSameAs(event);
+        // Payload is the explicit wire DTO (not the domain record), with fields mapped 1:1.
+        assertThat(captor.getValue().getPayload()).isEqualTo(RoutePlannedMessage.from(event));
     }
 
     @Test

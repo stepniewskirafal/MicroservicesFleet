@@ -19,7 +19,7 @@ class ShouldReturnPlannedRoute implements Supplier<Contract> {
 
             c.request(r -> {
                 r.method(r.POST());
-                r.url("/routes/plan");
+                r.url("/api/v1/routes/plan");
                 r.headers(h -> h.contentType(h.applicationJson()));
                 r.body(Map.of(
                         "originPortId", "SP-77-NARSHADDA",

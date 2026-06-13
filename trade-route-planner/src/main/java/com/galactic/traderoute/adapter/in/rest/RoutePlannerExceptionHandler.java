@@ -1,5 +1,6 @@
 package com.galactic.traderoute.adapter.in.rest;
 
+import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
 import com.galactic.traderoute.domain.model.RouteRejectionException;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +34,17 @@ class RoutePlannerExceptionHandler {
     ResponseEntity<Map<String, String>> handleNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "Malformed JSON", "details", "Request body could not be parsed"));
+    }
+
+    @ExceptionHandler(EventPublishingException.class)
+    ResponseEntity<Map<String, String>> handlePublishFailure(EventPublishingException ex) {
+        // The route was computed but its RoutePlannedEvent could not be published downstream.
+        // 502 signals an upstream/broker failure (not a client error) so callers can safely retry.
+        log.error("Failed to publish route-planned event", ex);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of(
+                        "error", "ROUTE_EVENT_PUBLISH_FAILED",
+                        "details", "Route was planned but its event could not be published"));
     }
 
     @ExceptionHandler(RuntimeException.class)
