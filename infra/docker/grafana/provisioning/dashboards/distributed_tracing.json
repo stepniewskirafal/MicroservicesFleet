@@ -58,7 +58,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count[$__rate_interval]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[$__rate_interval]))",
           "legendFormat": "req/s",
           "refId": "A"
         }
@@ -92,12 +92,12 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Avg Request Latency",
+      "title": "HTTP Request Latency (p99)",
       "type": "stat",
       "targets": [
         {
-          "expr": "1000 * sum(rate(http_server_requests_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "avg",
+          "expr": "1000 * histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=~\"$job\"}[$__rate_interval])))",
+          "legendFormat": "p99",
           "refId": "A"
         }
       ]
@@ -112,8 +112,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 5 }
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1 }
             ]
           },
           "unit": "percent"
@@ -134,7 +134,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "100 * sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count[$__rate_interval])), 1e-9)",
+          "expr": "100 * sum(rate(http_server_requests_seconds_count{status=~\"5..\", job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=~\"$job\"}[$__rate_interval])), 1e-9)",
           "legendFormat": "5xx %",
           "refId": "A"
         }
@@ -170,7 +170,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "count(count by (job) (up{job=~\"starport-registry|trade-route-planner|telemetry-pipeline\"}))",
+          "expr": "count(count by (job) (up{job=~\"$job\"}))",
           "legendFormat": "services",
           "refId": "A"
         }
@@ -226,17 +226,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "1000 * histogram_quantile(0.50, sum by (le, job) (rate(http_server_requests_seconds_bucket[$__rate_interval])))",
+          "expr": "1000 * histogram_quantile(0.50, sum by (le, job) (rate(http_server_requests_seconds_bucket{job=~\"$job\"}[$__rate_interval])))",
           "legendFormat": "{{job}} p50",
           "refId": "A"
         },
         {
-          "expr": "1000 * histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket[$__rate_interval])))",
+          "expr": "1000 * histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{job=~\"$job\"}[$__rate_interval])))",
           "legendFormat": "{{job}} p95",
           "refId": "B"
         },
         {
-          "expr": "1000 * histogram_quantile(0.99, sum by (le, job) (rate(http_server_requests_seconds_bucket[$__rate_interval])))",
+          "expr": "1000 * histogram_quantile(0.99, sum by (le, job) (rate(http_server_requests_seconds_bucket{job=~\"$job\"}[$__rate_interval])))",
           "legendFormat": "{{job}} p99",
           "refId": "C"
         }
@@ -297,17 +297,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"2..\"}[$__rate_interval]))",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"2..\", job=~\"$job\"}[$__rate_interval]))",
           "legendFormat": "{{job}} 2xx",
           "refId": "A"
         },
         {
-          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"4..\"}[$__rate_interval]))",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"4..\", job=~\"$job\"}[$__rate_interval]))",
           "legendFormat": "{{job}} 4xx",
           "refId": "B"
         },
         {
-          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"5..\"}[$__rate_interval]))",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"5..\", job=~\"$job\"}[$__rate_interval]))",
           "legendFormat": "{{job}} 5xx",
           "refId": "C"
         }
@@ -365,23 +365,23 @@
         "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Reservation Step Latency [avg ms]",
-      "description": "Average duration of each step in the reservation flow: hold allocation, fee calculation, route planning",
+      "title": "Reservation Step Latency [p95 ms]",
+      "description": "p95 duration of each step in the reservation flow (hold allocation, fee calculation, route planning), computed from SLO histogram buckets. p95 surfaces a single slow step that an average would hide.",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "1000 * sum(rate(reservations_hold_allocate_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_hold_allocate_seconds_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "Hold Allocate",
+          "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(reservations_hold_allocate_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "Hold Allocate p95",
           "refId": "A"
         },
         {
-          "expr": "1000 * sum(rate(reservations_fees_calculate_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_fees_calculate_seconds_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "Fee Calculate",
+          "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(reservations_fees_calculate_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "Fee Calculate p95",
           "refId": "B"
         },
         {
-          "expr": "1000 * sum(rate(reservations_route_plan_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_route_plan_seconds_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "Route Plan (HTTP→B)",
+          "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(reservations_route_plan_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "Route Plan p95 (HTTP→B)",
           "refId": "C"
         }
       ]
@@ -621,7 +621,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "reservations_inbox_poll_batch_size_events_sum / clamp_min(reservations_inbox_poll_batch_size_events_count, 1)",
+          "expr": "sum(rate(reservations_inbox_poll_batch_size_events_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_inbox_poll_batch_size_events_count[$__rate_interval])), 1e-9)",
           "legendFormat": "avg batch size",
           "refId": "A"
         }
@@ -1096,13 +1096,37 @@
       ]
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["distributed-tracing", "tempo", "loki", "observability"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "label": "Service (job)",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "definition": "label_values(up{job=~\"starport-registry|trade-route-planner|telemetry-pipeline|api-gateway|eureka-server\"}, job)",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(up{job=~\"starport-registry|trade-route-planner|telemetry-pipeline|api-gateway|eureka-server\"}, job)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "options": [],
+        "regex": ""
+      }
+    ]
+  },
   "time": { "from": "now-30m", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Distributed Tracing — MicroservicesFleet",
   "uid": "distributed-tracing-fleet",
-  "version": 1
+  "version": 2
 }

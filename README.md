@@ -266,8 +266,9 @@ only through environment variables.
 - **Correlation** — `reservationId` / `routeId` ride in OpenTelemetry baggage; visible
   in traces and in log MDC (ADR-0017).
 
-Grafana is pre-provisioned with two dashboards under
-`infra/docker/grafana/dashboards/` (distributed tracing + logs/traces/metrics).
+Grafana is pre-provisioned with six dashboards under
+`infra/docker/grafana/provisioning/dashboards/` (distributed tracing, logs/traces/metrics,
+executive revenue, SLO / error budget, resource USE, and success/error exemplars).
 
 ---
 
@@ -649,16 +650,25 @@ docker compose down -v
 
 ## 📊 Grafana Dashboards
 
-Pre-provisioned under `infra/docker/grafana/dashboards/`:
+Pre-provisioned under `infra/docker/grafana/provisioning/dashboards/`:
 
 - **`distributed_tracing.json`** — end-to-end request tracing. Panels: total request
-  rate, average latency, HTTP error rate, P50/P95/P99 histograms, circuit-breaker state
-  for `trade-route-planner`, async outbox/inbox event tracing, Tempo trace explorer,
-  service dependency graph.
+  rate, HTTP request latency (p99), HTTP error rate, P50/P95/P99 histograms, circuit-breaker
+  state for `trade-route-planner`, async outbox/inbox event tracing, Tempo trace explorer,
+  service dependency graph. Scoped by a `$job` template variable.
 - **`logs_traces_metrics.json`** — unified business + infrastructure view. Panels:
   fee revenue rate (cr/hour), reservation conversion rate, failure rate, JVM heap,
   CPU / memory, reservation HTTP duration, fee amount distribution, outbox dead-letter
   counter, inbox throughput.
+- **`business-revenue-executive.json`** — executive revenue view (CEO-level). Panels:
+  total revenue over range, revenue/h trend, revenue per port / ship class, average
+  revenue per reservation, reservation rejection rate per class, live dock occupancy.
+- **`slo-error-budget.json`** — availability & latency SLOs with 30-day error-budget
+  burn-rate and top budget consumers (5xx by service / endpoint).
+- **`resources_use.json`** — USE method (Utilization · Saturation · Errors) for JVM,
+  Tomcat / Hikari thread pools, Kafka consumer/producer, and the outbox queue.
+- **`exemplars-success-error.json`** — success/error drill-down with exemplars linking
+  latency histograms to the originating traces (ADR-0033).
 
 Open http://localhost:3000 (admin / admin) → Dashboards → Browse.
 

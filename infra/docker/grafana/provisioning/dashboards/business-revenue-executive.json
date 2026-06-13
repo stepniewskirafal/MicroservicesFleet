@@ -209,15 +209,15 @@
     {
       "id": 4,
       "type": "bargauge",
-      "title": "Najczęściej cumujące klasy [liczba zatwierdzonych rezerwacji]",
-      "description": "Która klasa statku najczęściej rezerwuje dok (tylko zatwierdzone rezerwacje) w wybranym okresie.",
+      "title": "Wskaźnik odrzuceń rezerwacji per klasa — utracona konwersja",
+      "description": "Odsetek prób rezerwacji zakończonych odmową (outcome != confirmed: no_capacity / route_unavailable / error) zamiast zatwierdzeniem, per klasa statku, w wybranym okresie. Wysoki słupek = tracimy klientów tej klasy → decyzja: dosypać pojemność / przekierować ruch. Dominującą przyczyną zwykle jest 'no_capacity' — skorelowane z gauge zajętości doków poniżej. Zielony <10%, pomarańczowy 10–25%, czerwony >25%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 29, "w": 12, "h": 10 },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum by (shipClass) (increase(reservations_total{outcome=\"confirmed\"}[$__range]))",
+          "expr": "sum by (shipClass) (increase(reservations_total{outcome!=\"confirmed\"}[$__range])) / clamp_min(sum by (shipClass) (increase(reservations_total[$__range])), 1)",
           "instant": true,
           "range": false,
           "format": "time_series",
@@ -226,18 +226,22 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "locale",
-          "decimals": 0,
+          "unit": "percentunit",
+          "decimals": 1,
           "noValue": "0",
           "min": 0,
-          "color": { "mode": "palette-classic" }
+          "max": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#f59e0b", "value": 0.1 },
+              { "color": "#f43f5e", "value": 0.25 }
+            ]
+          }
         },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "SCOUT" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#0ea5e9" } }] },
-          { "matcher": { "id": "byName", "options": "FREIGHTER" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#10b981" } }] },
-          { "matcher": { "id": "byName", "options": "CRUISER" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#8b5cf6" } }] },
-          { "matcher": { "id": "byName", "options": "UNKNOWN" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#94a3b8" } }] }
-        ]
+        "overrides": []
       },
       "options": {
         "orientation": "horizontal",
@@ -451,6 +455,6 @@
   "timezone": "browser",
   "title": "Biznes — Przychody i zajętość doków",
   "uid": "business-revenue-executive",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }
