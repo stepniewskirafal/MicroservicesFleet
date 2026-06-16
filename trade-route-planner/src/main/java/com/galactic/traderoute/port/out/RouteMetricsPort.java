@@ -14,6 +14,21 @@ public interface RouteMetricsPort {
     /** Observe a planning attempt (span + timer), tagged with the request's routing context. */
     PlannedRoute observePlan(RouteRequest request, Supplier<PlannedRoute> planning);
 
+    /**
+     * Observe a named sub-step of a planning attempt as a child span of {@link #observePlan}. Lets a
+     * single "slow" plan be broken down in Tempo (e.g. {@code routes.plan.compute} vs
+     * {@code routes.plan.publish}) so the latency is attributable to a phase, not the whole method.
+     */
+    <T> T observeStep(String stepName, Supplier<T> step);
+
+    /** Void overload of {@link #observeStep(String, Supplier)} for steps that produce no value. */
+    default void observeStep(String stepName, Runnable step) {
+        observeStep(stepName, () -> {
+            step.run();
+            return null;
+        });
+    }
+
     /** Record a successfully planned route: success count and risk / ETA distributions. */
     void recordPlanned(RouteRequest request, PlannedRoute route);
 

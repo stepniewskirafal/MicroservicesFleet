@@ -9,6 +9,8 @@ import com.galactic.starport.service.Route;
 import com.galactic.starport.service.feecalculator.FeeCalculator;
 import com.galactic.starport.service.routeplanner.RoutePlanner;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
+import io.micrometer.observation.tck.TestObservationRegistry;
+import io.micrometer.observation.tck.TestObservationRegistryAssert;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,11 +31,13 @@ class ReservationCalculationServiceTest {
     @Mock
     private RoutePlanner routePlanner;
 
+    private TestObservationRegistry observationRegistry;
     private ReservationCalculationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReservationCalculationService(feeCalculator, routePlanner);
+        observationRegistry = TestObservationRegistry.create();
+        service = new ReservationCalculationService(feeCalculator, routePlanner, observationRegistry);
     }
 
     @Test
@@ -51,6 +55,15 @@ class ReservationCalculationServiceTest {
         assertThat(result.reservationId()).isEqualTo(42L);
         assertThat(result.calculatedFee()).isEqualByComparingTo(BigDecimal.valueOf(100));
         assertThat(result.route()).isEqualTo(route);
+
+        // The calculate span groups the parallel fee+route fan-out into one timeable node in Tempo.
+        TestObservationRegistryAssert.assertThat(observationRegistry)
+                .hasObservationWithNameEqualTo("reservations.calculate")
+                .that()
+                .hasBeenStarted()
+                .hasBeenStopped()
+                .hasLowCardinalityKeyValue("starport", "DEF")
+                .hasLowCardinalityKeyValue("shipClass", "SCOUT");
     }
 
     @Test

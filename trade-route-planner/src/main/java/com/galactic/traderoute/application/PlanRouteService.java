@@ -26,6 +26,8 @@ public class PlanRouteService implements PlanRouteUseCase {
     private static final int RISK_BUCKETS = 10_000;
     private static final String ROUTE_ID_PREFIX = "ROUTE-";
     private static final int ROUTE_ID_SUFFIX_LENGTH = 8;
+    private static final String STEP_COMPUTE = "compute";
+    private static final String STEP_PUBLISH = "publish";
 
     private final RouteMetricsPort metrics;
     private final RouteEventPublisher routeEventPublisher;
@@ -44,27 +46,22 @@ public class PlanRouteService implements PlanRouteUseCase {
     private PlannedRoute doPlan(RouteRequest request) {
         validateFuelRange(request);
 
-        double riskScore = computeRiskScore(request);
-        double etaHours = computeEta(request, riskScore);
-        String routeId = generateRouteId();
+        // Split the plan into named child spans (routes.plan.compute / routes.plan.publish) so a slow
+        // plan is attributable to a phase in Tempo — CPU-bound routing math vs. the Kafka publish hop —
+        // instead of collapsing into one opaque routes.plan span.
+        PlannedRoute result = metrics.observeStep(STEP_COMPUTE, () -> compute(request));
 
-        // routeId is generated here (not propagated via baggage), so push it into MDC for the OTLP log
-        // appender (captureMdcAttributes: routeId) — covers this log line and the publisher's.
-        MDC.put("routeId", routeId);
+        // routeId is generated in compute() (not propagated via baggage), so push it into MDC for the
+        // OTLP log appender (captureMdcAttributes: routeId) — covers this log line and the publisher's.
+        MDC.put("routeId", result.routeId());
         try {
             log.info(
                     "Route planned: {} from {} to {} — eta={}h risk={}",
-                    routeId,
+                    result.routeId(),
                     request.originPortId(),
                     request.destinationPortId(),
-                    etaHours,
-                    riskScore);
-
-            PlannedRoute result = PlannedRoute.builder()
-                    .routeId(routeId)
-                    .etaHours(etaHours)
-                    .riskScore(riskScore)
-                    .build();
+                    result.etaHours(),
+                    result.riskScore());
 
             // Publish the event BEFORE recording success metrics: a route only counts as "planned"
             // once its RoutePlannedEvent is on the wire. Recording metrics first over-counts
@@ -72,7 +69,7 @@ public class PlanRouteService implements PlanRouteUseCase {
             // we record routes.publish.failed and propagate (no outbox here yet — the event is lost),
             // so recordPlanned() never runs and the success counter is not inflated.
             try {
-                publishRouteEvent(request, routeId, etaHours, riskScore);
+                metrics.observeStep(STEP_PUBLISH, () -> publishRouteEvent(request, result));
             } catch (RuntimeException ex) {
                 metrics.recordPublishFailed(request);
                 throw ex;
@@ -83,6 +80,17 @@ public class PlanRouteService implements PlanRouteUseCase {
         } finally {
             MDC.remove("routeId");
         }
+    }
+
+    private PlannedRoute compute(RouteRequest request) {
+        double riskScore = computeRiskScore(request);
+        double etaHours = computeEta(request, riskScore);
+        String routeId = generateRouteId();
+        return PlannedRoute.builder()
+                .routeId(routeId)
+                .etaHours(etaHours)
+                .riskScore(riskScore)
+                .build();
     }
 
     private double computeRiskScore(RouteRequest request) {
@@ -107,14 +115,14 @@ public class PlanRouteService implements PlanRouteUseCase {
                         .toUpperCase();
     }
 
-    private void publishRouteEvent(RouteRequest request, String routeId, double etaHours, double riskScore) {
+    private void publishRouteEvent(RouteRequest request, PlannedRoute route) {
         routeEventPublisher.publish(RoutePlannedEvent.builder()
-                .routeId(routeId)
+                .routeId(route.routeId())
                 .originPortId(request.originPortId())
                 .destinationPortId(request.destinationPortId())
                 .shipClass(request.shipClass())
-                .etaHours(etaHours)
-                .riskScore(riskScore)
+                .etaHours(route.etaHours())
+                .riskScore(route.riskScore())
                 .plannedAt(Instant.now())
                 .build());
     }

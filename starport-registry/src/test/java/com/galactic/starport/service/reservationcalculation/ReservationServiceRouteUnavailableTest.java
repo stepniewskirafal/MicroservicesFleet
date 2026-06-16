@@ -14,6 +14,7 @@ import com.galactic.starport.service.routeplanner.RoutePlanner;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -64,7 +65,8 @@ class ReservationServiceRouteUnavailableTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         // REAL calculation service: orchestrates fee + route on real CompletableFutures.
-        ReservationCalculationService calculation = new ReservationCalculationService(feeCalculator, routePlanner);
+        ReservationCalculationService calculation =
+                new ReservationCalculationService(feeCalculator, routePlanner, ObservationRegistry.NOOP);
         reservationService = new ReservationService(
                 holdReservationFacade,
                 confirmReservationFacade,

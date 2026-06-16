@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class MicrometerRouteMetricsAdapter implements RouteMetricsPort {
 
     private static final String OBSERVATION_NAME = "routes.plan";
+    private static final String STEP_OBSERVATION_PREFIX = "routes.plan.";
     private static final String METRIC_SUCCESS = "routes.planned.count";
     private static final String METRIC_REJECTED = "routes.rejected.count";
     private static final String METRIC_PUBLISH_FAILED = "routes.publish.failed";
@@ -51,6 +52,14 @@ public class MicrometerRouteMetricsAdapter implements RouteMetricsPort {
                 .highCardinalityKeyValue("destinationPortId", request.destinationPortId())
                 .lowCardinalityKeyValue("shipClass", request.shipClass())
                 .observe(planning);
+    }
+
+    @Override
+    public <T> T observeStep(String stepName, Supplier<T> step) {
+        // Nested under the active routes.plan observation, so this surfaces as a child span in Tempo.
+        // The adapter owns the naming convention (routes.plan.<step>) — the core passes only the phase.
+        return Observation.createNotStarted(STEP_OBSERVATION_PREFIX + stepName, observationRegistry)
+                .observe(step);
     }
 
     @Override

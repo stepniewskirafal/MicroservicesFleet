@@ -7,6 +7,8 @@ import com.galactic.telemetry.model.RoutePlannedEvent;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Function;
@@ -31,7 +33,8 @@ public class EventPipelineConfiguration {
     private static final String METRIC_RESERVATION_LAG = "events.reservation.lag";
 
     @Bean
-    public Function<ReservationConfirmedEvent, EnrichedReservationEvent> reservationPipeline(MeterRegistry meterRegistry) {
+    public Function<ReservationConfirmedEvent, EnrichedReservationEvent> reservationPipeline(
+            MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
 
         Counter receivedCounter = Counter.builder("events.reservation.received")
                 .description("Reservation events consumed from Kafka")
@@ -52,48 +55,58 @@ public class EventPipelineConfiguration {
             putMdc("reservationId", String.valueOf(event.reservationId()));
             putMdc("routeId", event.routeCode());
             try {
-                receivedCounter.increment();
-
-                log.info(
-                        "Processing ReservationConfirmedEvent: reservationId={} starport={} customer={}",
-                        event.reservationId(),
-                        event.starportCode(),
-                        event.customerCode());
-
-                if (event.producedAt() != null) {
-                    double lagSeconds = Duration.between(event.producedAt(), Instant.now()).toMillis() / 1000.0;
-                    if (lagSeconds >= 0) {
-                        lagSummary.record(lagSeconds);
-                    }
-                }
-
-                long durationHours = 0;
-                if (event.startAt() != null && event.endAt() != null) {
-                    durationHours = Duration.between(event.startAt(), event.endAt()).toHours();
-                }
-
-                enrichedCounter.increment();
-
-                return new EnrichedReservationEvent(
-                        "RESERVATION_CONFIRMED",
-                        event.reservationId(),
-                        event.status(),
-                        event.starportCode(),
-                        event.dockingBayLabel(),
-                        event.customerCode(),
-                        event.shipCode(),
-                        event.routeCode(),
-                        event.startAt(),
-                        event.endAt(),
-                        event.feeCharged(),
-                        durationHours,
-                        Instant.now(),
-                        PROCESSED_BY);
+                // Explicit child of the Kafka consumer span so the terminal hop's enrichment work is a
+                // visible node in Tempo — otherwise telemetry contributes only the opaque consumer span
+                // and the async lag can't be attributed to consume vs. enrich.
+                return Observation.createNotStarted("events.reservation.enrich", observationRegistry)
+                        .lowCardinalityKeyValue("processedBy", PROCESSED_BY)
+                        .observe(() -> enrichReservation(event, receivedCounter, enrichedCounter, lagSummary));
             } finally {
                 MDC.remove("reservationId");
                 MDC.remove("routeId");
             }
         };
+    }
+
+    private EnrichedReservationEvent enrichReservation(
+            ReservationConfirmedEvent event, Counter receivedCounter, Counter enrichedCounter, DistributionSummary lagSummary) {
+        receivedCounter.increment();
+
+        log.info(
+                "Processing ReservationConfirmedEvent: reservationId={} starport={} customer={}",
+                event.reservationId(),
+                event.starportCode(),
+                event.customerCode());
+
+        if (event.producedAt() != null) {
+            double lagSeconds = Duration.between(event.producedAt(), Instant.now()).toMillis() / 1000.0;
+            if (lagSeconds >= 0) {
+                lagSummary.record(lagSeconds);
+            }
+        }
+
+        long durationHours = 0;
+        if (event.startAt() != null && event.endAt() != null) {
+            durationHours = Duration.between(event.startAt(), event.endAt()).toHours();
+        }
+
+        enrichedCounter.increment();
+
+        return new EnrichedReservationEvent(
+                "RESERVATION_CONFIRMED",
+                event.reservationId(),
+                event.status(),
+                event.starportCode(),
+                event.dockingBayLabel(),
+                event.customerCode(),
+                event.shipCode(),
+                event.routeCode(),
+                event.startAt(),
+                event.endAt(),
+                event.feeCharged(),
+                durationHours,
+                Instant.now(),
+                PROCESSED_BY);
     }
 
     private static void putMdc(String key, String value) {
@@ -103,7 +116,8 @@ public class EventPipelineConfiguration {
     }
 
     @Bean
-    public Function<RoutePlannedEvent, EnrichedRouteEvent> routePipeline(MeterRegistry meterRegistry) {
+    public Function<RoutePlannedEvent, EnrichedRouteEvent> routePipeline(
+            MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
 
         Counter receivedCounter = Counter.builder("events.route.received")
                 .description("Route planned events consumed from Kafka")
@@ -115,36 +129,44 @@ public class EventPipelineConfiguration {
         return event -> {
             putMdc("routeId", event.routeId());
             try {
-                receivedCounter.increment();
-
-                log.info(
-                        "Processing RoutePlannedEvent: routeId={} {} -> {} eta={}h risk={}",
-                        event.routeId(),
-                        event.originPortId(),
-                        event.destinationPortId(),
-                        event.etaHours(),
-                        event.riskScore());
-
-                String riskLevel = classifyRisk(event.riskScore());
-
-                enrichedCounter.increment();
-
-                return new EnrichedRouteEvent(
-                        "ROUTE_PLANNED",
-                        event.routeId(),
-                        event.originPortId(),
-                        event.destinationPortId(),
-                        event.shipClass(),
-                        event.etaHours(),
-                        event.riskScore(),
-                        riskLevel,
-                        event.plannedAt(),
-                        Instant.now(),
-                        PROCESSED_BY);
+                // Explicit child of the Kafka consumer span (see reservationPipeline) so the route
+                // enrichment is a distinct, timeable node under the trace's terminal hop.
+                return Observation.createNotStarted("events.route.enrich", observationRegistry)
+                        .lowCardinalityKeyValue("processedBy", PROCESSED_BY)
+                        .observe(() -> enrichRoute(event, receivedCounter, enrichedCounter));
             } finally {
                 MDC.remove("routeId");
             }
         };
+    }
+
+    private EnrichedRouteEvent enrichRoute(RoutePlannedEvent event, Counter receivedCounter, Counter enrichedCounter) {
+        receivedCounter.increment();
+
+        log.info(
+                "Processing RoutePlannedEvent: routeId={} {} -> {} eta={}h risk={}",
+                event.routeId(),
+                event.originPortId(),
+                event.destinationPortId(),
+                event.etaHours(),
+                event.riskScore());
+
+        String riskLevel = classifyRisk(event.riskScore());
+
+        enrichedCounter.increment();
+
+        return new EnrichedRouteEvent(
+                "ROUTE_PLANNED",
+                event.routeId(),
+                event.originPortId(),
+                event.destinationPortId(),
+                event.shipClass(),
+                event.etaHours(),
+                event.riskScore(),
+                riskLevel,
+                event.plannedAt(),
+                Instant.now(),
+                PROCESSED_BY);
     }
 
     private static String classifyRisk(double riskScore) {
