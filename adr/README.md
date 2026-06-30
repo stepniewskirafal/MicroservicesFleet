@@ -33,7 +33,7 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
-38 records: `0000` (template) + **37 decisions** `0001`–`0037`. Three are superseded
+39 records: `0000` (template) + **38 decisions** `0001`–`0038`. Three are superseded
 (0034 → 0035 → 0037; 0036 → 0037); ADR-0037 is the current trace/log-pipeline authority.
 
 | #    | Title                                                                        | Status                   | Date       |
@@ -76,6 +76,7 @@ when replaced, but their content remains to explain why the older choice existed
 | [0035](0035-otlp-logs-deterministic-sampling.md) | Logs via OTLP Push + Deterministic Trace-Keyed Sampling   | Superseded by ADR-0037 | 2026-05-27 |
 | [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Superseded by ADR-0037 | 2026-06-07 |
 | [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | **Accepted (current authority)** | 2026-06-13 |
+| [0038](0038-resilience-observability.md) | Resilience4j Observability: Dashboard + Alerts (making resilience visible) | Accepted | 2026-06-23 |
 
 ---
 

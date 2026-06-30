@@ -1,0 +1,61 @@
+# =============================================================================
+# Prometheus Alerting Rules — Resilience4j (starport-registry -> trade-route-planner)
+# =============================================================================
+#
+# Pointa talku: "Nigdy więcej odkrywania awarii przez przypadek."
+# Te reguły zamieniają niewidzialną awarię zależności w głośny, czerwony sygnał.
+#
+# UWAGA: w tym stacku NIE ma Alertmanagera — alerty pojawią się w Prometheus UI
+# (Status -> Rules / Alerts) i można je pokazać w Grafanie (Alerting -> Alert rules
+# albo panel z ALERTS{...}). To w zupełności wystarcza na demo. Routing notyfikacji
+# (Slack/PagerDuty) to osobny krok produkcyjny.
+#
+# Labele w tym stacku: serwis = job="starport-registry" (NIE application),
+# replika = instance, circuit = name="trade-route-planner". (prometheus.yml)
+# =============================================================================
+
+groups:
+  - name: starport_registry_resilience4j
+    rules:
+
+      # ── Circuit OTWARTY — zależność realnie odcięta ──────────────────────
+      # state{state="open"} == 1 oznacza, że breaker przestał przepuszczać ruch
+      # i leci fallback. To jest "awaria widoczna w 1 minutę", nie po 3 miesiącach.
+      - alert: TradeRoutePlannerCircuitOpen
+        expr: max(resilience4j_circuitbreaker_state{job="starport-registry", name="trade-route-planner", state="open"}) == 1
+        for: 30s
+        labels:
+          severity: critical
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Circuit breaker OPEN dla trade-route-planner"
+          description: "starport-registry odciął wywołania do trade-route-planner (fallback aktywny). Planowanie tras jest zdegradowane."
+
+      # ── Wysoki failure rate — zanim circuit zdąży się otworzyć ──────────
+      # Wczesne ostrzeżenie: 50% to próg otwarcia (failure-rate-threshold),
+      # alarmujemy już od 25%, żeby zobaczyć problem narastający, nie dokonany.
+      - alert: TradeRoutePlannerHighFailureRate
+        expr: max(resilience4j_circuitbreaker_failure_rate{job="starport-registry", name="trade-route-planner"}) >= 25
+        for: 1m
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Podwyższony failure rate trade-route-planner ({{ $value | printf \"%.0f\" }}%)"
+          description: "Failure rate circuita przekroczył 25% (próg otwarcia: 50%). Zależność zaczyna się sypać."
+
+      # ── Retry realnie ratuje wywołania — sygnał o niestabilności ────────
+      # successful_with_retry rosnące = pojedyncze błędy, które retry maskuje.
+      # Bez tej metryki te błędy były "ukryte głębiej". Tu je widać.
+      - alert: TradeRoutePlannerRetriesElevated
+        expr: sum(increase(resilience4j_retry_calls{job="starport-registry", name="trade-route-planner", kind="successful_with_retry"}[5m])) > 5
+        for: 2m
+        labels:
+          severity: info
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Retry często ratuje wywołania do trade-route-planner"
+          description: "W ostatnich 5 min ponad 5 wywołań udało się dopiero po retry — zależność jest niestabilna, nawet jeśli circuit jeszcze zamknięty."

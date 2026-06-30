@@ -1,0 +1,57 @@
+# =============================================================================
+# OVERLAY DEMO — Toxiproxy na ścieżce starport-registry -> trade-route-planner.
+# =============================================================================
+# NIE jest częścią domyślnego stacku. Nakładasz go na bazowy compose tylko na czas
+# talku "Działa != działa i ja o tym wiem":
+#
+#   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.demo.yml up -d --build
+#
+# Co robi:
+#   1. Dodaje kontener `toxiproxy` (proxy TCP) z proxy `trade-route-planner`
+#      nasłuchującym na :8666, upstream = trade-route-planner-1:8082.
+#   2. Przełącza obie repliki starport-registry na profil `demo`
+#      (application-demo.yml): klient plannera leci PRZEZ toxiproxy, nie-LB.
+#   3. Wystawia API Toxiproxy na host (:8474), żeby skrypt demo mógł wstrzykiwać
+#      toxyny: scripts/demo-resilience.ps1 -Chaos slow|partial|down|heal
+#
+# Bez tego overlaya stack działa po staremu (LB+Eureka, bez toxiproxy).
+# =============================================================================
+
+services:
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.11.0
+    container_name: toxiproxy
+    command: ["-host", "0.0.0.0", "-config", "/config/toxiproxy.json"]
+    ports:
+      - "8474:8474"   # API sterujące (host -> skrypt demo)
+    expose:
+      - "8666"        # port proxy, wewnątrz sieci app (starport -> toxiproxy:8666)
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    networks:
+      - app
+    depends_on:
+      trade-route-planner-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  starport-registry-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+    depends_on:
+      toxiproxy:
+        condition: service_healthy
+
+  starport-registry-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+    depends_on:
+      toxiproxy:
+        condition: service_healthy

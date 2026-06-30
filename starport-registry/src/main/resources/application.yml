@@ -205,6 +205,13 @@ resilience4j:
       trade-route-planner:
         register-health-indicator: true
         failure-rate-threshold: 50
+        # Slow-call detection: a call that returns successfully but takes >= slow-call-duration-threshold
+        # counts as "slow". When slow-call-rate exceeds the threshold the circuit opens just like on
+        # failures — this catches gradual degradation (rising p99), not only hard 5xx/connection errors.
+        # Threshold sits below the 800ms read-timeout (RestClientConfig) so a slow-but-completing call is
+        # recorded as slow rather than timing out into a failure. Drives resilience4j_circuitbreaker_slow_call_rate.
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 500ms
         wait-duration-in-open-state: 10s
         sliding-window-size: 10
         minimum-number-of-calls: 5

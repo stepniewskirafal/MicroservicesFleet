@@ -1,0 +1,22 @@
+# =============================================================================
+# Profil DEMO — kieruje wywołania trade-route-planner przez Toxiproxy.
+# =============================================================================
+# Aktywowany przez SPRING_PROFILES_ACTIVE=demo (patrz infra/docker/docker-compose.demo.yml).
+#
+# Po co: pozwala wstrzyknąć latencję / błędy / pełną awarię na ścieżce do plannera
+# JEDNYM narzędziem (Toxiproxy API) podczas talku "Działa != działa", bez zabijania
+# kontenerów. Eureka discovery zostaje WŁĄCZONE — starport dalej rejestruje się w
+# rejestrze, więc gateway go widzi; odpinamy load-balancing TYLKO dla klienta plannera
+# (RestClientConfig#tradeRoutePlannerRestClient czyta app.trade-route-planner.load-balanced).
+#
+# Topologia w trybie demo:
+#   gateway --(lb, Eureka)--> starport-registry --(plain http)--> toxiproxy:8666 --> trade-route-planner-1:8082
+#
+# Sterowanie awarią: scripts/demo-resilience.ps1 -Chaos slow|partial|down|heal
+# =============================================================================
+app:
+  trade-route-planner:
+    # Stały adres Toxiproxy (nie lb:// — to host:port proxy), upstream = trade-route-planner-1.
+    base-url: http://toxiproxy:8666
+    # Odpina @LoadBalanced dla TEGO klienta. Discovery globalnie zostaje true.
+    load-balanced: false

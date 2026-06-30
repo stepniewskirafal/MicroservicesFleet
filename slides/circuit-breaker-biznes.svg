@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 700" font-family="Segoe UI, Arial, sans-serif">
+  <!-- tło -->
+  <rect width="1040" height="700" fill="#f6f8fa"/>
+
+  <!-- tytuł -->
+  <text x="520" y="46" text-anchor="middle" font-size="30" font-weight="700" fill="#1f2430">Circuit breaker — bezpiecznik dla wywołań między usługami</text>
+  <text x="520" y="78" text-anchor="middle" font-size="17" fill="#5b6470">Tak jak bezpiecznik w domu odcina prąd, gdy coś iskrzy — odcina wywołania do usługi, która przestała działać.</text>
+
+  <!-- ===== rząd przepływu ===== -->
+  <g font-size="15">
+    <!-- Twoja usługa -->
+    <rect x="40" y="110" width="220" height="64" rx="10" fill="#ffffff" stroke="#c7ced6" stroke-width="1.5"/>
+    <text x="150" y="140" text-anchor="middle" font-size="16" font-weight="700" fill="#1f2430">Twoja usługa</text>
+    <text x="150" y="160" text-anchor="middle" fill="#5b6470">wysyła prośbę</text>
+
+    <!-- bezpiecznik -->
+    <rect x="410" y="104" width="220" height="76" rx="12" fill="#eef3ff" stroke="#3f6fd1" stroke-width="2"/>
+    <text x="520" y="134" text-anchor="middle" font-size="16" font-weight="700" fill="#26408b">🔌 BEZPIECZNIK</text>
+    <text x="520" y="156" text-anchor="middle" fill="#41506b">decyduje: przepuścić</text>
+    <text x="520" y="172" text-anchor="middle" fill="#41506b">czy odciąć</text>
+
+    <!-- zależność -->
+    <rect x="780" y="110" width="220" height="64" rx="10" fill="#ffffff" stroke="#c7ced6" stroke-width="1.5"/>
+    <text x="890" y="140" text-anchor="middle" font-size="16" font-weight="700" fill="#1f2430">Zależność</text>
+    <text x="890" y="160" text-anchor="middle" fill="#5b6470">np. usługa tras</text>
+
+    <!-- strzałki -->
+    <defs>
+      <marker id="arr" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#8a929c"/>
+      </marker>
+    </defs>
+    <line x1="262" y1="142" x2="404" y2="142" stroke="#8a929c" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="632" y1="142" x2="774" y2="142" stroke="#8a929c" stroke-width="2" marker-end="url(#arr)"/>
+  </g>
+
+  <!-- ===== trzy stany ===== -->
+  <!-- ZAMKNIĘTY -->
+  <g>
+    <rect x="40" y="222" width="290" height="230" rx="14" fill="#eafaf0" stroke="#2e9e44" stroke-width="2"/>
+    <rect x="40" y="222" width="290" height="46" rx="14" fill="#2e9e44"/>
+    <rect x="40" y="250" width="290" height="18" fill="#2e9e44"/>
+    <circle cx="70" cy="245" r="11" fill="#ffffff"/>
+    <text x="92" y="251" font-size="19" font-weight="700" fill="#ffffff">ZAMKNIĘTY · działa</text>
+    <text x="62" y="300" font-size="16" font-weight="700" fill="#1f7a32">Wszystko OK.</text>
+    <text x="62" y="326" font-size="15" fill="#2b3640">Prośby przechodzą</text>
+    <text x="62" y="346" font-size="15" fill="#2b3640">normalnie do zależności.</text>
+    <text x="62" y="392" font-size="13.5" fill="#5b6470">Bezpiecznik tylko liczy,</text>
+    <text x="62" y="410" font-size="13.5" fill="#5b6470">ile wywołań się nie udaje</text>
+    <text x="62" y="428" font-size="13.5" fill="#5b6470">albo trwa za długo.</text>
+  </g>
+
+  <!-- OTWARTY -->
+  <g>
+    <rect x="375" y="222" width="290" height="230" rx="14" fill="#fdecec" stroke="#d23b3b" stroke-width="2"/>
+    <rect x="375" y="222" width="290" height="46" rx="14" fill="#d23b3b"/>
+    <rect x="375" y="250" width="290" height="18" fill="#d23b3b"/>
+    <circle cx="405" cy="245" r="11" fill="#ffffff"/>
+    <text x="427" y="251" font-size="19" font-weight="700" fill="#ffffff">OTWARTY · odcięte</text>
+    <text x="397" y="300" font-size="16" font-weight="700" fill="#b62b2b">Zależność padła.</text>
+    <text x="397" y="326" font-size="15" fill="#2b3640">Bezpiecznik odcina ruch</text>
+    <text x="397" y="346" font-size="15" fill="#2b3640">i od razu oddaje plan B</text>
+    <text x="397" y="366" font-size="15" fill="#2b3640">(fallback).</text>
+    <text x="397" y="406" font-size="13.5" fill="#5b6470">Nie dobijamy leżącego —</text>
+    <text x="397" y="424" font-size="13.5" fill="#5b6470">klient nie czeka w próżni.</text>
+  </g>
+
+  <!-- PÓŁOTWARTY -->
+  <g>
+    <rect x="710" y="222" width="290" height="230" rx="14" fill="#fdf4e6" stroke="#e08a1e" stroke-width="2"/>
+    <rect x="710" y="222" width="290" height="46" rx="14" fill="#e08a1e"/>
+    <rect x="710" y="250" width="290" height="18" fill="#e08a1e"/>
+    <circle cx="740" cy="245" r="11" fill="#ffffff"/>
+    <text x="762" y="251" font-size="19" font-weight="700" fill="#ffffff">PÓŁOTWARTY · próba</text>
+    <text x="732" y="300" font-size="16" font-weight="700" fill="#b06a10">Sprawdzamy, czy wróciła.</text>
+    <text x="732" y="326" font-size="15" fill="#2b3640">Po chwili przepuszczamy</text>
+    <text x="732" y="346" font-size="15" fill="#2b3640">kilka próbnych wywołań.</text>
+    <text x="732" y="392" font-size="13.5" fill="#1f7a32">✓ działa → wracamy do zielonego</text>
+    <text x="732" y="412" font-size="13.5" fill="#b62b2b">✗ dalej źle → znów odcinamy</text>
+  </g>
+
+  <!-- strzałki przejść między stanami -->
+  <g font-size="13" fill="#5b6470">
+    <line x1="330" y1="360" x2="372" y2="360" stroke="#8a929c" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="351" y="350" text-anchor="middle">za dużo błędów</text>
+    <text x="351" y="392" text-anchor="middle">lub za wolno</text>
+
+    <line x1="665" y1="360" x2="707" y2="360" stroke="#8a929c" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="686" y="350" text-anchor="middle">po ~10 s</text>
+    <text x="686" y="392" text-anchor="middle">próba</text>
+
+    <!-- powrót półotwarty -> zamknięty (łuk u góry) -->
+    <path d="M855 222 C855 188, 185 188, 185 222" fill="none" stroke="#2e9e44" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+    <text x="520" y="202" text-anchor="middle" fill="#1f7a32" font-weight="700">✓ próba OK → ZAMKNIĘTY (zdrowy)</text>
+  </g>
+
+  <!-- ===== RETRY ===== -->
+  <g>
+    <rect x="40" y="478" width="960" height="86" rx="12" fill="#ffffff" stroke="#c7ced6" stroke-width="1.5"/>
+    <rect x="40" y="478" width="10" height="86" rx="5" fill="#3f6fd1"/>
+    <text x="70" y="512" font-size="18" font-weight="700" fill="#26408b">RETRY — drugie podejście, zanim w ogóle uznamy coś za błąd</text>
+    <text x="70" y="540" font-size="15" fill="#2b3640">Pojedyncza wpadka (sieć mrugnęła)? Ponawiamy raz — często druga próba trafia na zdrową kopię usługi.</text>
+    <text x="70" y="558" font-size="14" fill="#5b6470">Dopiero gdy i to nie pomoże, błąd „liczy się" do bezpiecznika. Retry łata drobiazgi, bezpiecznik chroni przed prawdziwą awarią.</text>
+  </g>
+
+  <!-- ===== puenta biznesowa ===== -->
+  <g>
+    <rect x="40" y="586" width="960" height="78" rx="12" fill="#1f2430"/>
+    <text x="520" y="618" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">Efekt dla klienta: zamiast wisieć w nieskończoność, dostaje szybką, świadomą degradację.</text>
+    <text x="520" y="644" text-anchor="middle" font-size="15" fill="#c7ced6">A my — zamiast dowiadywać się o awarii przypadkiem — widzimy ją w tej samej sekundzie.</text>
+  </g>
+</svg>

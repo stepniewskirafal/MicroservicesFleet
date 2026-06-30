@@ -1,0 +1,307 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Odporność wywołania starport-registry -> trade-route-planner uczyniona widzialną. Dopasowane do tego stacku: job=starport-registry, name=trade-route-planner, NIE application/cluster (te labele tu nie istnieją).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "Dla biznesu — czy zależność żyje?",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Czy circuit breaker dla trade-route-planner jest otwarty na którejkolwiek replice. OPEN = ruch jest odcinany, leci fallback (degradacja).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "green", "index": 1, "text": "DOSTĘPNA" }, "1": { "color": "red", "index": 0, "text": "ODCIĘTA (circuit OPEN)" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "max(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\", state=\"open\"})", "instant": false, "legendFormat": "trade-route-planner", "range": true, "refId": "A" }
+      ],
+      "title": "Stan zależności: $circuit_name",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Procent nieudanych wywołań w oknie ślizgowym (sliding-window-size=10). -1 = za mało wywołań, by liczyć (minimum-number-of-calls=5). Próg otwarcia: 50%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [ { "options": { "-1": { "color": "text", "index": 0, "text": "—" } }, "type": "value" } ],
+          "max": 100, "min": 0, "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 25 }, { "color": "red", "value": 50 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "max(resilience4j_circuitbreaker_failure_rate{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"})", "instant": false, "legendFormat": "failure rate", "range": true, "refId": "A" }
+      ],
+      "title": "Failure rate (próg otwarcia 50%)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Suma sekund, przez które circuit był OPEN w wybranym zakresie czasu. To jest 'downtime zależności' w języku biznesu.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 30 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum_over_time(max(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\", state=\"open\"})[$__range:3s]) * 3", "instant": false, "legendFormat": "downtime", "range": true, "refId": "A" }
+      ],
+      "title": "Downtime zależności (w zakresie)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Ile razy odpalił się fallback bo circuit był otwarty (z TradeRoutePlannerHttpAdapter: reservations.route.plan.errors{errorType=circuit_open}). 'Te 2 błędy na dobę z mojej historii — byłyby tutaj.'",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum(increase(reservations_route_plan_errors_total{job=\"starport-registry\", instance=~\"$instance\", errorType=\"circuit_open\"}[$__range]))", "instant": false, "legendFormat": "fallbacky", "range": true, "refId": "A" }
+      ],
+      "title": "Trasy oddane do fallbacku (w zakresie)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 101,
+      "panels": [],
+      "title": "Dla devów — co robi circuit breaker i retry",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Stan circuita w czasie jako JEDEN pasek: zielony=ZAMKNIĘTY (działa), pomarańcz=PÓŁOTWARTY (próba po wait-duration-in-open-state=10s), czerwony=ODCIĘTY (OPEN). Kodowanie 0/1/2 = closed/half_open/open; przy wielu replikach wygrywa najgorszy stan.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "fillOpacity": 90, "lineWidth": 0 },
+          "mappings": [ { "type": "value", "options": { "0": { "color": "green", "index": 0, "text": "ZAMKNIĘTY (działa)" }, "1": { "color": "orange", "index": 1, "text": "PÓŁOTWARTY (próba)" }, "2": { "color": "red", "index": 2, "text": "ODCIĘTY (OPEN)" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 2 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 5,
+      "options": { "colWidth": 0.9, "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }, "mergeValues": true, "rowHeight": 0.9, "showValue": "auto", "tooltip": { "mode": "single", "sort": "none" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "clamp_max(2 * max(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\", state=\"open\"}) + max(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\", state=\"half_open\"}), 2)", "instant": false, "legendFormat": "stan circuita", "range": true, "refId": "A" }
+      ],
+      "title": "Stan circuit breakera (timeline)",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Failure rate i slow-call rate circuita. Czerwona linia 50% = próg otwarcia (rate). UWAGA: slow-call rate liczy wywołania >= slow-call-duration-threshold = 500 ms — poniżej 500 ms jest 0 (szara strefa: latencja rośnie, ale formalnie jeszcze nie 'slow'). Dlatego -SlowMs 300 nie rusza tej linii, a -SlowMs 600 tak. Magnitudę latencji widać na panelu 'Maks. latencja wywołań'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "thresholdsStyle": { "mode": "line" } },
+          "max": 100, "min": 0, "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "transparent", "value": null }, { "color": "red", "value": 50 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 6,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "max(resilience4j_circuitbreaker_failure_rate{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"}) >= 0", "instant": false, "legendFormat": "failure rate", "range": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "max(resilience4j_circuitbreaker_slow_call_rate{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"}) >= 0", "instant": false, "legendFormat": "slow call rate (≥500 ms)", "range": true, "refId": "B" }
+      ],
+      "title": "Failure rate / slow call rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Tempo wywołań circuita wg wyniku (successful / failed / ignored) — z resilience4j_circuitbreaker_calls_seconds_count.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "failed" }, "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ] },
+          { "matcher": { "id": "byName", "options": "successful" }, "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum by (kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"}[1m]))", "instant": false, "legendFormat": "{{kind}}", "range": true, "refId": "A" }
+      ],
+      "title": "Wywołania wg wyniku (req/s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Retry wg rodzaju (z resilience4j_retry_calls). successful_with_retry = retry uratował wywołanie; failed_with_retry = retry wyczerpany. To jest odpowiedź na 'czy retry w ogóle się odpala i ile razy'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "auto", "spanNulls": false },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "failed_with_retry" }, "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ] },
+          { "matcher": { "id": "byName", "options": "successful_with_retry" }, "properties": [ { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 8,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum by (kind) (resilience4j_retry_calls{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"})", "instant": false, "legendFormat": "{{kind}}", "range": true, "refId": "A" }
+      ],
+      "title": "Retry wg rodzaju (liczniki kumulatywne)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Maks. czas trwania wywołań mierzony przez circuit breaker (resilience4j_circuitbreaker_calls_seconds_max).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never", "spanNulls": false },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "max by (kind) (resilience4j_circuitbreaker_calls_seconds_max{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"})", "instant": false, "legendFormat": "{{kind}}", "range": true, "refId": "A" }
+      ],
+      "title": "Maks. latencja wywołań",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "description": "Wywołania odrzucone przez otwarty circuit (resilience4j_circuitbreaker_not_permitted_calls_total) — tu widać, że circuit realnie chroni planera przed dobijaniem.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "showPoints": "never", "spanNulls": false },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
+      "pluginVersion": "10.4.2",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum(rate(resilience4j_circuitbreaker_not_permitted_calls_total{job=\"starport-registry\", name=\"$circuit_name\", instance=~\"$instance\"}[1m]))", "instant": false, "legendFormat": "not permitted", "range": true, "refId": "A" }
+      ],
+      "title": "Wywołania odcięte przez otwarty circuit (req/s)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["resilience4j", "starport-registry", "talk"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "trade-route-planner", "value": "trade-route-planner" },
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "definition": "label_values(resilience4j_circuitbreaker_state{job=\"starport-registry\"}, name)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Circuit",
+        "multi": false,
+        "name": "circuit_name",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(resilience4j_circuitbreaker_state{job=\"starport-registry\"}, name)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "definition": "label_values(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instancja",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(resilience4j_circuitbreaker_state{job=\"starport-registry\", name=\"$circuit_name\"}, instance)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Resilience4j — starport→trade-route (odporność widzialna)",
+  "uid": "r4j-trade-route",
+  "version": 1,
+  "weekStart": ""
+}
