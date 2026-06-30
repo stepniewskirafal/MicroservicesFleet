@@ -1,0 +1,8 @@
+[
+  {
+    "name": "trade-route-planner",
+    "listen": "0.0.0.0:8666",
+    "upstream": "trade-route-planner-1:8082",
+    "enabled": true
+  }
+]
