@@ -5,6 +5,7 @@ import com.galactic.starport.service.confirmreservation.ReservationConfirmationE
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
+import com.galactic.starport.service.routeplanner.RouteRejectedException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -59,6 +60,12 @@ public class ReservationService {
             confirmed = true;
             incrementReservationCounter(starport, shipClass, "confirmed");
             return Optional.of(reservation);
+
+        } catch (RouteRejectedException ex) {
+            // Planner deterministically rejected the route (e.g. hazard zone) — a client/domain outcome,
+            // distinct from an unavailable planner. Surfaces as 422.
+            incrementReservationCounter(starport, shipClass, "route_rejected");
+            throw ex;
 
         } catch (RouteUnavailableException ex) {
             incrementReservationCounter(starport, shipClass, "route_unavailable");

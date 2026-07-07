@@ -71,6 +71,31 @@ class PlanRouteServiceTest {
     }
 
     @Test
+    void should_reject_route_into_configured_hazard_zone() {
+        // Hazard destination configured → planner rejects with ROUTE_REJECTED/HAZARD_ZONE (422),
+        // so the error surfaces INSIDE the planner span in the trace.
+        PlanRouteService hazardAware = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
+
+        assertThatThrownBy(() -> hazardAware.planRoute(aRequest("SP-A", "MUSTAF", "SCOUT", 15.0)))
+                .isInstanceOf(RouteRejectionException.class)
+                .hasMessageContaining("HAZARD_ZONE");
+
+        assertThat(meterRegistry.get("routes.rejected.count").tag("reason", "HAZARD_ZONE").counter().count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void should_not_reject_non_hazard_destination_when_hazard_configured() {
+        PlanRouteService hazardAware = new PlanRouteService(
+                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
+
+        PlannedRoute route = hazardAware.planRoute(aRequest("SP-A", "TATOO", "SCOUT", 15.0));
+
+        assertThat(route.routeId()).startsWith("ROUTE-");
+    }
+
+    @Test
     void should_compute_higher_eta_for_freighter_than_scout() {
         RouteRequest scout = aRequest("SP-A", "SP-B", "SCOUT", 20.0);
         RouteRequest freighter = aRequest("SP-A", "SP-B", "FREIGHTER", 20.0);

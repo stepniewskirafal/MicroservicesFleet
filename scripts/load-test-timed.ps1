@@ -1,10 +1,18 @@
-# ------------------------------------------------------------------
+﻿# ------------------------------------------------------------------
 # load-test-timed.ps1  -  Time-bounded reservation load generator
 #
 # Differs from load-test.ps1 (count-based, 100 requests):
 #   - Runs for a fixed duration (-DurationMinutes 5/10/30/...)
 #   - Stoppable any time with 'Q' or Esc (clean summary on exit)
-#   - 90% good / 10% bad mix (configurable with -ErrorRatio)
+#   - 80% good / 20% bad mix (configurable with -ErrorRatio)
+#   - Good requests route (requestRoute=true) to a non-hazard port -> exercise trade-route-planner
+#     AND generate successful route calls that keep the circuit breaker closed.
+#   - Of the bad requests, -HazardRatio (default 0.3) go INTO the hazard port ($HazardPort, default
+#     MUSTAF): these fail INSIDE the planner (422 ROUTE_REJECTED), so the error is visible in the
+#     trade-route-planner span in Tempo — not only in starport-registry. Client sees 422 (starport
+#     treats it as a domain rejection, not an outage: no retry, does not trip the circuit breaker).
+#     Requires the planner running with traderoute.hazard.destination-port = $HazardPort.
+#     The rest of the bad requests are starport-side validation/not-found errors (planner not reached).
 #   - Throttled (default 5 req/s = 300/min, configurable)
 #   - Each good request gets a globally unique 1h time slot starting at
 #     `now + 5 min` (slot 0 = earliest possible), then slot i = base + i hours.
@@ -42,7 +50,18 @@ param(
     [double]$RatePerSecond = 5.0,
 
     [ValidateRange(0.0, 1.0)]
-    [double]$ErrorRatio = 0.10
+    [double]$ErrorRatio = 0.20,
+
+    # Jaka CZĘŚĆ błędów (ErrorRatio) ma być błędem PLANNERA (route do hazard-portu),
+    # a nie błędem walidacji w starporcie. 0.3 = 30% błędów w plannerze, 70% w starporcie.
+    # Domenowe odrzucenie plannera (422 ROUTE_REJECTED) starport traktuje jako decyzję domenową,
+    # NIE awarię: nie ponawia i NIE liczy do circuit-breakera (ignore-exceptions). Dzięki temu
+    # HazardRatio można podnosić bez ryzyka otwarcia obwodu i psucia dobrych tras.
+    [ValidateRange(0.0, 1.0)]
+    [double]$HazardRatio = 0.3,
+
+    # Starport, do którego trasy są odrzucane w trade-route-planner (musi = traderoute.hazard.destination-port).
+    [string]$HazardPort = "MUSTAF"
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,9 +75,14 @@ $script:serverErr      = 0     # 5xx
 $script:netErr         = 0     # transport errors / DNS / refused
 $script:expectedMatch  = 0     # status matched the expectation we sent
 $script:expectedMiss   = 0     # status did not match expectation
+$script:hazardSent     = 0     # deliberate planner-error calls (route into hazard port)
 
 # --- data: starports + ship designs (must match V2 migration) ---
 $STARPORTS = @("TATOO", "CORUS", "ALDER", "HOTH", "ENDOR", "NABOO", "DAGO", "BESPIN", "KAMINO", "MUSTAF")
+
+# Good requests route to a NON-hazard destination (routing there succeeds). The hazard port is
+# reserved for the deliberate planner-error path (New-HazardRouteCall).
+$GOOD_STARPORTS = $STARPORTS | Where-Object { $_ -ne $HazardPort }
 
 # Index is (customerIdx - 1) % 6.  Returns @{Code=...; Class=...} for that customer's ship.
 function Get-ShipForCustomer {
@@ -80,10 +104,16 @@ function Get-ShipForCustomer {
 # (base = now + 5 min; slot i = base + i hours). No two good requests
 # can overlap on any docking bay. Slot 0 ≈ NOW, so the occupancy
 # dashboard sees live data while the test runs.
+#
+# requestRoute is TRUE with a valid $OriginPort, so every good request also exercises the
+# trade-route-planner (route span in the trace) and — crucially — produces SUCCESSFUL route calls.
+# Those successes dilute the circuit-breaker failure rate below its 50% threshold, so the deliberate
+# hazard failures (New-HazardRouteCall) keep reaching the planner instead of tripping the breaker open.
 function New-GoodBody {
     param(
         [int]$SlotIdx,
-        [int]$CustomerIdx
+        [int]$CustomerIdx,
+        [string]$OriginPort
     )
     $baseTime = (Get-Date).ToUniversalTime().AddMinutes(5)
     $startDt  = $baseTime.AddHours($SlotIdx)
@@ -101,10 +131,28 @@ function New-GoodBody {
   "shipClass":    "$($ship.Class)",
   "startAt":      "$startStr",
   "endAt":        "$endStr",
-  "requestRoute": false,
-  "originPortId": null
+  "requestRoute": true,
+  "originPortId": "$OriginPort"
 }
 "@
+}
+
+# Builds a DELIBERATE planner-error call: a fully valid reservation (passes every starport-side
+# validation) whose route goes INTO the hazard port. starport therefore calls the planner, the planner
+# rejects it (422 ROUTE_REJECTED / reason=HAZARD_ZONE), and that error is visible in the
+# trade-route-planner span. starport treats this as a DOMAIN rejection (RouteRejectedException) —
+# NOT an outage — so it is not retried, does not trip the circuit breaker, and maps to HTTP 422.
+function New-HazardRouteCall {
+    param([int]$SlotIdx)
+    # Origin must be a real, existing starport (StartStarportValidationRule) and != the hazard dest.
+    $origin  = $GOOD_STARPORTS | Get-Random
+    $custIdx = Get-Random -Minimum 1 -Maximum 201
+    return @{
+        Label = "HAZARD route $origin -> $HazardPort (planner 422)"
+        Url   = "$API/$HazardPort/reservations"
+        Body  = (New-GoodBody -SlotIdx $SlotIdx -CustomerIdx $custIdx -OriginPort $origin)
+        Expect = 422
+    }
 }
 
 # Returns one bad-call template @{Url; Body; Expect; Label} chosen at random.
@@ -224,6 +272,7 @@ function Write-Summary {
     Write-Host (" Done.  duration={0,5:N0}s  sent={1}  rate={2:N2} req/s" -f $elapsed.TotalSeconds, $script:sent, $rate)
     Write-Host (" 2xx (ok)        : {0}" -f $script:ok)
     Write-Host (" 4xx (client err): {0}" -f $script:clientErr)
+    Write-Host (" planner errors  : {0}   (route -> {1}, 422 ROUTE_REJECTED in trade-route-planner -> 422 to client)" -f $script:hazardSent, $HazardPort)
     Write-Host (" 5xx (server err): {0}   <-- watch this; should be 0" -f $script:serverErr)
     Write-Host (" transport err   : {0}" -f $script:netErr)
     Write-Host (" status matched expectation : {0}" -f $script:expectedMatch)
@@ -269,18 +318,28 @@ try {
 
         $isBad = (Get-Random -Minimum 0.0 -Maximum 1.0) -lt $ErrorRatio
         if ($isBad) {
-            $call = New-BadCall
+            # Split errors: HazardRatio -> planner error (route into hazard port),
+            # rest -> starport-side error (validation / not-found, planner never reached).
+            $isHazard = (Get-Random -Minimum 0.0 -Maximum 1.0) -lt $HazardRatio
+            if ($isHazard) {
+                $call = New-HazardRouteCall -SlotIdx $slotIdx
+                $slotIdx++                       # holds a bay briefly before compensating; keep it unique
+                $script:hazardSent++
+            } else {
+                $call = New-BadCall
+            }
             $url    = $call.Url
             $body   = $call.Body
             $expect = $call.Expect
             $label  = $call.Label
         } else {
-            $port    = $STARPORTS | Get-Random
+            $dest    = $GOOD_STARPORTS | Get-Random
+            $origin  = ($STARPORTS | Where-Object { $_ -ne $dest }) | Get-Random
             $custIdx = Get-Random -Minimum 1 -Maximum 201
-            $url     = "$API/$port/reservations"
-            $body    = New-GoodBody -SlotIdx $slotIdx -CustomerIdx $custIdx
+            $url     = "$API/$dest/reservations"
+            $body    = New-GoodBody -SlotIdx $slotIdx -CustomerIdx $custIdx -OriginPort $origin
             $expect  = 201
-            $label   = "GOOD $port  CUST-$($custIdx.ToString('000'))  slot=$slotIdx"
+            $label   = "GOOD $origin -> $dest  CUST-$($custIdx.ToString('000'))  slot=$slotIdx"
             $slotIdx++
         }
 
