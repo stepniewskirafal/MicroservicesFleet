@@ -210,14 +210,20 @@ resilience4j:
         minimum-number-of-calls: 5
         permitted-number-of-calls-in-half-open-state: 3
         sliding-window-type: COUNT_BASED
+        # A DOMAIN rejection (planner returns 4xx: hazard zone, insufficient range) is the planner
+        # working correctly, not an outage — it must NOT count toward the failure rate or trip the
+        # breaker. Only 5xx / timeouts / no-instance (RouteUnavailableException) open the circuit.
+        ignore-exceptions:
+          - com.galactic.starport.service.routeplanner.RouteRejectedException
   # Retry the planner call once on failure: with 2 planner replicas behind Eureka, a single bad
   # instance would otherwise fail ~50% of calls with no second chance. The load balancer picks an
   # instance per attempt, so the retry usually lands on the healthy replica. maxAttempts counts the
-  # first try, so 2 = one retry. @Retry wraps @CircuitBreaker, whose fallback funnels every failure
-  # into RouteUnavailableException, so that is what we retry on. Tradeoff: a deterministic domain
-  # rejection (e.g. insufficient range) is retried once too (minor waste), and a read-timeout where
-  # the planner already processed the request could duplicate the route event — acceptable given
-  # planning is sub-second; fully-safe retry would need an idempotency key (out of scope).
+  # first try, so 2 = one retry. @Retry wraps @CircuitBreaker; only RouteUnavailableException (5xx /
+  # timeout / no-instance) is retried. A deterministic domain rejection (RouteRejectedException, 4xx)
+  # is deliberately NOT listed — retrying it is pointless (same answer every time) and would amplify
+  # its pressure on the breaker. Tradeoff: a read-timeout where the planner already processed the
+  # request could duplicate the route event — acceptable given planning is sub-second; fully-safe
+  # retry would need an idempotency key (out of scope).
   retry:
     instances:
       trade-route-planner:

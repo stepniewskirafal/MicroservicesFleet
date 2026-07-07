@@ -46,6 +46,18 @@ processors:
         type: latency
         latency:
           threshold_ms: 2000
+      - name: keep-http-errors      # 100% trace'ów z HTTP 4xx LUB 5xx
+        # UWAGA: keep-errors (wyżej) łapie SPAN status=ERROR, co wg konwencji OTel
+        # dla span-ów SERVER ustawia się tylko przy 5xx — 4xx zostają UNSET i wpadają
+        # do baseline-1pct (99% ginie → 404 w Tempo). Ta polityka domyka 4xx.
+        # http.status_code jest typu STRING ("404"), więc numeric_attribute/porównanie
+        # numeryczne NIE działa (zweryfikowane na żywym Tempo) — stąd string + regex.
+        # ^[45][0-9]{2}$ = dokładnie 3 cyfry zaczynające się od 4 lub 5.
+        type: string_attribute
+        string_attribute:
+          key: http.status_code
+          values: ["^[45][0-9]{2}$"]
+          enabled_regex_matching: true
       - name: baseline-1pct         # 1% losowo z reszty (normalny ruch)
         type: probabilistic
         probabilistic:

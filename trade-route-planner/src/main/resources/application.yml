@@ -37,6 +37,13 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+# Load-test / observability: trasy DO tego starportu są odrzucane w PLANNERZE
+# (422 ROUTE_REJECTED, reason=HAZARD_ZONE), żeby błąd był widoczny w spanie
+# trade-route-planner (a nie tylko w walidacji starportu). Puste = wyłączone.
+traderoute:
+  hazard:
+    destination-port: ${HAZARD_DESTINATION_PORT:MUSTAF}
+
 eureka:
   client:
     serviceUrl:

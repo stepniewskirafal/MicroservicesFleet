@@ -5,6 +5,7 @@ import com.galactic.starport.service.InvalidReservationTimeException;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.StarportNotFoundException;
+import com.galactic.starport.service.routeplanner.RouteRejectedException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
 import java.util.Map;
@@ -79,6 +80,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ShipNotFoundException.class)
     ResponseEntity<Map<String, String>> handle(ShipNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_DETAILS, ex.getMessage()));
+    }
+
+    @ExceptionHandler(RouteRejectedException.class)
+    ResponseEntity<Map<String, String>> handle(RouteRejectedException ex) {
+        // Planner deterministically rejected the route (domain decision) → 422, distinct from an
+        // unavailable planner (5xx/timeout → 409). Lets callers tell "no valid route" from "planner down".
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(Map.of("error", "ROUTE_REJECTED", ERROR_DETAILS, ex.getMessage()));
     }
 
     @ExceptionHandler(RouteUnavailableException.class)

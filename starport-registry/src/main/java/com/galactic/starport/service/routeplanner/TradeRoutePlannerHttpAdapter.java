@@ -61,6 +61,12 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     }
 
     private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
+        // The circuit-breaker fallback fires for EVERY exception, including the ignored domain rejection.
+        // Pass RouteRejectedException through untouched: it must stay a 422 (not become a circuit_open
+        // 409) and must not be logged/counted as an outage.
+        if (t instanceof RouteRejectedException rejected) {
+            throw rejected;
+        }
         incrementErrorCounter("circuit_open");
         log.warn(
                 "Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
@@ -78,9 +84,11 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        // 4xx = domain rejection (route cannot be planned for this origin/destination)
+                        // 4xx = DOMAIN rejection: the planner is healthy and deterministically says this
+                        // route can't be planned. Distinct exception so it is NOT retried and does NOT
+                        // count toward the circuit breaker (only infra failures should) — maps to 422.
                         incrementErrorCounter("domain");
-                        throw new RouteUnavailableException(
+                        throw new RouteRejectedException(
                                 command.startStarportCode(), command.destinationStarportCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
@@ -114,7 +122,9 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
                     .isActive(true)
                     .build();
 
-        } catch (RouteUnavailableException e) {
+        } catch (RouteRejectedException | RouteUnavailableException e) {
+            // Domain rejection (4xx) and already-classified infra failure propagate as-is; only genuinely
+            // unexpected errors below are (re)classified as infrastructure.
             throw e;
         } catch (Exception e) {
             incrementErrorCounter("infrastructure");

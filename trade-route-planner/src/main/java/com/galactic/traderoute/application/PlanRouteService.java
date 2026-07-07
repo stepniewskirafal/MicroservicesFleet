@@ -29,12 +29,28 @@ public class PlanRouteService implements PlanRouteUseCase {
     private static final String STEP_COMPUTE = "compute";
     private static final String STEP_PUBLISH = "publish";
 
+    private static final String REJECTION_HAZARD_ZONE = "HAZARD_ZONE";
+
     private final RouteMetricsPort metrics;
     private final RouteEventPublisher routeEventPublisher;
 
+    /**
+     * Optional destination port that is treated as an interdicted hazard zone: any route INTO it is
+     * rejected in the planner (422 ROUTE_REJECTED). Blank/null = disabled. Used to deterministically
+     * surface a planner-side error in the trace (load testing / observability demos), instead of every
+     * failure being a starport-side validation error before the planner is even called.
+     */
+    private final String hazardDestinationPortId;
+
     public PlanRouteService(RouteMetricsPort metrics, RouteEventPublisher routeEventPublisher) {
+        this(metrics, routeEventPublisher, null);
+    }
+
+    public PlanRouteService(
+            RouteMetricsPort metrics, RouteEventPublisher routeEventPublisher, String hazardDestinationPortId) {
         this.metrics = metrics;
         this.routeEventPublisher = routeEventPublisher;
+        this.hazardDestinationPortId = hazardDestinationPortId;
     }
 
     @Override
@@ -44,6 +60,7 @@ public class PlanRouteService implements PlanRouteUseCase {
     }
 
     private PlannedRoute doPlan(RouteRequest request) {
+        rejectIfHazardZone(request);
         validateFuelRange(request);
 
         // Split the plan into named child spans (routes.plan.compute / routes.plan.publish) so a slow
@@ -125,6 +142,20 @@ public class PlanRouteService implements PlanRouteUseCase {
                 .riskScore(route.riskScore())
                 .plannedAt(Instant.now())
                 .build());
+    }
+
+    private void rejectIfHazardZone(RouteRequest request) {
+        if (hazardDestinationPortId == null || hazardDestinationPortId.isBlank()) {
+            return;
+        }
+        if (hazardDestinationPortId.equalsIgnoreCase(request.destinationPortId())) {
+            // Reject BEFORE compute/publish: this trace's routes.plan span (and the server span) carry
+            // the error, so Tempo shows the failure originated HERE in the planner — not in starport.
+            metrics.recordRejected(request, REJECTION_HAZARD_ZONE);
+            throw new RouteRejectionException(
+                    REJECTION_HAZARD_ZONE,
+                    "Route into interdicted hazard zone '" + request.destinationPortId() + "' is not permitted");
+        }
     }
 
     private void validateFuelRange(RouteRequest request) {

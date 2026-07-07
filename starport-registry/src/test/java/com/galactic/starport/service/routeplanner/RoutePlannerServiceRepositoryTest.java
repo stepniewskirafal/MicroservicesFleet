@@ -79,7 +79,9 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
 
     @Test
     @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
-    void shouldThrowRouteUnavailableExceptionWhen422ReturnedByPlanner() {
+    void shouldThrowRouteRejectedExceptionWhen422ReturnedByPlanner() {
+        // 4xx from the planner is a DOMAIN rejection (RouteRejectedException) — not an infrastructure
+        // outage — so it is not retried and does not trip the circuit breaker.
         wireMock.resetAll();
         wireMock.stubFor(
                 post(urlEqualTo("/api/v1/routes/plan"))
@@ -97,6 +99,28 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
                 .startStarportCode("ORIGIN-422")
                 .customerCode("CUST-422")
                 .shipCode("SS-422")
+                .shipClass(ReserveBayCommand.ShipClass.SCOUT)
+                .startAt(Instant.parse("2009-01-01T00:00:00Z"))
+                .endAt(Instant.parse("2009-01-01T01:00:00Z"))
+                .requestRoute(true)
+                .build();
+
+        assertThrows(RouteRejectedException.class, () -> routePlanner.calculateRoute(cmd));
+    }
+
+    @Test
+    @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
+    void shouldThrowRouteUnavailableExceptionWhen500ReturnedByPlanner() {
+        // 5xx is an infrastructure failure (RouteUnavailableException) — retried and counts toward the
+        // circuit breaker. Regression guard for the domain-vs-infra split.
+        wireMock.resetAll();
+        wireMock.stubFor(post(urlEqualTo("/api/v1/routes/plan")).willReturn(aResponse().withStatus(500)));
+
+        ReserveBayCommand cmd = ReserveBayCommand.builder()
+                .destinationStarportCode("DEST-500")
+                .startStarportCode("ORIGIN-500")
+                .customerCode("CUST-500")
+                .shipCode("SS-500")
                 .shipClass(ReserveBayCommand.ShipClass.SCOUT)
                 .startAt(Instant.parse("2009-01-01T00:00:00Z"))
                 .endAt(Instant.parse("2009-01-01T01:00:00Z"))
