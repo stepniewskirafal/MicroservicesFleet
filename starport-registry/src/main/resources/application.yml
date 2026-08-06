@@ -200,31 +200,90 @@ app:
 
 
 resilience4j:
+  # ASPECT ORDER: we deliberately run the LIBRARY DEFAULT here — Retry( CircuitBreaker( method ) ).
+  #
+  # Consequence you must understand before shipping this (resilience4j issue #2383): the breaker
+  # sits INSIDE retry, so it judges every ATTEMPT separately. One business operation with
+  # maxAttempts=2 can deposit two records in the sliding window, and an operation rescued by retry
+  # deposits 1 failure + 1 success. The 50% threshold therefore means "50% of attempts", not "50%
+  # of operations", and its effective value drifts with maxAttempts. With the circuit open, retry
+  # also burns its second attempt on a door that is already shut.
+  #
+  # That is a trade, not a bug: attempt-level counting reacts faster to a hard outage. We keep the
+  # default because it is what every project gets unless someone changes it, and because reacting
+  # early is reasonable for this dependency.
+  #
+  # To flip it to operation-level counting — CircuitBreaker( Retry( method ) ), one verdict per
+  # operation — activate the `cb-outer` profile (see application-cb-outer.yml). Note that the
+  # order of ANNOTATIONS on the method changes nothing; only those properties do.
+  # Both behaviours are pinned by tests: ResilienceAspectOrderTest (this default) and
+  # ResilienceInvertedAspectOrderTest (the profile).
   circuitbreaker:
     instances:
       trade-route-planner:
         register-health-indicator: true
         failure-rate-threshold: 50
+        # Slow-call detection: a call that returns successfully but takes >= slow-call-duration-threshold
+        # counts as "slow". When slow-call-rate exceeds the threshold the circuit opens just like on
+        # failures — this catches gradual degradation (rising p99), not only hard 5xx/connection errors.
+        # Threshold sits below the 800ms read-timeout (RestClientConfig) so a slow-but-completing call is
+        # recorded as slow rather than timing out into a failure. Drives resilience4j_circuitbreaker_slow_call_rate.
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 500ms
         wait-duration-in-open-state: 10s
         sliding-window-size: 10
         minimum-number-of-calls: 5
         permitted-number-of-calls-in-half-open-state: 3
         sliding-window-type: COUNT_BASED
+        # WHAT COUNTS AS A FAILURE OF THE DEPENDENCY — whitelist, not blacklist.
+        #
+        # This breaker exists to answer exactly one question: "is trade-route-planner healthy?"
+        # So the only thing it may record as a failure is a failure OF THAT SERVICE. Everything
+        # the adapter did not get from the wire — a NullPointerException in our own mapping, an
+        # IllegalStateException from a broken invariant — says nothing about the planner and must
+        # never open the circuit against it. With a blacklist (ignore-exceptions only) our own
+        # bugs were recorded as planner failures: 5 buggy calls opened the circuit, clients got
+        # 503 "come back later" for a deterministic bug, and the on-call went to inspect a service
+        # that was in perfect health.
+        #
+        # CircuitBreakerStateMachine#handleThrowable has three branches, in this order:
+        #   1. matches ignore-exceptions  -> releasePermission(), call is not counted at all
+        #   2. matches record-exceptions  -> recorded as FAILURE
+        #   3. neither                    -> recorded as SUCCESS
+        # Our own bugs land in branch 3. That is imperfect (they inflate the success count) but
+        # semantically defensible: as far as this breaker can tell, the dependency did not fail.
+        # The structural fix is to narrow the breaker's scope to the remote call only, so bugs
+        # never enter the window — see backlog in ADR-0039.
+        record-exceptions:
+          - com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException
+        # Branch 1: a domain rejection (planner answered 4xx: "this route cannot be planned") is
+        # an ANSWER, not an outage. Redundant next to the whitelist above — a sibling type would
+        # not match it anyway — but kept because it states the intent explicitly.
+        ignore-exceptions:
+          - com.galactic.starport.service.routeplanner.RoutePlanningRejectedException
   # Retry the planner call once on failure: with 2 planner replicas behind Eureka, a single bad
   # instance would otherwise fail ~50% of calls with no second chance. The load balancer picks an
   # instance per attempt, so the retry usually lands on the healthy replica. maxAttempts counts the
-  # first try, so 2 = one retry. @Retry wraps @CircuitBreaker, whose fallback funnels every failure
-  # into RouteUnavailableException, so that is what we retry on. Tradeoff: a deterministic domain
-  # rejection (e.g. insufficient range) is retried once too (minor waste), and a read-timeout where
-  # the planner already processed the request could duplicate the route event — acceptable given
-  # planning is sub-second; fully-safe retry would need an idempotency key (out of scope).
+  # first try, so 2 = one retry. We retry ONLY RoutePlannerUnavailableException (5xx/timeout/
+  # connection) — a RoutePlanningRejectedException (4xx) is deterministic: asking the same bad
+  # question twice yields the same answer and would only poison the breaker's failure rate.
+  # Remaining tradeoff: a read-timeout where the planner already processed the request could
+  # duplicate the route event — acceptable given planning is sub-second; fully-safe retry would
+  # need an idempotency key (out of scope).
   retry:
     instances:
       trade-route-planner:
         max-attempts: 2
         wait-duration: 100ms
+        # Exponential backoff + jitter: with maxAttempts=2 the effect is tiny (one wait of
+        # 100ms ± 50%), but the shape matters — whoever copies this config with maxAttempts=5
+        # gets growing, de-synchronized waits instead of every instance hammering a recovering
+        # dependency in lock-step the moment it comes back.
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        randomized-wait-factor: 0.5
         retry-exceptions:
-          - com.galactic.starport.service.routeplanner.RouteUnavailableException
+          - com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException
   # (Removed dead timelimiter config: TimeLimiter only applies to async/Future return types, but
   # calculateRoute is synchronous and not annotated @TimeLimiter — read timeouts are enforced by the
   # RestClient request factory instead.)

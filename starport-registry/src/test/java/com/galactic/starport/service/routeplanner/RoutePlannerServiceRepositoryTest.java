@@ -103,6 +103,10 @@ class RoutePlannerServiceRepositoryTest extends BaseAcceptanceTest {
                 .requestRoute(true)
                 .build();
 
-        assertThrows(RouteUnavailableException.class, () -> routePlanner.calculateRoute(cmd));
+        // 4xx from the planner is a deterministic domain rejection — the dedicated subtype keeps
+        // it out of the retry (no pointless second ask) and out of the breaker's failure rate.
+        RouteUnavailableException ex =
+                assertThrows(RoutePlanningRejectedException.class, () -> routePlanner.calculateRoute(cmd));
+        assertEquals(422, ((RoutePlanningRejectedException) ex).getStatusCode());
     }
 }

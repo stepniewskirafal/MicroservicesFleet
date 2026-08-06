@@ -1,6 +1,8 @@
 # 0014 — HTTP Resilience: Timeouts + Circuit Breaker + Fail-Fast
 
-**Status:** Accepted  
+**Status:** Accepted, amended by ADR-0039 (2026-07-31: exception split rejection vs
+unavailability, breaker moved OUTSIDE retry via aspect order, fallback narrowed to
+`CallNotPermittedException`, unavailability mapped to 503 + Retry-After)  
 **Date:** 2026-04-17
 
 ---

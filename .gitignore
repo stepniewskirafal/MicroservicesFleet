@@ -42,3 +42,11 @@ logs/
 .DS_Store
 Thumbs.db
 
+
+# LibreOffice / Office lock files (never commit these)
+.~lock.*#
+~$*
+
+# Local backup copies of docs — history is the backup
+*.bak
+*.v2.bak.md

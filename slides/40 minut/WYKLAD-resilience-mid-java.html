@@ -1,0 +1,810 @@
+<meta charset="utf-8">
+<title>Resilience w praktyce — wykład dla mid Java developera</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Calibri", system-ui, sans-serif;
+    font-size: 10.5pt; line-height: 1.55; color: #1a1f26; margin: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1 { font-size: 26pt; line-height: 1.15; margin: 0 0 6pt; color: #0b3d5c; letter-spacing: -0.5pt; }
+  h2 {
+    font-size: 15pt; margin: 26pt 0 10pt; color: #0b3d5c;
+    border-bottom: 2.5pt solid #0b3d5c; padding-bottom: 4pt; break-after: avoid;
+  }
+  h3 { font-size: 12pt; margin: 16pt 0 6pt; color: #14507a; break-after: avoid; }
+  h4 { font-size: 10.5pt; margin: 12pt 0 4pt; color: #33414f; break-after: avoid; }
+  p { margin: 0 0 8pt; }
+  ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 9pt;
+         background: #eef2f6; padding: 0.5pt 3pt; border-radius: 2pt; }
+  pre {
+    font-family: Consolas, "Cascadia Mono", monospace; font-size: 8.4pt; line-height: 1.42;
+    background: #f6f8fa; border: 0.5pt solid #d8dee4; border-left: 3pt solid #6b7d8f;
+    padding: 7pt 9pt; margin: 6pt 0 9pt; white-space: pre-wrap; overflow-wrap: break-word;
+    border-radius: 0 3pt 3pt 0; break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre.before { border-left-color: #c0392b; background: #fdf3f2; }
+  pre.after  { border-left-color: #1e8449; background: #f1f9f4; }
+  .lbl { font-size: 8pt; font-weight: 700; letter-spacing: 0.6pt; text-transform: uppercase;
+         margin: 8pt 0 2pt; }
+  .lbl.b { color: #c0392b; } .lbl.a { color: #1e8449; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 10pt; font-size: 9pt;
+          break-inside: avoid; }
+  th { background: #0b3d5c; color: #fff; text-align: left; padding: 5pt 6pt; font-weight: 600; }
+  td { border-bottom: 0.5pt solid #d8dee4; padding: 4.5pt 6pt; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f9fb; }
+  .box { border: 0.5pt solid #cfd8e0; border-left: 3.5pt solid #6b7d8f; background: #f7f9fb;
+         padding: 8pt 10pt; margin: 9pt 0; border-radius: 0 3pt 3pt 0; break-inside: avoid; }
+  .box .t { font-weight: 700; font-size: 9pt; letter-spacing: 0.4pt; text-transform: uppercase;
+            margin-bottom: 3pt; color: #45525f; }
+  .box p:last-child { margin-bottom: 0; }
+  .trap { border-left-color: #d68910; background: #fdf8ee; } .trap .t { color: #9c6408; }
+  .key  { border-left-color: #1e8449; background: #f1f9f4; } .key .t { color: #17683a; }
+  .info { border-left-color: #1f6fb2; background: #f0f6fc; } .info .t { color: #14507a; }
+  .cover { text-align: left; padding-top: 40mm; break-after: page; }
+  .cover .sub { font-size: 13pt; color: #45525f; margin-top: 4pt; }
+  .cover .meta { margin-top: 26mm; font-size: 9.5pt; color: #5a6673; line-height: 1.8; }
+  .cover .rule { height: 3pt; background: #0b3d5c; width: 70mm; margin: 14pt 0 16pt; }
+  .toc { font-size: 10pt; } .toc li { margin-bottom: 2pt; }
+  .pagebreak { break-before: page; }
+  .small { font-size: 9pt; color: #5a6673; }
+  .fig { border: 0.5pt solid #cfd8e0; background: #fbfcfd; padding: 9pt; margin: 8pt 0;
+         font-family: Consolas, monospace; font-size: 8.4pt; line-height: 1.5; white-space: pre;
+         break-inside: avoid; border-radius: 3pt; overflow-x: hidden; }
+  .num { color: #0b3d5c; font-weight: 700; }
+  em.q { color: #45525f; }
+</style>
+
+<div class="cover">
+  <h1>Resilience w praktyce</h1>
+  <div class="rule"></div>
+  <div class="sub">Timeout · Retry · Circuit Breaker — co dokładnie zmieniliśmy w kodzie, dlaczego i jak to działa</div>
+  <div class="meta">
+    <strong>Wykład dla mid Java developera</strong><br>
+    Projekt: MicroservicesFleet · gałąź <code>demo</code><br>
+    Przypadek: <code>starport-registry</code> → <code>trade-route-planner</code><br>
+    Stos: Spring Boot 3.5 · Resilience4j 2.2 · Micrometer · Prometheus · Grafana<br>
+    Decyzja architektoniczna: <strong>ADR-0039</strong> (nowelizuje ADR-0014)<br>
+    Zawiera rozdział o <strong>Spring Framework 7 / Boot 4</strong> i pułapkach migracji
+  </div>
+</div>
+
+<h2>Spis treści</h2>
+<ol class="toc">
+  <li>Po co to wszystko — trzy sposoby, w jakie zawodzi zdalne wywołanie</li>
+  <li>Nasz przypadek: jedno wywołanie HTTP między serwisami</li>
+  <li>Fundament: timeout, czyli obrona przed ciszą</li>
+  <li>Circuit breaker: trzy stany, okno i dwa progi</li>
+  <li>Retry: kiedy naprawdę ma sens</li>
+  <li>Punkt wyjścia — kod przed zmianami i cztery ukryte problemy</li>
+  <li><strong>Zmiana 1</strong> — fallback tylko na otwarty obwód</li>
+  <li><strong>Zmiana 2</strong> — dwa typy wyjątków zamiast jednego</li>
+  <li><strong>Kolejność aspektów</strong> (cebula) — co mamy domyślnie i jak to odwrócić</li>
+  <li><strong>Zmiana 3</strong> — backoff wykładniczy z jitterem</li>
+  <li>Kontrakt HTTP: 409 kontra 503 + Retry-After</li>
+  <li>Observability: co dostajesz za darmo, a co musisz napisać</li>
+  <li>Jak to zweryfikowaliśmy — testy i pomiary na żywym stacku</li>
+  <li>Spring Framework 7 / Boot 4 — co się zmienia, a co zostaje</li>
+  <li>Pułapki migracji na rdzeniowe <code>@Retryable</code></li>
+  <li>Checklista do własnego projektu</li>
+  <li>Ściągawka: progi, metryki, zapytania</li>
+</ol>
+
+<div class="pagebreak"></div>
+<h2>1. Po co to wszystko — trzy sposoby, w jakie zawodzi zdalne wywołanie</h2>
+
+<p>Lokalne wywołanie metody ma dwa wyniki: zwraca wartość albo rzuca wyjątek. Zdalne wywołanie ma <strong>trzeci stan</strong> — milczy. I nikt ci nie powie, jak długo będzie milczeć.</p>
+
+<p>To rozróżnienie jest fundamentem całego wykładu. Zdalna zależność może zawieść na trzy jakościowo różne sposoby, a każdy wymaga innej odpowiedzi:</p>
+
+<table>
+  <tr><th style="width:22%">Tryb porażki</th><th style="width:33%">Jak wygląda</th><th>Właściwa odpowiedź</th></tr>
+  <tr><td><strong>Twardy błąd</strong></td><td>5xx, connection refused</td><td>ponów (może trafisz na zdrową replikę), a przy serii — odetnij</td></tr>
+  <tr><td><strong>Degradacja</strong></td><td>odpowiada, ale coraz wolniej</td><td>wykryj po <em>czasie</em>, nie po kodzie błędu — inaczej jest niewidzialna</td></tr>
+  <tr><td><strong>Cisza</strong></td><td>połączenie żyje, odpowiedzi brak</td><td>timeout — jedyna rzecz, która przerwie czekanie</td></tr>
+</table>
+
+<div class="box info">
+  <div class="t">Kontekst historyczny</div>
+  <p>Na początku lat 90. w Sun Microsystems spisano <em>Fallacies of Distributed Computing</em> — listę fałszywych założeń, które programiści przyjmują po cichu: „sieć jest niezawodna", „opóźnienie jest zerowe", „zasoby są nieskończone". Wzorce, o których mowa w tym wykładzie, to nie moda ani cecha jednej biblioteki — to <strong>odpowiedzi na konkretne pozycje z tej listy</strong>. Dlatego mają swoje odpowiedniki wszędzie: Polly w .NET, gobreaker w Go, Tenacity w Pythonie, outlier detection w Envoy.</p>
+</div>
+
+<p>Drugi fundament, mniej oczywisty: <strong>sam mechanizm obrony nic nie znaczy, jeśli nie widać, że zadziałał.</strong> Retry, który po cichu ratuje 30% wywołań, ukrywa przed tobą fakt, że zależność jest chora. Circuit breaker, który otworzył się w nocy i sam zamknął, nie istnieje, jeśli nikt tego nie zmierzył. Stąd druga połowa tego wykładu to metryki — nie jako dodatek, tylko jako część mechanizmu.</p>
+
+<h2>2. Nasz przypadek: jedno wywołanie HTTP między serwisami</h2>
+
+<p>W systemie rezerwacji doków kosmicznych klient trafia przez gateway do <code>starport-registry</code> (dwie repliki), który rezerwuje dok. Rezerwacja potrzebuje trasy, więc <code>starport-registry</code> pyta synchronicznie <code>trade-route-planner</code> (też dwie repliki, za Eureką).</p>
+
+<div class="fig">klient → api-gateway → starport-registry ──HTTP POST /api/v1/routes/plan──→ trade-route-planner
+                         (2 repliki)         ▲                                    (2 repliki)
+                                             │
+                                    to wywołanie jest bohaterem
+                                    całego wykładu</div>
+
+<p>Cały kod, o którym mowa, żyje w jednej klasie: <code>TradeRoutePlannerHttpAdapter</code> — adapterze portu <code>RoutePlanner</code> w architekturze heksagonalnej. To ważne: <strong>odporność jest szczegółem adaptera</strong>, a nie domeny. Domena wie tylko, że trasy czasem nie da się uzyskać.</p>
+
+<p>Dlaczego dwie repliki mają znaczenie? Bo uzasadniają retry. Load balancer wybiera instancję <em>przy każdej próbie</em>, więc jeśli jedna replika jest chora, druga próba ma realną szansę trafić na zdrową. Bez tego retry byłby tylko powtarzaniem tego samego pytania pod ten sam adres.</p>
+
+<h2>3. Fundament: timeout, czyli obrona przed ciszą</h2>
+
+<p>Zanim jakikolwiek wzorzec z biblioteki: <strong>timeout na kliencie HTTP</strong>. To jedyna rzecz, która chroni przed trzecim trybem porażki. Bez niego wątek czeka tyle, ile pozwoli system operacyjny — czyli w praktyce w nieskończoność.</p>
+
+<pre>downstream:
+  http:
+    connect-timeout-ms: 200    # nawiązanie połączenia — szybko albo wcale
+    read-timeout-ms: 2000      # oczekiwanie na odpowiedź (w profilu demo: 800)</pre>
+
+<p>Timeout ustawiamy na <code>RestClient</code> przez request factory, nie adnotacją. Warto wiedzieć dlaczego:</p>
+
+<div class="box trap">
+  <div class="t">Pułapka: @TimeLimiter nie zadziała na metodzie synchronicznej</div>
+  <p>Resilience4j ma wzorzec <code>TimeLimiter</code>, ale wymaga on metody zwracającej <code>CompletionStage</code> (albo typ reaktywny, jeśli masz odpowiednie rozszerzenie na classpathie). Nasza metoda zwraca <code>Route</code>. Adnotacja by się <strong>skompilowała</strong> — i przy pierwszym wywołaniu <code>TimeLimiterAspect</code> rzuciłby <code>IllegalReturnTypeException</code>: <em>„…has unsupported by @TimeLimiter return type. CompletionStage expected."</em> Czyli nie martwa adnotacja, tylko <strong>mina rozbrajana dopiero w runtime</strong>. Usunęliśmy też martwą sekcję <code>timelimiter:</code> z <code>application.yml</code>, żeby nie sugerowała ochrony, której nie ma. Timeout robi tu klient HTTP i tylko on.</p>
+</div>
+
+<div class="box info">
+  <div class="t">„Synchroniczna" znaczy tu coś węższego, niż myślisz</div>
+  <p>Uwaga na subtelność, bo w tym projekcie jest ona wyjątkowo myląca: <strong>to wywołanie już wykonuje się asynchronicznie</strong>. Warstwę wyżej <code>ReservationCalculationService</code> uruchamia je przez <code>CompletableFuture.supplyAsync(…, VIRTUAL_EXECUTOR)</code> równolegle z naliczaniem opłaty. Kod leci na osobnym wątku wirtualnym.</p>
+  <p style="margin-top:5pt">A mimo to dla Resilience4j metoda jest synchroniczna — bo aspekt patrzy wyłącznie na <strong>typ zwracany adnotowanej metody</strong>, a nie na to, gdzie fizycznie biegnie kod. <code>Route</code> to zwykła wartość, więc nie ma czego owinąć w limit czasu. ⚓ <em>Asynchroniczny</em> w słowniku R4j znaczy „sygnatura zwraca <code>CompletionStage</code>", nie „wykonuje się poza wątkiem wywołującego".</p>
+</div>
+
+<h4>Jak musiałaby wyglądać, żeby <code>@TimeLimiter</code> zadziałał</h4>
+<div class="lbl b">Dziś — synchroniczna sygnatura</div>
+<pre class="before">public interface RoutePlanner {
+    Route calculateRoute(ReserveBayCommand command);          // ← zwykła wartość
+}
+
+// a asynchroniczność siedzi u WOŁAJĄCEGO:
+CompletableFuture&lt;Route&gt; routeFuture =
+        CompletableFuture.supplyAsync(() -&gt; routePlanner.calculateRoute(command), VIRTUAL_EXECUTOR);</pre>
+
+<div class="lbl a">Wersja, którą R4j uzna za asynchroniczną</div>
+<pre class="after">public interface RoutePlanner {
+    CompletableFuture&lt;Route&gt; calculateRoute(ReserveBayCommand command);   // ← CompletionStage
+}
+
+@Retry(name = "trade-route-planner")
+@CircuitBreaker(name = "trade-route-planner", fallbackMethod = "circuitOpenFallback")
+@TimeLimiter(name = "trade-route-planner")                     // ← teraz ma co owijać
+public CompletableFuture&lt;Route&gt; calculateRoute(ReserveBayCommand command) {
+    return CompletableFuture.supplyAsync(() -&gt; callTradeRoutePlanner(command), VIRTUAL_EXECUTOR);
+}
+
+// fallback też musi zwracać CompletableFuture:
+private CompletableFuture&lt;Route&gt; circuitOpenFallback(ReserveBayCommand cmd, CallNotPermittedException e) { … }</pre>
+
+<p>Wołający uprościłby się symetrycznie — <code>ReservationCalculationService</code> nie musiałby już sam robić <code>supplyAsync</code> dla trasy, tylko złączyłby zwrócony future.</p>
+
+<div class="box trap">
+  <div class="t">…i cztery rzeczy, które ta zamiana przynosi w pakiecie</div>
+  <ol style="margin-bottom:0">
+    <li><strong>Anulowanie nie przerywa blokującego I/O.</strong> To najważniejsze. <code>TimeLimiter</code> po upływie limitu woła <code>future.cancel(true)</code>, ale <code>CompletableFuture</code> ignoruje flagę przerwania (javadoc: <em>„interrupts are not used to control processing"</em>). Wołający dostanie <code>TimeoutException</code> natychmiast, a wątek roboczy <strong>dalej wisi na gnieździe</strong> aż do read-timeoutu. Limit czasu byłby więc pozorny — chroniłby wołającego, nie zasób.</li>
+    <li><strong>Każdy wyjątek przychodzi opakowany</strong> w <code>CompletionException</code>. Wasz pomocnik <code>join()</code>, który to rozpakowuje (żeby 409/503 nie zamieniło się w 500), staje się jeszcze bardziej krytyczny — i musiałby objąć też <code>TimeoutException</code>.</li>
+    <li><strong>Cebula rośnie o kolejną warstwę.</strong> Domyślnie <code>TimeLimiter</code> siedzi <em>wewnątrz</em> breakera, więc timeout stałby się porażką liczoną przez bezpiecznik — trzeba by świadomie zdecydować, gdzie go umieścić w cebuli.</li>
+    <li><strong>Kontekst obserwowalności.</strong> Przeniesienie <code>supplyAsync</code> do adaptera wymaga, żeby to on propagował kontekst trace'u — dziś robi to <code>ContextExecutorService</code> w serwisie kalkulacji (ADR-0017). Bez tego <code>Observation</code> zaczęłaby nowy, oderwany trace.</li>
+  </ol>
+</div>
+
+<div class="box key">
+  <div class="t">Werdykt dla tego systemu</div>
+  <p>Nie warto. Read-timeout na kliencie HTTP robi to samo <strong>lepiej</strong>: faktycznie zrywa odczyt z gniazda i zwalnia wątek, nie wymaga dodatkowej puli ani opakowywania wyjątków, i nie dokłada warstwy do cebuli. <code>TimeLimiter</code> zarabia na siebie tam, gdzie wywołanie <em>nie ma własnego mechanizmu limitu</em> — np. długie zadanie obliczeniowe albo klient bez konfigurowalnego timeoutu.</p>
+</div>
+
+<p>Zapamiętaj tę drabinę progów — wrócimy do niej wielokrotnie:</p>
+
+<div class="fig">   0 ms ──────── 500 ms ──────── 800 ms ─────────────→
+       zdrowo    │    "wolne"    │   timeout = porażka
+                 │               │
+  slow-call-duration-threshold   read-timeout (profil demo)</div>
+
+<p>Progi są ustawione celowo w tej kolejności: wywołanie, które trwa 600 ms, <strong>kończy się sukcesem</strong> (jest pod timeoutem), ale zostaje zapisane jako „wolne". Dzięki temu system wykrywa degradację, zanim zamieni się ona w błędy. Gdyby próg „slow" był powyżej timeoutu, nigdy by się nie uruchomił — każde wolne wywołanie stałoby się wcześniej porażką.</p>
+
+<div class="pagebreak"></div>
+<h2>4. Circuit breaker: trzy stany, okno i dwa progi</h2>
+
+<p>Metafora jest dosłowna: bezpiecznik w domu nie istnieje po to, żeby prąd nigdy nie znikał — istnieje po to, żeby dom się nie spalił. Iskrzy → odcina.</p>
+
+<h3>Trzy stany</h3>
+<table>
+  <tr><th style="width:20%">Stan</th><th style="width:34%">Co robi</th><th>Kiedy przechodzi dalej</th></tr>
+  <tr><td><strong>CLOSED</strong><br><span class="small">zamknięty</span></td><td>ruch płynie normalnie, ale bezpiecznik <em>cały czas liczy</em> wyniki w oknie</td><td>gdy failure rate <em>lub</em> slow-call rate przekroczy próg → OPEN</td></tr>
+  <tr><td><strong>OPEN</strong><br><span class="small">odcięty</span></td><td>odrzuca wywołania natychmiast (<code>CallNotPermittedException</code>), nie dotykając zależności</td><td>po <code>wait-duration-in-open-state</code> → HALF_OPEN</td></tr>
+  <tr><td><strong>HALF_OPEN</strong><br><span class="small">półotwarty</span></td><td>przepuszcza <code>permitted-number-of-calls</code> prób na próbę</td><td>próby OK → CLOSED; próby padają → z powrotem OPEN</td></tr>
+</table>
+
+<p>Kluczowa intuicja, którą łatwo przeoczyć: stan OPEN chroni <strong>nie tylko nas</strong>. Zależność właśnie leży; ostatnie, czego potrzebuje, to tysiąc requestów na sekundę od klienta, który „przecież musi spróbować". Nie dobijamy leżącego — dajemy mu szansę wstać.</p>
+
+<h3>Dwa progi, nie jeden</h3>
+<p>Nasz breaker liczy <strong>dwie rzeczy równolegle</strong>, i to jest najważniejsza rzecz w całej konfiguracji:</p>
+<ul>
+  <li><code>failure-rate-threshold: 50</code> — procent wywołań zakończonych wyjątkiem</li>
+  <li><code>slow-call-rate-threshold: 50</code> przy <code>slow-call-duration-threshold: 500ms</code> — procent wywołań, które <em>zakończyły się sukcesem</em>, ale trwały ≥ 500 ms</li>
+</ul>
+
+<div class="box key">
+  <div class="t">Dlaczego to jest sedno</div>
+  <p>Awaria typu „niby działa" — zależność odpowiada poprawnie, tylko pięć razy wolniej — <strong>nigdy nie zostanie złapana przez licznik 5xx</strong>. Dashboard zielony, SLA zielone, deploy zielony, a klient czeka. Slow-call detection to jedyny mechanizm w tym zestawie, który to widzi. W naszym demo wstrzyknięcie 600 ms latencji otwiera obwód przy <strong>zerowym</strong> liczniku błędów — bo wszystkie wywołania kończą się sukcesem, tylko wolno.</p>
+</div>
+
+<h3>Okno przesuwne — o czym mówi „50%"</h3>
+<pre>sliding-window-type: COUNT_BASED
+sliding-window-size: 10       # bierzemy pod uwagę 10 ostatnich wywołań
+minimum-number-of-calls: 5    # poniżej 5 nie liczymy nic (metryka pokazuje -1)
+wait-duration-in-open-state: 10s
+permitted-number-of-calls-in-half-open-state: 3</pre>
+
+<p>Okno licznikowe (10 ostatnich wywołań) ma konsekwencję, którą trzeba znać: przy niskim ruchu pamięta wywołania sprzed godzin, a przy wysokim reaguje na ostatnie kilkaset milisekund. Dla zależności HTTP w produkcji zwykle lepsze jest okno <strong>czasowe</strong> (<code>TIME_BASED</code>, np. 60 s). Zostawiliśmy licznikowe świadomie — cała choreografia demo jest pod nie skalibrowana — i wpisaliśmy zamianę do backlogu.</p>
+
+<p>Wartość <code>-1</code> w metryce <code>resilience4j_circuitbreaker_failure_rate</code> nie oznacza błędu: znaczy „za mało wywołań, nie mam zdania". Na dashboardzie mapujemy ją na myślnik, żeby nikt nie interpretował jej jako zera.</p>
+
+<h2>5. Retry: kiedy naprawdę ma sens</h2>
+
+<p>Jedna zasada porządkuje wszystko: <strong>ponawiaj tylko to, co w ogóle mogło się udać.</strong></p>
+
+<table>
+  <tr><th style="width:26%">Rodzaj porażki</th><th style="width:20%">Czy ponawiać?</th><th>Dlaczego</th></tr>
+  <tr><td>5xx, timeout, connection refused</td><td><strong>TAK</strong></td><td>przejściowe — serwer się zakrztusił, instancja wstawała; druga próba trafi na inną replikę</td></tr>
+  <tr><td>4xx (zły payload, brak uprawnień, odmowa domenowa)</td><td><strong>NIE</strong></td><td>deterministyczne — to <em>twoje</em> pytanie było złe; drugie zadane tak samo da tę samą odpowiedź</td></tr>
+</table>
+
+<p>Ponawianie 4xx nie jest tylko marnowaniem czasu. Jest gorsze: <strong>każda taka próba ląduje w oknie breakera jako nieudane wywołanie</strong>. Karmisz bezpiecznik własnymi bugami — zamiast pilnować, czy zależność żyje, dławi się twoimi czterysta-czwórkami i odcina zdrowy serwis.</p>
+
+<div class="box trap">
+  <div class="t">Kontrapułapka — nie przesadź w drugą stronę</div>
+  <p>Kusi, żeby machnąć ręką i wykluczyć całe <code>RuntimeException</code> „żeby było spokojnie". Wtedy robisz coś znacznie gorszego: <strong>oślepiasz bezpiecznik</strong>. Przestaje widzieć realne porażki i nigdy się nie otworzy — a to on jest twoją siatką bezpieczeństwa. Wykluczaj wąsko, po konkretnych typach, i uzasadnij każdy wpis komentarzem.</p>
+</div>
+
+<h3>Dygresja: czym jest <code>RuntimeException</code> i dlaczego akurat on oślepia</h3>
+
+<p><code>RuntimeException</code> to klasa bazowa wyjątków <strong>niekontrolowanych</strong> (<em>unchecked</em>) — takich, których kompilator nie każe ci ani deklarować w <code>throws</code>, ani łapać. Zobacz, gdzie w tej hierarchii siedzą nasze typy:</p>
+
+<div class="fig">Throwable
+├── Error                      ← awarie JVM (OutOfMemoryError, StackOverflowError)
+│                                nie łapiemy — nie da się sensownie zareagować
+└── Exception
+    ├── checked                ← IOException, SQLException…
+    │                            kompilator WYMUSZA throws albo catch
+    └── RuntimeException       ← unchecked: kompilator nie wymaga niczego
+        ├── NullPointerException, IllegalArgumentException, IllegalStateException
+        ├── ResourceAccessException      ← Spring: TIMEOUT trafia tutaj
+        ├── CallNotPermittedException    ← Resilience4j: obwód otwarty
+        └── RouteUnavailableException    ← NASZ typ bazowy
+            ├── RoutePlanningRejectedException      (4xx — odmowa domenowa)
+            └── RoutePlannerUnavailableException    (5xx / timeout — awaria)</div>
+
+<p>Zwróć uwagę na dolne trzy poziomy: <strong>wszystkie nasze wyjątki są <code>RuntimeException</code></strong>. A Resilience4j dopasowuje wpisy z <code>ignore-exceptions</code> przez <code>isAssignableFrom</code>, czyli <strong>razem z całym poddrzewem podklas</strong>. Wpisanie tam <code>RuntimeException</code> znaczy więc dosłownie: „ignoruj <code>RoutePlannerUnavailableException</code>, ignoruj timeouty, ignoruj 5xx, ignoruj wszystko".</p>
+
+<p>W aplikacji Springowej praktycznie każdy wyjątek docierający do bezpiecznika jest niekontrolowany — bo Spring opakowuje kontrolowane wyjątki I/O w niekontrolowane (<code>SocketTimeoutException</code> → <code>ResourceAccessException</code>). Efekt: okno nigdy nie zapisuje ani jednej porażki, <code>failure_rate</code> stoi na zerze, obwód nie otworzy się <strong>nigdy</strong>. Bezpiecznik istnieje, jest skonfigurowany, ma metryki — i nie zadziała. To gorsze niż jego brak, bo brak widać w kodzie, a ten stan wygląda na zabezpieczenie.</p>
+
+<h4>Dlaczego w ogóle używamy wyjątków niekontrolowanych</h4>
+<ol>
+  <li><strong>Rollback transakcji.</strong> Spring domyślnie wycofuje <code>@Transactional</code> tylko dla <code>RuntimeException</code> i <code>Error</code>. Kontrolowany wyjątek domenowy zostawiłby zatwierdzoną, częściową rezerwację.</li>
+  <li><strong>Lambdy.</strong> Kontrolowane wyjątki nie przechodzą przez interfejsy funkcyjne — nasze <code>Observation.observe(() -&gt; …)</code> po prostu by się nie skompilowało.</li>
+  <li><strong>Czystość portu.</strong> <code>RoutePlanner</code> deklaruje <code>Route calculateRoute(cmd)</code>, a nie listę pięciu wyjątków infrastrukturalnych, o których domena nie powinna wiedzieć.</li>
+</ol>
+
+<div class="box key">
+  <div class="t">Reguła do zapamiętania</div>
+  <p>Każdy wpis na liście wykluczeń to zdanie „ta awaria mnie nie interesuje". Im wyżej w hierarchii wpis, tym więcej awarii obejmuje — a <code>RuntimeException</code> obejmuje <strong>wszystkie</strong>. Bezpieczniejszy wariant niż czarna lista: <code>record-exceptions</code> z konkretnym typem awarii, czyli biała lista — wtedy domyślną odpowiedzią jest „nie liczę", a nie „liczę". Uwaga na priorytet: w Resilience4j <code>ignore-exceptions</code> wygrywa z <code>record-exceptions</code>.</p>
+</div>
+
+<div class="pagebreak"></div>
+<h2>6. Punkt wyjścia — kod przed zmianami i cztery ukryte problemy</h2>
+
+<p>Tak wyglądał adapter przed pracami na gałęzi <code>demo</code>. Kod nie był zły — miał timeout, breaker, retry, metryki i fallback. Był lepszy niż większość tego, co widuje się w produkcji. A mimo to zawierał cztery problemy, z których każdy ujawnia się dopiero w awarii.</p>
+
+<div class="lbl b">Przed</div>
+<pre class="before">@Retry(name = "trade-route-planner")
+@CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
+public Route calculateRoute(ReserveBayCommand command) { ... }
+
+private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
+    incrementErrorCounter("circuit_open");
+    throw new RouteUnavailableException(from, to, t);
+}
+
+// w callTradeRoutePlanner():
+.onStatus(HttpStatusCode::is4xxClientError, (req, res) -&gt; {
+    incrementErrorCounter("domain");
+    throw new RouteUnavailableException(from, to);          // ← ten sam typ
+})
+.onStatus(HttpStatusCode::is5xxServerError, (req, res) -&gt; {
+    incrementErrorCounter("infrastructure");
+    throw new RouteUnavailableException(from, to);          // ← ten sam typ
+})
+// ...
+catch (Exception e) {                                        // timeout
+    incrementErrorCounter("infrastructure");
+    log.error("Failed to plan route...", e);
+    throw new RouteUnavailableException(from, to, e);        // ← i znowu ten sam
+}</pre>
+
+<p>A w konfiguracji: brak <code>ignore-exceptions</code>, brak <code>record-exceptions</code>, brak <code>aspect-order</code>, retry ponawiający <code>RouteUnavailableException</code> — czyli wszystko.</p>
+
+<h3>Cztery problemy</h3>
+<ol>
+  <li><strong>Fallback łapie <code>Throwable</code></strong> — czyli także twoje własne <code>NullPointerException</code> i nawet <code>OutOfMemoryError</code>. Każdy z nich zostaje zaetykietowany jako <code>circuit_open</code>.</li>
+  <li><strong>Jeden typ wyjątku na trzy różne awarie</strong> — breaker i retry nie mają jak ich rozróżnić, bo filtrują po <em>typie</em>.</li>
+  <li><strong>Domyślna kolejność aspektów</strong> — breaker liczy próby, nie operacje; próg 50% znaczy co innego, niż mówi.</li>
+  <li><strong>Kontrakt HTTP zwracał 409 na wszystko</strong> — także wtedy, gdy żądanie klienta było bez zarzutu, a to zależność leżała.</li>
+</ol>
+
+<p>Do tego drobiazg z dużymi konsekwencjami: każda porażka inkrementowała <strong>dwa</strong> liczniki — raz <code>domain</code>/<code>infrastructure</code> w środku, raz <code>circuit_open</code> w fallbacku. Suma błędów była dwukrotnie zawyżona, a panel „trasy oddane do fallbacku" pokazywał wszystkie porażki, nie odcięcia.</p>
+
+<p>Kolejne cztery rozdziały to cztery zmiany, które to naprawiają. Każda jest osobnym, samodzielnym krokiem — po każdym system się buduje i demo działa.</p>
+
+<h2>7. Zmiana 1 — fallback tylko na otwarty obwód</h2>
+
+<p>Resilience4j dopasowuje metodę fallbackową <strong>po typie parametru wyjątku</strong>. To nie jest szczegół implementacyjny — to mechanizm sterujący, którego można użyć celowo.</p>
+
+<div class="lbl b">Przed</div>
+<pre class="before">private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
+    incrementErrorCounter("circuit_open");   // ← kłamstwo przy KAŻDYM błędzie
+    throw new RouteUnavailableException(from, to, t);
+}</pre>
+
+<div class="lbl a">Po</div>
+<pre class="after">// Fallback dopasowuje się po typie parametru, więc odpala się WYŁĄCZNIE przy
+// otwartym obwodzie. Każdy inny wyjątek przelatuje nietknięty — fallback typu
+// Throwable połykał nasze własne bugi (NPE, OOM) i etykietował je jako circuit_open.
+private Route circuitOpenFallback(ReserveBayCommand command, CallNotPermittedException e) {
+    count("circuit_open");
+    log.warn("Circuit open for trade-route-planner, failing fast: {} -&gt; {}", from, to);
+    throw new RoutePlannerUnavailableException(from, to, e);
+}</pre>
+
+<p><strong>Co to zmienia w praktyce:</strong> metryka <code>outcome="circuit_open"</code> rośnie teraz wyłącznie wtedy, gdy obwód jest faktycznie otwarty. Kafelek „Trasy oddane do fallbacku" na dashboardzie przestał kłamać — wcześniej rósł przy każdej awarii, <em>zanim</em> breaker w ogóle się otworzył. Zniknęło też podwójne liczenie: skoro fallback odpala się tylko przy odcięciu, żadna porażka nie jest liczona dwa razy.</p>
+
+<p><strong>Bonus bezpieczeństwa:</strong> <code>NullPointerException</code> z <code>Objects.requireNonNull(command)</code> nie przebiera się już za „trasa niedostępna" i nie wraca do klienta jako spokojne 409. Leci jako 500 — bo to jest błąd, nie degradacja.</p>
+
+<div class="pagebreak"></div>
+<h2>8. Zmiana 2 — dwa typy wyjątków zamiast jednego</h2>
+
+<p>To jest centralna zmiana całej pracy. Nazwijmy antywzorzec po imieniu: <strong>kolaps semantyki błędu na granicy</strong> (<em>exception type erasure</em>). Trzy różne klasy awarii wchodzą do adaptera, wychodzi jeden typ — i wszystko poniżej traci zdolność ich rozróżnienia.</p>
+
+<h3>Nowa hierarchia</h3>
+<pre class="after">/** Planner ODPOWIEDZIAŁ i odmówił (4xx): deterministyczne odrzucenie domenowe.
+ *  Drugie identyczne pytanie nie może dać innej odpowiedzi, więc retry tego nie
+ *  ponawia, a breaker to ignoruje — fala odmów to nie awaria infrastruktury. */
+public class RoutePlanningRejectedException extends RouteUnavailableException {
+    private final int statusCode;   // niesie realny status HTTP plannera
+}
+
+/** Planner NIE ODPOWIEDZIAŁ użytecznie: 5xx, timeout, brak połączenia, puste
+ *  ciało albo otwarty obwód. Jedyna rzecz, którą retry ponawia i którą breaker
+ *  liczy jako porażkę. Mapowane na 503 + Retry-After. */
+public class RoutePlannerUnavailableException extends RouteUnavailableException {
+    private final int statusCode;   // 0, gdy odpowiedzi nie było wcale
+}</pre>
+
+<div class="box key">
+  <div class="t">Sztuczka, która czyni tę zmianę bezpieczną</div>
+  <p>Oba nowe typy <strong>dziedziczą po istniejącym</strong> <code>RouteUnavailableException</code>. Dzięki temu wszystkie istniejące bloki <code>catch (RouteUnavailableException e)</code> w <code>ReservationService</code> oraz stary handler mapujący na 409 działają dalej bez jednej linijki zmiany. To wzorzec wart zapamiętania przy refaktorze hierarchii wyjątków w żywym systemie: <em>rozszerzaj w dół, nie w bok</em>.</p>
+</div>
+
+<h3>Adapter po zmianie</h3>
+<pre class="after">.onStatus(HttpStatusCode::is4xxClientError, (req, res) -&gt; {
+    // 4xx = odmowa domenowa ("tej trasy nie da się zaplanować") — deterministyczna,
+    // więc nie wolno jej ani ponawiać, ani zapisywać w breakerze.
+    count("domain");
+    throw new RoutePlanningRejectedException(from, to, res.getStatusCode().value());
+})
+.onStatus(HttpStatusCode::is5xxServerError, (req, res) -&gt; {
+    // 5xx = awaria infrastruktury (planner leży) — przejściowa, do ponowienia.
+    count("infrastructure");
+    throw new RoutePlannerUnavailableException(from, to, res.getStatusCode().value());
+})
+// ...
+catch (Exception e) {   // timeout / connection refused
+    // OCZEKIWANA awaria zależności, nie bug w tym serwisie: jedna linia WARN,
+    // bez stacktrace'u. Przy 4 req/s chaosu stacktrace na każdą próbę to
+    // dokładnie ten szum w logach, przed którym ten system ma bronić.
+    count("infrastructure");
+    log.warn("Failed to plan route from {} to {}: {}", from, to, e.toString());
+    throw new RoutePlannerUnavailableException(from, to, e);
+}</pre>
+
+<h3>I nagle konfiguracja czyta się jak zdanie po polsku</h3>
+<pre class="after">circuitbreaker.instances.trade-route-planner:
+  ignore-exceptions:
+    - ...routeplanner.RoutePlanningRejectedException     # odmowa to ODPOWIEDŹ, nie awaria
+
+retry.instances.trade-route-planner:
+  retry-exceptions:
+    - ...routeplanner.RoutePlannerUnavailableException   # ponawiaj tylko to, co mogło się udać</pre>
+
+<p><strong>Co to zmienia w praktyce.</strong> Wyobraź sobie falę klientów pytających o trasy, których fizycznie nie da się wytyczyć (za mały zasięg statku). Przed zmianą: same 4xx, każda ponawiana przez retry, każda zapisywana w oknie breakera jako porażka — <strong>failure rate przebija 50% i obwód odcina całkowicie zdrowego plannera</strong>. Po zmianie: te odmowy są dla breakera niewidzialne (ani sukces, ani porażka), retry ich nie dotyka, a klient dostaje szybkie 409 z sensownym komunikatem.</p>
+
+<h3>Trzecia kategoria, o której łatwo zapomnieć: nasze własne bugi</h3>
+
+<p>Rozdzielenie odmowy od niedostępności załatwia dwa przypadki. Jest jednak trzeci, który przez długi czas przechodził u nas niezauważony — i jest najbardziej podstępny, bo <strong>przekłamuje pomiar cudzego serwisu</strong>.</p>
+
+<p>Wróćmy do pytania, na które ten bezpiecznik istnieje, żeby odpowiadać: <em>„czy <code>trade-route-planner</code> jest zdrowy?"</em>. Skoro tak, to jedyną rzeczą, którą wolno mu zapisać jako porażkę, jest porażka <strong>tamtego serwisu</strong>. Tymczasem <code>NullPointerException</code> z naszego mapowania albo <code>IllegalStateException</code> ze złamanego inwariantu nie mówią o plannerze <strong>nic</strong> — bo do plannera w ogóle nie dotarliśmy.</p>
+
+<table>
+  <tr><th style="width:26%">Kategoria</th><th style="width:32%">Przykład</th><th style="width:24%">Bezpiecznik</th><th>Klient</th></tr>
+  <tr><td>Zależność chora</td><td><code>RoutePlannerUnavailableException</code></td><td><strong>liczy jako porażkę</strong></td><td>503 + Retry-After</td></tr>
+  <tr><td>Zależność zdrowa, pytanie złe</td><td><code>RoutePlanningRejectedException</code></td><td>ignoruje</td><td>409</td></tr>
+  <tr><td><strong>Nasz bug</strong></td><td><code>NullPointerException</code>, <code>IllegalStateException</code></td><td><strong>nie jego sprawa</strong></td><td>500</td></tr>
+</table>
+
+<div class="box trap">
+  <div class="t">Co robiła czarna lista — konkretny scenariusz</div>
+  <p>Mieliśmy samo <code>ignore-exceptions: RoutePlanningRejectedException</code>, czyli domyślną odpowiedzią było „licz jako awarię zależności". Wdrażasz zmianę, w której <code>buildRequest</code> rzuca <code>NullPointerException</code> na każdym wywołaniu:</p>
+  <ol style="margin-bottom:0">
+    <li>pięć wywołań → pięć „porażek" w oknie → failure rate 100% → <strong>obwód się otwiera</strong>;</li>
+    <li>ruch dostaje <strong>503 z <code>Retry-After: 10</code></strong> — czyli „zależność ma problem, wróć za chwilę". Ale ponowienie nic nie da: bug jest deterministyczny;</li>
+    <li>odpala się alert <code>TradeRoutePlannerCircuitOpen</code>;</li>
+    <li>dyżurny idzie sprawdzać <code>trade-route-planner</code>, <strong>który jest w idealnym stanie</strong>.</li>
+  </ol>
+</div>
+
+<p>Zamieniliśmy własny bug w opowieść o cudzej awarii — i schowaliśmy go za czystą ścieżką degradacji. To jest dokładne przeciwieństwo tezy tego dokumentu: dashboard przestał mówić prawdę, tylko tym razem <em>w drugą stronę</em>.</p>
+
+<h4>Naprawa: biała lista zamiast czarnej</h4>
+<pre class="after">circuitbreaker.instances.trade-route-planner:
+  # Bezpiecznik zapisuje jako porażkę WYŁĄCZNIE awarię tego serwisu.
+  record-exceptions:
+    - ...routeplanner.RoutePlannerUnavailableException
+  ignore-exceptions:
+    - ...routeplanner.RoutePlanningRejectedException     # odpowiedź domenowa, nie awaria</pre>
+
+<div class="box info">
+  <div class="t">Ważny szczegół implementacyjny — trzy gałęzie, nie dwie</div>
+  <p><code>CircuitBreakerStateMachine#handleThrowable</code> rozstrzyga w tej kolejności:</p>
+  <div class="fig">1. pasuje do ignore-exceptions  → releasePermission()  — wywołanie NIE trafia do okna
+2. pasuje do record-exceptions  → state.onError(...)    — liczone jako PORAŻKA
+3. żadne z powyższych           → state.onSuccess(...)  — liczone jako SUKCES</div>
+  <p>Nasze bugi lądują w gałęzi 3, czyli po zmianie są liczone jako <strong>sukces</strong>. To niedoskonałe — zawyżają licznik udanych wywołań i rozcieńczają slow-call rate — ale semantycznie obronne: <em>na tyle, na ile ten bezpiecznik może stwierdzić, zależność nie zawiodła</em>. Co ważniejsze, przestały otwierać obwód przeciw zdrowemu serwisowi i przestały odpalać cudzy alert.</p>
+  <p style="margin-top:5pt"><strong>Strukturalna naprawa</strong> jest inna i warto ją znać: zawęzić zasięg adnotacji tak, żeby obejmowała <em>wyłącznie wywołanie zdalne</em>. Dziś <code>@CircuitBreaker</code> siedzi na metodzie, która najpierw waliduje argumenty i buduje żądanie — więc bug z tych etapów w ogóle ma szansę dotrzeć do okna. Gdyby adnotacja obejmowała sam wyjazd na drut, gałąź 3 nigdy by się nie uruchomiła. To wymaga wydzielenia osobnego beana (samowywołanie omija proxy AOP) i jest w backlogu.</p>
+</div>
+
+<div class="box key">
+  <div class="t">Reguła</div>
+  <p><strong>Zakres adnotacji jest częścią kontraktu.</strong> Bezpiecznik mierzy dokładnie to, co obejmuje — jeśli obejmuje twój kod, będzie mierzył także twoje błędy i przypisywał je cudzemu serwisowi. Domyślną odpowiedzią na pytanie „czy to awaria zależności" powinno być <em>nie</em>, a nie <em>tak</em>.</p>
+</div>
+
+<div class="box info">
+  <div class="t">Dlaczego filtrowanie po typie, a nie po polu</div>
+  <p>Można by zostawić jeden wyjątek z polem <code>kind</code> i rozróżniać w kodzie. Nie zadziała: <code>ignore-exceptions</code> i <code>retry-exceptions</code> w Resilience4j dopasowują po <strong>klasie</strong>. Ta sama zasada rządzi fallbackiem (zmiana 1) i — jak zobaczymy — rdzeniowym <code>@Retryable</code> w Springu 7. Typ wyjątku to nie szczegół implementacji; to zdanie, które twój kod mówi całej reszcie systemu.</p>
+</div>
+
+<div class="pagebreak"></div>
+<h2>9. Kolejność aspektów (cebula) — co mamy domyślnie i jak to odwrócić</h2>
+
+<p>To rzecz, na której wykładają się seniorzy, bo jest całkowicie niewidoczna w kodzie. Adnotacje na metodzie układają się w <strong>cebulę</strong> — jeden aspekt owija drugi. Domyślnie w Resilience4j:</p>
+
+<div class="fig">DOMYŚLNIE:   Retry ( CircuitBreaker ( metoda ) )
+             └─ zewnętrzny        └─ wewnętrzny
+
+PO ZMIANIE:  CircuitBreaker ( Retry ( metoda ) )
+             └─ zewnętrzny        └─ wewnętrzny</div>
+
+<div class="box trap">
+  <div class="t">Pułapka w pułapce</div>
+  <p>Pierwszy odruch to <strong>przełożyć adnotacje miejscami w kodzie</strong>. Nie zadziała — kolejność jest zaszyta w wartościach <code>Ordered</code> aspektów, nie w kolejności zapisu. Zmieniają ją wyłącznie właściwości konfiguracyjne.</p>
+</div>
+
+<div class="box key">
+  <div class="t">Co my mamy — i dlaczego akurat to</div>
+  <p>W <code>application.yml</code> zostawiliśmy <strong>kolejność domyślną</strong>: <code>Retry( CircuitBreaker( metoda ) )</code>. Świadomie — bo to jest konfiguracja, którą ma każdy projekt, dopóki ktoś jej celowo nie zmieni, a liczenie próbami daje szybszą reakcję na twardą awarię. Odwrócenie leży w osobnym profilu <code>cb-outer</code>:</p>
+  <pre class="after" style="margin-bottom:0">// application-cb-outer.yml — aktywacja: SPRING_PROFILES_ACTIVE=demo,cb-outer
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 1   # niższa wartość = bardziej NA ZEWNĄTRZ
+  retry:
+    retry-aspect-order: 2</pre>
+</div>
+
+<p>Profil istnieje po to, żeby różnicę dało się <strong>zobaczyć na wykresach</strong>, a nie tylko o niej przeczytać: te same żądania, ten sam wstrzyknięty chaos, jedna zmienna środowiskowa — i dwa różne obrazy zdrowia zależności na dashboardzie. To jest przekonujące w sposób, w jaki tabela nigdy nie będzie.</p>
+
+<h3>Dlaczego to ma znaczenie — arytmetyka</h3>
+<p>Gdy Retry jest na zewnątrz, breaker widzi każdą <em>próbę</em> osobno. Jedna operacja z <code>max-attempts: 2</code> zostawia w oknie <strong>dwa</strong> wpisy. Weźmy przykład ilustracyjny z trzema próbami: dziesięć operacji, dwie padają. Człowiek liczy: 20% porażek, próg 50%, spokój. Breaker liczy próby: 2 porażki × 3 próby = 6 nieudanych wywołań, plus 8 udanych = 14 wpisów, z czego 6 czerwonych. <strong>43%</strong> — o włos od otwarcia. Ta sama chwila, dwie zupełnie różne prawdy, zależnie od tego, kto liczy. To jest <em>resilience4j issue #2383</em>.</p>
+
+<h3>Dowód A/B — dwa testy różniące się dwoma liczbami</h3>
+<p>Żeby to nie pozostało teorią, w repozytorium leżą dwie klasy testowe. Różnią się <strong>wyłącznie</strong> dwoma intami — druga przywraca domyślną kolejność przez <code>@TestPropertySource</code>. Ten sam chwiejny planner (co drugi request zwraca 503, więc <em>każdą</em> operację ratuje retry), ta sama seria trzech operacji:</p>
+
+<table>
+  <tr><th style="width:30%">Obserwacja</th><th style="width:35%">Retry na zewnątrz <span class="small">(DOMYŚLNA — nasza baza)</span></th><th>CB na zewnątrz <span class="small">(profil <code>cb-outer</code>)</span></th></tr>
+  <tr><td>Okno po jednej uratowanej operacji</td><td><strong>1 porażka + 1 sukces</strong></td><td><strong>1 sukces / 0 porażek</strong></td></tr>
+  <tr><td>Seria 3 operacji — wynik dla klienta</td><td>2 × sukces, <strong>3. rzuca wyjątkiem</strong></td><td>3 × sukces</td></tr>
+  <tr><td>Stan breakera po serii</td><td><strong>OPEN</strong></td><td><strong>CLOSED</strong> (3/0)</td></tr>
+  <tr><td>Requestów, które dotarły do plannera</td><td>5 — drugą próbę 3. operacji breaker zablokował</td><td>6</td></tr>
+</table>
+
+<p>Przeczytaj lewy słupek jeszcze raz, bo wynik domyślnej kolejności jest ostrzejszy, niż sugeruje sama teoria o „szybszym otwieraniu". Breaker otwiera się <strong>w połowie trzeciej operacji</strong>: piąty wpis w oknie daje 3 porażki na 5 wywołań, czyli 60% ≥ próg 50% przy <code>minimum-number-of-calls: 5</code>. W efekcie <strong>odrzuca retry tej samej operacji, którą retry właśnie ratował</strong>. Zależność odpowiedziała poprawnie na każdą operację — a klient dostał błąd.</p>
+
+<p>To nie jest argument za tym, żeby natychmiast przestawiać produkcję. To argument za tym, żeby <strong>wiedzieć, w której kolumnie się jest</strong> — bo próg <code>failure-rate-threshold: 50</code> znaczy w każdej z nich coś innego, a plik konfiguracyjny wygląda identycznie.</p>
+
+<div class="box key">
+  <div class="t">Uczciwa rama — to nie jest bug biblioteki</div>
+  <p>Obie kolejności są legalne i obie czemuś służą. <strong>Liczenie próbami</strong> (domyślne, nasza baza) daje wyższą czułość — breaker reaguje szybciej na twardą awarię, a retry z backoffem potrafi przeczekać krótkie otwarcie. <strong>Liczenie operacjami</strong> (profil <code>cb-outer</code>) daje przewidywalność progu: 50% znaczy 50% operacji i nie dryfuje przy zmianie <code>max-attempts</code>.</p>
+  <p style="margin-top:5pt"><strong>Nie do obrony jest tylko jedno: nie wiedzieć, którą z tych dwóch wersji ma się na produkcji.</strong> Dlatego obie są przybite testami — pomyłka w dwóch intach jest całkowicie bezobjawowa aż do pierwszej poważnej awarii.</p>
+</div>
+
+<h3>Dwa testy, po jednym na każdą kolejność</h3>
+<p>Różnią się wyłącznie tym, że drugi startuje z aktywnym profilem. Reszta — zależność, ruch, asercje — jest napisana tak, żeby dało się je czytać obok siebie:</p>
+<pre class="before">// ResilienceAspectOrderTest — konfiguracja BAZOWA (domyślna cebula)
+@Test void defaultOrderRecordsEveryAttemptSoOneRescuedOperationDepositsTwoVerdicts() {
+    routePlanner.calculateRoute(command("DEF-ONE"));           // 1. próba 503, retry → 200
+
+    wireMock.verify(2, postRequestedFor(urlEqualTo(PLAN_URL)));
+    assertEquals(1, circuitBreaker.getMetrics().getNumberOfSuccessfulCalls());
+    assertEquals(1, circuitBreaker.getMetrics().getNumberOfFailedCalls());   // ← obie próby
+}</pre>
+<pre class="after">// ResilienceInvertedAspectOrderTest — profil cb-outer
+@ActiveProfiles({"test", "cb-outer"})
+@Test void breakerRecordsOneVerdictPerOperationNotPerRetryAttempt() {
+    routePlanner.calculateRoute(command("INV-ONE"));           // ten sam scenariusz
+
+    wireMock.verify(2, postRequestedFor(urlEqualTo(PLAN_URL)));   // tyle samo na drucie
+    assertEquals(1, circuitBreaker.getMetrics().getNumberOfSuccessfulCalls());
+    assertEquals(0, circuitBreaker.getMetrics().getNumberOfFailedCalls());   // ← jeden werdykt
+}</pre>
+
+<p>Drugi, mniej znany efekt odwrócenia: <strong>przy otwartym obwodzie retry przestaje pukać w zamknięte drzwi</strong>. W układzie domyślnym każda operacja podczas odcięcia pali dodatkową próbę i 100 ms czekania na coś, co jest z góry zablokowane — czyli podwaja ruch dokładnie w najgorszym momencie.</p>
+
+<div class="pagebreak"></div>
+<h2>10. Zmiana 3 — backoff wykładniczy z jitterem</h2>
+
+<pre class="after">retry.instances.trade-route-planner:
+  max-attempts: 2                    # UWAGA: 2 = pierwsza próba + JEDNO ponowienie
+  wait-duration: 100ms
+  enable-exponential-backoff: true
+  exponential-backoff-multiplier: 2
+  randomized-wait-factor: 0.5        # ±50% losowego rozrzutu</pre>
+
+<p>Przy dwóch próbach efekt praktyczny jest kosmetyczny: jedno czekanie 100 ms ± 50%. Ale <strong>kształt konfiguracji ma znaczenie dydaktyczne i operacyjne</strong> — ktoś skopiuje ten blok do serwisu z <code>max-attempts: 5</code>. Wtedy różnica jest ogromna:</p>
+
+<ul>
+  <li><strong>Bez backoffu:</strong> pięć prób co 100 ms — dobijasz zależność, która właśnie próbuje wstać.</li>
+  <li><strong>Bez jittera:</strong> wszystkie instancje twojego serwisu ponawiają <em>w tej samej milisekundzie</em> po odzyskaniu zależności. To klasyczny <em>thundering herd</em> — zależność wstaje, dostaje zsynchronizowaną falę i pada ponownie.</li>
+</ul>
+
+<p>Jitter rozjeżdża te fale w czasie. To najtańsza linijka w całym pliku konfiguracyjnym w przeliczeniu na uniknięte incydenty.</p>
+
+<h2>11. Kontrakt HTTP: 409 kontra 503 + Retry-After</h2>
+
+<p>Ostatnia konsekwencja rozdzielenia wyjątków dotyczy tego, co widzi klient. Wcześniej <em>każda</em> utrata trasy kończyła się jako <strong>409 Conflict</strong>.</p>
+
+<pre class="after">// Awaria infrastruktury (planner 5xx/timeout/otwarty obwód): żądanie było W PORZĄDKU
+// — komunikat brzmi "wróć za chwilę". 503 + Retry-After pozwala poprawnie napisanym
+// klientom zaplanować ponowienie; 409 kazałoby im zmieniać żądanie, z którym nic nie
+// jest nie tak. Retry-After = wait-duration-in-open-state (10 s), czyli najwcześniejszy
+// moment, w którym obwód może się domknąć.
+@ExceptionHandler(RoutePlannerUnavailableException.class)
+ResponseEntity&lt;Map&lt;String, String&gt;&gt; handle(RoutePlannerUnavailableException ex) {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header(HttpHeaders.RETRY_AFTER, "10")
+            .body(Map.of("error", "ROUTE_PLANNER_UNAVAILABLE", "details", ex.getMessage()));
+}
+
+// Odmowa domenowa i każdy starszy RouteUnavailableException: planner odpowiedział
+// "nie" na TO żądanie — powtórzenie go bez zmian nie pomoże. 409.
+@ExceptionHandler(RouteUnavailableException.class)
+ResponseEntity&lt;Map&lt;String, String&gt;&gt; handle(RouteUnavailableException ex) { ... CONFLICT ... }</pre>
+
+<table>
+  <tr><th style="width:16%">Status</th><th style="width:34%">Znaczenie dla klienta</th><th>Kiedy u nas</th></tr>
+  <tr><td><strong>409</strong></td><td>„zmień żądanie" — stan zasobu koliduje z tym, o co prosisz</td><td>planner odmówił zaplanowania trasy (4xx)</td></tr>
+  <tr><td><strong>503</strong><br>+ <code>Retry-After: 10</code></td><td>„wróć za chwilę" — z żądaniem wszystko OK, to my mamy problem</td><td>planner leży, timeout albo obwód otwarty</td></tr>
+</table>
+
+<p>To nie jest kosmetyka. Kod statusu HTTP to <strong>instrukcja dla automatu po drugiej stronie</strong>. Klient z sensowną polityką retry zobaczy 409 i przestanie próbować — a właśnie próbowanie byłoby tu poprawne. Jeden zły kod statusu potrafi zamienić dziesięciosekundową degradację w trwałą utratę żądań.</p>
+
+<p>Zmiana pociągnęła też skrypt generujący ruch demonstracyjny: liczy teraz jako „zdegradowane" <strong>zarówno 409, jak i 503</strong>. Bez tego 503 wpadłoby do kategorii „inne" i zaburzało obraz na scenie.</p>
+
+<div class="pagebreak"></div>
+<h2>12. Observability: co dostajesz za darmo, a co musisz napisać</h2>
+
+<p>Wróćmy do tezy z pierwszego rozdziału: mechanizm bez widoczności to ten sam problem, tylko schowany o warstwę głębiej. Dobra wiadomość — 90% widoczności dostajesz bez pisania kodu.</p>
+
+<h3>Za darmo: trzy zależności</h3>
+<pre>spring-boot-starter-actuator
+spring-cloud-starter-circuitbreaker-resilience4j
+micrometer-registry-prometheus</pre>
+
+<p>i Resilience4j sam wystawia:</p>
+<table>
+  <tr><th style="width:52%">Metryka</th><th>Co mówi</th></tr>
+  <tr><td><code>resilience4j_circuitbreaker_state</code></td><td>stan obwodu (seria per stan, wartość 0/1)</td></tr>
+  <tr><td><code>resilience4j_circuitbreaker_failure_rate</code></td><td>procent porażek w oknie (<code>-1</code> = za mało danych)</td></tr>
+  <tr><td><code>resilience4j_circuitbreaker_slow_call_rate</code></td><td>procent wywołań wolniejszych niż próg</td></tr>
+  <tr><td><code>resilience4j_circuitbreaker_calls_seconds_count</code> / <code>_max</code></td><td>liczba i czas wywołań wg wyniku (<code>kind</code>)</td></tr>
+  <tr><td><code>resilience4j_circuitbreaker_not_permitted_calls_total</code></td><td>ile wywołań odrzucił otwarty obwód</td></tr>
+  <tr><td><code>resilience4j_retry_calls_total</code></td><td>wyniki retry wg <code>kind</code>: <code>successful_with_retry</code>, <code>failed_with_retry</code>, …</td></tr>
+</table>
+
+<h3>Micrometer i Observation — jeden call, dwa sygnały</h3>
+<p>Micrometer jest dla metryk tym, czym SLF4J dla logów: jednym interfejsem, którego backend wybierasz zależnością w <code>pom.xml</code>. W Spring Boot 3 dochodzi <strong>Observation API</strong> — jedno owinięcie produkuje <em>i metrykę, i span w trace'ie</em>:</p>
+
+<pre class="after">return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
+        .lowCardinalityKeyValue("startStarport", ...)
+        .lowCardinalityKeyValue("destinationStarport", ...)
+        .observe(() -&gt; callTradeRoutePlanner(command));</pre>
+
+<div class="box trap">
+  <div class="t">Dlaczego „lowCardinality"</div>
+  <p>Każda unikalna kombinacja etykiet to osobna seria czasowa w Prometheusie. Kod portu (kilkadziesiąt wartości) jest bezpieczny. ID rezerwacji czy ID klienta — <strong>nie</strong>: wysadzi ci bazę metryk. Rzeczy o wysokiej kardynalności należą do trace'ów i logów, nie do etykiet metryk.</p>
+</div>
+
+<h3>Jeden licznik napisany ręcznie — i dlaczego akurat ten</h3>
+<pre class="after">private final Map&lt;String, Counter&gt; outcomeCounters = new ConcurrentHashMap&lt;&gt;();
+
+private void count(String outcome) {   // success | domain | infrastructure | empty_response | circuit_open
+    outcomeCounters.computeIfAbsent(outcome, value -&gt; Counter.builder("reservations.route.plan.outcome")
+                    .description("Route planning attempts by outcome")
+                    .tag("outcome", value)
+                    .register(meterRegistry))
+            .increment();
+}</pre>
+
+<p>Metryki Resilience4j mówią językiem infrastruktury: „obwód otwarty", „60% wywołań failed". Ten jeden licznik mówi językiem produktu: <strong>ile REZERWACJI straciło trasę i dlaczego</strong>. To jedyne przełożenie techniki na rozmowę z biznesem — i jedyny licznik w tym module, który trzeba było napisać samemu.</p>
+
+<div class="box trap">
+  <div class="t">Dwie decyzje w tych sześciu linijkach, obie zapłacone doświadczeniem</div>
+  <p><strong>Jeden meter z tagiem, nie para success/errors.</strong> Pierwotnie były dwa osobne liczniki — i nie dało się policzyć success-ratio jednym wyrażeniem PromQL, bo trzeba było łączyć dwie różne nazwy metryk. Jeden meter z tagiem <code>outcome</code> daje <code>sum by (outcome) (rate(...)) / sum(rate(...))</code> od ręki.</p>
+  <p style="margin-top:5pt"><strong>Nazwa NIE brzmi <code>reservations.route.plan</code></strong> — mimo że tak byłoby najładniej. Ta nazwa należy już do Timera generowanego przez <code>Observation</code> kilka akapitów wyżej, a Micrometer odrzuca dwa różne typy metryki pod jedną nazwą. Aplikacja po prostu by nie wstała. Stąd sufiks <code>.outcome</code>.</p>
+  <p style="margin-top:5pt"><strong><code>Counter</code> cache'owany w mapie</strong>, nie budowany przy każdym wywołaniu: <code>Counter.builder(...).register(...)</code> w gorącej ścieżce alokuje <code>Meter.Id</code> i robi lookup za każdym razem. Micrometer to deduplikuje, więc jest poprawnie — tylko niepotrzebnie.</p>
+</div>
+
+<h3>Dashboard i alerty</h3>
+<p>Dashboard Grafany ma dwa rzędy, celowo — <em>ten sam sygnał, dwa języki</em>. Dla biznesu: czy zależność żyje, ile było downtime'u, ile tras oddaliśmy. Dla devów: timeline stanu obwodu, failure/slow rate, wywołania wg wyniku, latencja, odrzucenia, wyniki retry.</p>
+
+<p>Panel retry celowo pokazuje <strong>surowe, skumulowane liczniki</strong>, a nie <code>rate()</code>. Zdarzenia retry są rzadkie i punktowe — <code>rate()</code> pokazywałby zera pomiędzy nimi i kłamał, że nic się nie dzieje. To dobra ogólna zasada: dla rzadkich zdarzeń pokazuj sumę, nie tempo.</p>
+
+<pre>ALERT: max(resilience4j_circuitbreaker_state{job="starport-registry",
+           name="trade-route-planner", state="open"}) == 1     for: 30s</pre>
+
+<div class="pagebreak"></div>
+<h2>13. Jak to zweryfikowaliśmy — testy i pomiary na żywym stacku</h2>
+
+<p>Wszystko powyżej jest bezwartościowe, jeśli nie zostało sprawdzone. Weryfikacja szła dwutorowo.</p>
+
+<h3>Testy (98/98 zielonych)</h3>
+<ul>
+  <li><code>ResilienceAspectOrderTest</code> — kontrakt naszej konfiguracji: uratowana operacja = 1 sukces/0 porażek; 4xx = jeden request, zero wpisów w breakerze; 5xx = dwa requesty, jedna porażka.</li>
+  <li><code>ResilienceInvertedAspectOrderTest</code> — ten sam scenariusz pod profilem <code>cb-outer</code>, dokumentujący alternatywę (rozdział 9).</li>
+  <li><code>GlobalExceptionHandlerTest</code> — 409 dla odmowy, 503 + <code>Retry-After: 10</code> dla niedostępności.</li>
+</ul>
+
+<h3>Chaos na żywym stacku (Toxiproxy)</h3>
+<p>Toxiproxy wstrzykiwał latencję i timeouty na ścieżce do plannera, a wartości czytaliśmy prosto z Prometheusa:</p>
+
+<table>
+  <tr><th style="width:22%">Scenariusz</th><th style="width:39%">Zmierzony wynik</th><th>Wniosek</th></tr>
+  <tr><td>latencja 300 ms</td><td>failure 0%, slow 0%, max latency ~0,35 s</td><td>degradacja niewidzialna dla liczników błędów — rusza tylko wykres czasu</td></tr>
+  <tr><td>latencja 440 ms</td><td>max latency <strong>0,497 s</strong>, slow rate wciąż 0</td><td>próg to twarda linia; system zauważył i świadomie nie zareagował</td></tr>
+  <tr><td>latencja 600 ms</td><td>obwód <strong>OPEN</strong>, 95 odrzuceń, <strong>failure rate 0%</strong></td><td>slow-call detection działa — czerwono przy zerze błędów</td></tr>
+  <tr><td>timeout na 50% połączeń</td><td>obwód <strong>CLOSED</strong>, retry rośnie schodkami</td><td>patrz uwaga niżej — pomiar obalił naszą hipotezę</td></tr>
+  <tr><td>pełna awaria</td><td>failure 100%, OPEN, alert FIRING po ~60–90 s</td><td>alert ma <code>for: 30s</code>, więc najpierw jest „pending"</td></tr>
+  <tr><td>wywołanie przez gateway w trakcie awarii</td><td><code>503</code>, <code>Retry-After: 10</code>, <code>ROUTE_PLANNER_UNAVAILABLE</code></td><td>kontrakt HTTP potwierdzony end-to-end</td></tr>
+  <tr><td>20 minut ruchu przez cały chaos</td><td>2495 żądań: 2188 × 201, 307 zdegradowanych, <strong>0 „innych"</strong></td><td>ani jedna odpowiedź poza kontraktem</td></tr>
+</table>
+
+<div class="box key">
+  <div class="t">Pomiar, który obalił hipotezę — warto o tym pamiętać</div>
+  <p>Zakładaliśmy, że wstrzyknięcie timeoutu na 50% wywołań da ~50% failure rate i otworzy obwód. Pomiar pokazał <strong>failure ~0%, slow ~10%, obwód zamknięty</strong>. Przyczyna: toksyna Toxiproxy działa <em>per połączenie</em>, a pula keep-alive obsługuje większość żądań po już nawiązanych, zdrowych połączeniach. Nominalna „toksyczność" nie równa się procentowi dotkniętych żądań.</p>
+  <p style="margin-top:5pt">Morał wykracza poza to narzędzie: <strong>nie ufaj nominalnym parametrom narzędzia do chaosu — mierz rezultat.</strong> Gdybyśmy oparli demo na założeniu zamiast na pomiarze, na scenie nie zadziałałoby to, co obiecaliśmy.</p>
+</div>
+
+<h2>14. Spring Framework 7 / Boot 4 — co się zmienia, a co zostaje</h2>
+
+<p>W listopadzie Spring Framework 7.0 wnosi <strong>rdzeniowe wsparcie dla odporności</strong>: adnotacje <code>@Retryable</code> i <code>@ConcurrencyLimit</code>, włączane przez <code>@EnableResilientMethods</code>, plus programistyczny <code>RetryTemplate</code>. Zero zewnętrznych zależności. To dobra wiadomość — i nie zwalnia z niczego, o czym mówi ten wykład.</p>
+
+<h3>Co dokładnie dostajesz</h3>
+<pre>@Retryable(
+  includes = MessageDeliveryException.class,
+  maxAttempts = 5, delay = 100, jitter = 10, multiplier = 2, maxDelay = 1000)
+public void sendNotification() { ... }
+
+@ConcurrencyLimit(10)                      // ogranicza równoległość do 10
+public void sendNotification() { ... }</pre>
+
+<ul>
+  <li><strong><code>@Retryable</code></strong> — domyślnie 3 ponowienia po pierwszej porażce, 1 s odstępu, dla każdego wyjątku. Zawężasz przez <code>includes</code>, <code>excludes</code>, <code>predicate</code>. Ma wbudowany <code>jitter</code>, <code>multiplier</code>, <code>maxDelay</code>. Działa też dla metod reaktywnych — dekoruje pipeline mechanizmem retry z Reactora.</li>
+  <li><strong><code>@ConcurrencyLimit</code></strong> — oparty na <code>ConcurrencyThrottleInterceptor</code> (obecnym w Springu od wersji 1.0). Wartość <code>1</code> działa jak zamek na instancję beana.</li>
+  <li><strong><code>RetryTemplate</code> + <code>RetryPolicy.builder()</code></strong> — wariant programistyczny dla dowolnych bloków kodu.</li>
+  <li>Projekty portfolio (Boot, Batch, Integration, AMQP, Kafka, Pulsar) już migrują ze Spring Retry na rdzeń.</li>
+</ul>
+
+<div class="box info">
+  <div class="t">Ciekawe potwierdzenie z pierwszej ręki</div>
+  <p>Dokumentacja Springa uzasadnia <code>@ConcurrencyLimit</code> tym, że ograniczanie równoległości jest <strong>szczególnie przydatne przy wirtualnych wątkach, gdzie nie ma już limitu puli</strong>. To ta sama obserwacja, która w naszym projekcie (wirtualne wątki od ADR-0012) unieważnia klasyczny argument „wolna zależność zje ci pulę wątków". Pod wirtualnymi wątkami pula nie jest wąskim gardłem — są nim połączenia HTTP i pamięć. Jeśli używasz wirtualnych wątków, <em>musisz</em> ograniczać równoległość świadomie, bo runtime przestał robić to za ciebie.</p>
+</div>
+
+<h3>Czego w rdzeniu NIE ma</h3>
+<p>Najważniejsze zdanie tego rozdziału: <strong>w rdzeniu Springa nie ma circuit breakera.</strong> Nie ma też slow-call detection, deklaratywnego fallbacku ani gotowych metryk stanu obwodu. Po to wciąż idziesz do Resilience4j.</p>
+
+<p>A skoro po breakera idziesz do Resilience4j, a po retry możesz sięgnąć do rdzenia Springa — <strong>składasz dwa aspekty z dwóch różnych frameworków na jednej metodzie</strong>. Pytanie „co widzi breaker: operację czy próbę?" wraca w wersji trudniejszej, bo kolejność trzeba teraz uzgodnić <em>między</em> bibliotekami, a nie w obrębie jednej.</p>
+
+<div class="box key">
+  <div class="t">Wniosek</div>
+  <p>Zmienia się dostawca adnotacji. Cebula zostaje. Wiedza z rozdziału 9 nie traci ważności — zyskuje na niej.</p>
+</div>
+
+<div class="pagebreak"></div>
+<h2>15. Pułapki migracji na rdzeniowe <code>@Retryable</code></h2>
+
+<p>Jeśli kiedyś będziesz przenosić naszą konfigurację na Spring Framework 7, są cztery miejsca, w których dosłowne przepisanie wartości da inne zachowanie.</p>
+
+<h3>Pułapka 1: <code>maxAttempts</code> znaczy co innego w każdym z trzech światów</h3>
+<table>
+  <tr><th style="width:30%">Świat</th><th style="width:26%"><code>maxAttempts = 2</code> to…</th><th>Łącznie wywołań</th></tr>
+  <tr><td>Resilience4j <span class="small">(nasz kod)</span></td><td>pierwsza próba + 1 ponowienie</td><td><strong>2</strong></td></tr>
+  <tr><td>Spring Retry <span class="small">(stary projekt)</span></td><td>pierwsza próba + 1 ponowienie</td><td><strong>2</strong></td></tr>
+  <tr><td>Spring Framework 7 <span class="small">(rdzeń)</span></td><td><strong>2 ponowienia</strong> — pierwsze wywołanie się nie liczy</td><td><strong>3</strong></td></tr>
+</table>
+<p>Czyli dosłowne przepisanie <code>max-attempts: 2</code> z naszego <code>application.yml</code> do <code>@Retryable(maxAttempts = 2)</code> <strong>zwiększa ruch do zależności o 50%</strong>. Domyślna wartość w rdzeniu (3 ponowienia) oznacza cztery wywołania na operację. Przy okazji: to podwaja znaczenie kolejności aspektów, bo im więcej prób, tym mocniej rozjeżdżają się „procent operacji" i „procent prób".</p>
+
+<h3>Pułapka 2: jitter to inny model liczbowy</h3>
+<p>Resilience4j: <code>randomized-wait-factor: 0.5</code> — rozrzut <em>względny</em>, ±50% aktualnego odstępu. Spring 7: <code>jitter = 10</code> — wartość <em>bezwzględna</em> w milisekundach. Przepisanie <code>0.5</code> jako <code>jitter</code> da 0,5 ms rozrzutu, czyli praktycznie brak jittera przy zachowanej nazwie parametru. Klasyczna cicha regresja.</p>
+
+<h3>Pułapka 3: <code>@ConcurrencyLimit</code> blokuje, nie odrzuca</h3>
+<p>To nie jest zamiennik semaforowego <code>Bulkhead</code> z Resilience4j ustawionego na <code>max-wait-duration: 0</code>. Przy pełnym limicie wątki <strong>czekają</strong>, zamiast dostać natychmiastową odmowę. Konsekwencja operacyjna: pod przeciążeniem rośnie ci latencja i długość kolejki zamiast liczby szybkich odmów. Jeśli świadomie chcesz <em>fail-fast</em> — a często chcesz, bo szybka odmowa jest uczciwsza niż czekanie w kolejce, której klient i tak nie doczeka — zostajesz przy Resilience4j.</p>
+
+<h3>Pułapka 4: nie mieszaj obu retry na jednej metodzie</h3>
+<p>Kolejność aspektów <em>między</em> frameworkami nie jest gwarantowana kontraktem — zależy od wartości <code>Ordered</code> i kolejności rejestracji post-procesorów po obu stronach. Trzymaj jednego dostawcę retry na metodę, a jeśli musisz łączyć — rozdziel na osobne beany i udowodnij zachowanie testem, dokładnie tak jak w rozdziale 9.</p>
+
+<h2>16. Checklista do własnego projektu</h2>
+<p>Krótka lista rzeczy, które warto sprawdzić w dowolnym serwisie wołającym inny serwis — kolejność odzwierciedla stosunek zysku do wysiłku.</p>
+
+<ol>
+  <li><strong>Czy masz connect- i read-timeout?</strong> Jeśli nie, wszystko poniżej jest bez znaczenia — nadal możesz wisieć w nieskończoność.</li>
+  <li><strong>Czy breaker liczy CZASY, nie tylko błędy?</strong> Bez slow-call detection awaria typu „niby działa" jest dla ciebie niewidzialna.</li>
+  <li><strong>Czy próg slow-call jest poniżej read-timeoutu?</strong> Jeśli powyżej — nigdy się nie uruchomi.</li>
+  <li><strong>Czy retry ponawia wyłącznie porażki przejściowe?</strong> Sprawdź konkretnie, czy 4xx nie wpadło przypadkiem do <code>retry-exceptions</code> przez wspólny typ nadrzędny.</li>
+  <li><strong>Czy breaker ignoruje odrzucenia domenowe?</strong> Inaczej fala poprawnych „nie" odetnie ci zdrową zależność.</li>
+  <li><strong>Którą kolejność aspektów masz?</strong> Sprawdź w konfiguracji, nie w kodzie — i przybij testem.</li>
+  <li><strong>Czy fallback łapie konkretny typ, a nie <code>Throwable</code>?</strong> Inaczej twoje bugi przebierają się za degradację.</li>
+  <li><strong>Czy status HTTP mówi klientowi prawdę?</strong> 503 + <code>Retry-After</code> dla awarii, 4xx dla błędu żądania.</li>
+  <li><strong>Czy widać, że mechanizmy zadziałały?</strong> Retry, który po cichu ratuje 30% wywołań, ukrywa chorą zależność.</li>
+  <li><strong>Czy masz alert na otwarty obwód?</strong> I czy wiesz, po jakim czasie realnie przejdzie w FIRING?</li>
+</ol>
+
+<h2>17. Ściągawka</h2>
+
+<h3>Progi w naszej konfiguracji</h3>
+<div class="fig">connect 200 ms │ slow-call 500 ms │ read-timeout 800 ms (demo) / 2000 ms (baza)
+progi otwarcia: failure 50%, slow-call 50%  ·  okno: 10 wywołań, minimum 5
+open → half-open po 10 s, 3 próby  ·  retry: 2 próby, 100 ms ±50%, backoff ×2
+aspect order: CircuitBreaker 1 (zewnętrzny), Retry 2 (wewnętrzny)</div>
+
+<h3>Kontrakt HTTP</h3>
+<div class="fig">409 Conflict            → odmowa domenowa: "zmień żądanie"
+503 + Retry-After: 10   → niedostępność:    "wróć za chwilę"
+500                     → nasz bug (już nie przebiera się za degradację)</div>
+
+<h3>Przydatne zapytania PromQL</h3>
+<pre>max(resilience4j_circuitbreaker_state{name="trade-route-planner", state="open"})
+max(resilience4j_circuitbreaker_slow_call_rate{name="trade-route-planner"})
+sum by (kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{...}[1m]))
+sum by (kind) (resilience4j_retry_calls_total{...})          # bez rate() — rzadkie zdarzenia
+sum(increase(reservations_route_plan_outcome_total{outcome="circuit_open"}[$__range]))</pre>
+
+<h3>Czego świadomie nie zrobiliśmy (backlog)</h3>
+<ul>
+  <li>Jeden licznik <code>reservations.route.plan</code> z tagiem <code>outcome</code> zamiast pary sukces/błędy — wymaga przepisania zapytań dashboardu.</li>
+  <li><code>sliding-window-type: TIME_BASED</code> (60 s) zamiast licznikowego okna 10.</li>
+  <li>Klucz idempotencji dla ponawianego POST-a — bez niego timeout po przetworzeniu żądania może zduplikować zdarzenie trasy.</li>
+  <li><code>Optional&lt;Route&gt;</code> zamiast zwracania <code>null</code>, gdy trasa nie jest wymagana.</li>
+  <li>Przeniesienie reguły „klasa statku → zasięg" z adaptera HTTP do domeny.</li>
+</ul>
+
+<div class="box key" style="margin-top:14pt">
+  <div class="t">Jedno zdanie na koniec</div>
+  <p>System będzie się psuł — sieć padnie, zależność zwolni, ktoś wdroży zły adres. Nie chodzi o to, żeby się nie psuło. Chodzi o to, żeby psucie było <strong>widać</strong> — i żeby każdy mechanizm obronny umiał powiedzieć, kiedy i dlaczego zadziałał.</p>
+</div>
+
+<p class="small" style="margin-top:16pt; border-top:0.5pt solid #d8dee4; padding-top:6pt">
+Źródła w repozytorium: <code>starport-registry/src/main/java/.../routeplanner/</code> (adapter, wyjątki) ·
+<code>starport-registry/src/main/resources/application.yml</code> (sekcja <code>resilience4j</code>) ·
+<code>.../controller/GlobalExceptionHandler.java</code> (kontrakt HTTP) ·
+<code>src/test/java/.../routeplanner/ResilienceAspectOrderTest.java</code> i <code>ResilienceDefaultAspectOrderTest.java</code> (dowód A/B) ·
+<code>infra/docker/grafana/provisioning/dashboards/resilience4j-trade-route.json</code> ·
+<code>adr/0039-selective-resilience-rejection-vs-unavailability.md</code>.
+Rozdział 14 na podstawie: Sam Brannen, <em>Core Spring Resilience Features: @ConcurrencyLimit, @Retryable, and RetryTemplate</em>, Spring Blog, 9 września 2025.
+</p>

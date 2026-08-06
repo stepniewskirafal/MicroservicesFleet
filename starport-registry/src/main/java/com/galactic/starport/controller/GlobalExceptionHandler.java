@@ -5,11 +5,13 @@ import com.galactic.starport.service.InvalidReservationTimeException;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.StarportNotFoundException;
+import com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -81,6 +83,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_DETAILS, ex.getMessage()));
     }
 
+    // Infrastructure failure (planner 5xx/timeout/circuit open): the request was FINE — "come
+    // back shortly". 503 + Retry-After lets well-behaved clients schedule a retry; a 409 here
+    // would tell them to change a request that has nothing wrong with it. Retry-After matches
+    // wait-duration-in-open-state (10s), the earliest moment the circuit may close again.
+    @ExceptionHandler(RoutePlannerUnavailableException.class)
+    ResponseEntity<Map<String, String>> handle(RoutePlannerUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "10")
+                .body(Map.of("error", "ROUTE_PLANNER_UNAVAILABLE", ERROR_DETAILS, ex.getMessage()));
+    }
+
+    // Domain rejection (RoutePlanningRejectedException) and any legacy RouteUnavailableException:
+    // the planner answered "no" to THIS request — retrying it verbatim cannot help. 409.
     @ExceptionHandler(RouteUnavailableException.class)
     ResponseEntity<Map<String, String>> handle(RouteUnavailableException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

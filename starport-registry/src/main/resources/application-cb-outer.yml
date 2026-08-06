@@ -1,0 +1,33 @@
+# =============================================================================
+# Profil `cb-outer` — odwrócona cebula aspektów: CircuitBreaker NA ZEWNĄTRZ Retry
+# =============================================================================
+# Aktywacja (obok profilu demo):  SPRING_PROFILES_ACTIVE=demo,cb-outer
+#
+# PO CO ISTNIEJE: żeby różnicę dało się POKAZAĆ, a nie tylko opowiedzieć. Baza
+# (application.yml) zostaje na domyślnej kolejności biblioteki, bo taką ma każdy
+# projekt, dopóki ktoś jej świadomie nie zmieni. Ten profil odwraca ją jedną
+# zmienną środowiskową — bez dotykania kodu i bez przebudowy obrazu.
+#
+# CO SIĘ ZMIENIA (widać na dashboardzie r4j-trade-route, panel „Wywołania wg wyniku"
+# i kafelek „Failure rate"):
+#
+#   DOMYŚLNIE  Retry( CircuitBreaker( metoda ) )   — breaker liczy PRÓBY
+#     operacja uratowana przez retry  -> okno: 1 porażka + 1 sukces
+#     próg 50% znaczy „50% prób"; wartość efektywna zależy od max-attempts
+#     przy otwartym obwodzie retry i tak zużywa drugą próbę
+#
+#   cb-outer   CircuitBreaker( Retry( metoda ) )   — breaker liczy OPERACJE
+#     ta sama operacja                -> okno: 1 sukces, 0 porażek
+#     próg 50% znaczy „50% operacji" i nie dryfuje przy zmianie max-attempts
+#     przy otwartym obwodzie odmowa jest natychmiastowa, bez spalonej próby
+#
+# Niższa wartość = aspekt bardziej NA ZEWNĄTRZ. Kolejność adnotacji nad metodą
+# nie ma tu żadnego znaczenia — liczą się wyłącznie te dwie liczby.
+# Kontrakt przybity testem: ResilienceInvertedAspectOrderTest.
+# Uzasadnienie decyzji i kompromisy: ADR-0039.
+# =============================================================================
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 1
+  retry:
+    retry-aspect-order: 2
