@@ -25,14 +25,14 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "# 💰 Biznes — Przychody i zajętość doków\n\nKasa zarobiona w **wybranym okresie** (zmień zakres w prawym górnym rogu — minimum 1h) + **trend CR/h** (czy rośniemy) + **bieżąca zajętość doków**. Czerwony wskaźnik = port świeci pustkami (utracony przychód) **albo** jest pełny (brak miejsca na nowe rezerwacje).\n\n> Liczby to *wskaźnik* z metryk, nie księga główna — do raportu finansowego użyj bazy transakcyjnej."
+        "content": "# 💰 Business — Revenue and dock occupancy\n\nMoney earned in the **selected period** (change the range in the top-right corner — minimum 1h) + **CR/h trend** (are we growing) + **current dock occupancy**. A red gauge = the port is empty (lost revenue) **or** full (no room for new reservations).\n\n> The numbers are an *indicator* from metrics, not a general ledger — use the transactional database for financial reporting."
       }
     },
 
     {
       "id": 1,
       "type": "stat",
-      "title": "Łączny przychód w wybranym okresie",
+      "title": "Total revenue in the selected period",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 4, "w": 24, "h": 7 },
       "targets": [
@@ -43,7 +43,7 @@
           "instant": true,
           "range": false,
           "format": "time_series",
-          "legendFormat": "razem"
+          "legendFormat": "total"
         }
       ],
       "fieldConfig": {
@@ -67,8 +67,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Przychód/h — trend (czy rośniemy?)",
-      "description": "rate() z sumy opłat × 3600 = kredyty/godzinę. Pokazuje KIERUNEK, nie księgową sumę. rate() jest odporny na resety licznika przy restarcie aplikacji. Pionowe linie = deploye (annotacje z tagiem 'deploy').",
+      "title": "Revenue/h — trend (are we growing?)",
+      "description": "rate() of the fee sum × 3600 = credits/hour. Shows the DIRECTION, not an accounting total. rate() is resilient to counter resets on application restart. Vertical lines = deploys (annotations tagged 'deploy').",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 11, "w": 24, "h": 8 },
       "targets": [
@@ -77,7 +77,7 @@
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "editorMode": "code",
           "expr": "sum(rate(reservations_fees_calculated_amount_cr_sum[$__rate_interval])) * 3600",
-          "legendFormat": "RAZEM",
+          "legendFormat": "TOTAL",
           "range": true
         },
         {
@@ -126,8 +126,8 @@
     {
       "id": 2,
       "type": "bargauge",
-      "title": "Przychód per port",
-      "description": "Który port zarobił najwięcej w wybranym okresie.",
+      "title": "Revenue per port",
+      "description": "Which port earned the most in the selected period.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 19, "w": 12, "h": 10 },
       "targets": [
@@ -165,8 +165,8 @@
     {
       "id": 3,
       "type": "bargauge",
-      "title": "Przychód per klasa statku",
-      "description": "SCOUT / FREIGHTER / CRUISER — z której klasy płynie najwięcej przychodu.",
+      "title": "Revenue per ship class",
+      "description": "SCOUT / FREIGHTER / CRUISER — which class brings in the most revenue.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 19, "w": 12, "h": 10 },
       "targets": [
@@ -209,8 +209,8 @@
     {
       "id": 4,
       "type": "bargauge",
-      "title": "Wskaźnik odrzuceń rezerwacji per klasa — utracona konwersja",
-      "description": "Odsetek prób rezerwacji zakończonych odmową (outcome != confirmed: no_capacity / route_unavailable / error) zamiast zatwierdzeniem, per klasa statku, w wybranym okresie. Wysoki słupek = tracimy klientów tej klasy → decyzja: dosypać pojemność / przekierować ruch. Dominującą przyczyną zwykle jest 'no_capacity' — skorelowane z gauge zajętości doków poniżej. Zielony <10%, pomarańczowy 10–25%, czerwony >25%.",
+      "title": "Reservation rejection rate per class — lost conversion",
+      "description": "Share of reservation attempts that ended in a refusal (outcome != confirmed: no_capacity / route_unavailable / error) instead of a confirmation, per ship class, in the selected period. A tall bar = we are losing customers of that class → decision: add capacity / redirect traffic. The dominant cause is usually 'no_capacity' — correlated with the dock occupancy gauge below. Green <10%, orange 10–25%, red >25%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 29, "w": 12, "h": 10 },
       "targets": [
@@ -257,8 +257,8 @@
     {
       "id": 5,
       "type": "bargauge",
-      "title": "Średni przychód z jednej rezerwacji",
-      "description": "Łączny przychód podzielony przez liczbę rezerwacji — która klasa zostawia w kasie najwięcej za pojedynczą wizytę.",
+      "title": "Average revenue per reservation",
+      "description": "Total revenue divided by the number of reservations — which class leaves the most money per visit.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 29, "w": 12, "h": 10 },
       "targets": [
@@ -301,8 +301,8 @@
     {
       "id": 6,
       "type": "gauge",
-      "title": "Zajętość doków per port — TERAZ (czerwone: <50% pustka / >97% brak miejsca)",
-      "description": "Bieżąca zajętość doków. Niska (<50%) = puste doki = utracony przychód. Bardzo wysoka (>97%) = brak miejsca na nowe rezerwacje = też utracony przychód i ryzyko overbookingu. Optymalne pasmo 50–90% (zielone). Jeśli 'brak danych' — przebuduj/zrestartuj starport-registry (DockOccupancyObserver).",
+      "title": "Dock occupancy per port — NOW (red: <50% empty / >97% full)",
+      "description": "Current dock occupancy. Low (<50%) = empty docks = lost revenue. Very high (>97%) = no room for new reservations = also lost revenue and overbooking risk. Optimal band 50–90% (green). If 'no data' — rebuild/restart starport-registry (DockOccupancyObserver).",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 39, "w": 24, "h": 12 },
       "targets": [
@@ -322,7 +322,7 @@
           "decimals": 0,
           "min": 0,
           "max": 1,
-          "noValue": "brak danych",
+          "noValue": "no data",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -346,8 +346,8 @@
     {
       "id": 7,
       "type": "table",
-      "title": "Doki zajęte / pojemność — TERAZ",
-      "description": "Surowe liczby pod wskaźnikami: ile doków jest aktualnie zarezerwowanych oraz ile ich jest w sumie. Kolumna 'Obłożenie' to inline gauge.",
+      "title": "Docks occupied / capacity — NOW",
+      "description": "Raw numbers behind the gauges: how many docks are currently reserved and how many exist in total. The 'Occupancy' column is an inline gauge.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 51, "w": 24, "h": 10 },
       "targets": [
@@ -385,9 +385,9 @@
             "indexByName": { "starport": 0, "Value #A": 1, "Value #B": 2, "Value #C": 3 },
             "renameByName": {
               "starport": "Port",
-              "Value #A": "Zajęte",
-              "Value #B": "Pojemność",
-              "Value #C": "Obłożenie"
+              "Value #A": "Occupied",
+              "Value #B": "Capacity",
+              "Value #C": "Occupancy"
             }
           }
         }
@@ -395,11 +395,11 @@
       "fieldConfig": {
         "defaults": {
           "custom": { "align": "center", "displayMode": "auto" },
-          "noValue": "brak danych"
+          "noValue": "no data"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Obłożenie" },
+            "matcher": { "id": "byName", "options": "Occupancy" },
             "properties": [
               { "id": "unit", "value": "percentunit" },
               { "id": "decimals", "value": 0 },
@@ -421,14 +421,14 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Zajęte" },
+            "matcher": { "id": "byName", "options": "Occupied" },
             "properties": [
               { "id": "unit", "value": "none" },
               { "id": "decimals", "value": 0 }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Pojemność" },
+            "matcher": { "id": "byName", "options": "Capacity" },
             "properties": [
               { "id": "unit", "value": "none" },
               { "id": "decimals", "value": 0 }
@@ -438,15 +438,15 @@
       },
       "options": {
         "showHeader": true,
-        "sortBy": [{ "displayName": "Obłożenie", "desc": true }]
+        "sortBy": [{ "displayName": "Occupancy", "desc": true }]
       }
     },
 
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Konwersja rezerwacji — % zakończonych confirmed",
-      "description": "Odsetek prób rezerwacji zakończonych zatwierdzeniem (outcome=confirmed) względem wszystkich prób. Realny KPI biznesowy: spadek = tracimy konwersję — skoreluj z odrzuceniami per klasa powyżej. Przeniesione z wycofanego 'Microservices Fleet Dashboard'.",
+      "title": "Reservation conversion — % confirmed",
+      "description": "Share of reservation attempts that ended in a confirmation (outcome=confirmed) out of all attempts. A real business KPI: a drop = we are losing conversion — correlate with rejections per class above. Moved from the retired 'Microservices Fleet Dashboard'.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 61, "w": 24, "h": 8 },
       "targets": [
@@ -494,7 +494,7 @@
     "time_options": ["1h", "6h", "12h", "24h", "2d", "7d", "30d"]
   },
   "timezone": "browser",
-  "title": "Biznes — Przychody i zajętość doków",
+  "title": "Business — Revenue and dock occupancy",
   "uid": "business-revenue-executive",
   "version": 5,
   "weekStart": ""

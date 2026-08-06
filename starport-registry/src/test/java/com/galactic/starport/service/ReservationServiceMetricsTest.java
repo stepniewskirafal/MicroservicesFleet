@@ -8,11 +8,14 @@ import com.galactic.starport.service.reservationcalculation.ReservationCalculati
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.slf4j.LoggerFactory;
 
 /**
  * Reservation service metrics tests.
@@ -51,6 +54,39 @@ class ReservationServiceMetricsTest {
                 meterRegistry,
                 Tracer.NOOP,
                 starport -> starport);
+    }
+
+    static class LogingEvent implements Observation.Event {
+        private final String name;
+        private final Class<?> source;
+
+        LogingEvent(String name, Class<?> source) {
+            this.name = name;
+            this.source = source;
+        }
+
+        public Class<?> getSource() {
+            return source;
+        }
+
+        @Override
+        public String getName() {
+            return this.name;
+        }
+    }
+
+    static class LoggingObservationHandler implements ObservationHandler<Observation.Context> {
+        @Override
+        public void onEvent(Observation.Event event, Observation.Context context) {
+            if (event instanceof LogingEvent logEvent) {
+                LoggerFactory.getLogger(logEvent.getSource()).info(logEvent.getName());
+            }
+        }
+
+        @Override
+        public boolean supportsContext(Observation.Context context) {
+            return true;
+        }
     }
 
     /*

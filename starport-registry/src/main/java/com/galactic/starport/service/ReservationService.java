@@ -5,7 +5,7 @@ import com.galactic.starport.service.confirmreservation.ReservationConfirmationE
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculation;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
-import com.galactic.starport.service.routeplanner.RouteRejectedException;
+import com.galactic.starport.service.routeplanner.PlannerContractException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import com.galactic.starport.service.validation.ReserveBayValidator;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -61,14 +61,13 @@ public class ReservationService {
             incrementReservationCounter(starport, shipClass, "confirmed");
             return Optional.of(reservation);
 
-        } catch (RouteRejectedException ex) {
-            // Planner deterministically rejected the route (e.g. hazard zone) — a client/domain outcome,
-            // distinct from an unavailable planner. Surfaces as 422.
-            incrementReservationCounter(starport, shipClass, "route_rejected");
-            throw ex;
-
         } catch (RouteUnavailableException ex) {
             incrementReservationCounter(starport, shipClass, "route_unavailable");
+            throw ex;
+
+        } catch (PlannerContractException ex) {
+            // Our contract bug, not the customer's request and not the planner's health (ADR-0040).
+            incrementReservationCounter(starport, shipClass, "planner_contract");
             throw ex;
 
         } catch (ReservationConfirmationException ex) {
@@ -87,7 +86,8 @@ public class ReservationService {
             holdReservationFacade.cancelHold(reservationId);
         } catch (RuntimeException ex) {
             // Best-effort: the @Scheduled HoldReaper reclaims it later. Never mask the original failure.
-            log.error("Failed to compensate orphaned HOLD reservationId={} — reaper will reclaim it", reservationId, ex);
+            log.error(
+                    "Failed to compensate orphaned HOLD reservationId={} — reaper will reclaim it", reservationId, ex);
         }
     }
 

@@ -2,148 +2,71 @@ package com.galactic.starport.service.routeplanner;
 
 import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Primary;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-@Primary
+/**
+ * Domain-facing adapter for the {@link RoutePlanner} port: validation, the "no route wanted"
+ * short-circuit, observability and domain-to-DTO mapping.
+ *
+ * <p>Deliberately carries NO resilience annotations. They live one level down, in
+ * {@link TradeRoutePlannerClient}, so the circuit breaker observes the wire and nothing else —
+ * see the class javadoc there for what that fixes.
+ *
+ * <p>Returns {@code null} when the caller did not ask for a route. That is not an oversight:
+ * {@code Route} is nullable all the way down to the entity ({@code reservation.getRoute()}), and
+ * every consumer already guards with {@code Optional.ofNullable} or an explicit null check.
+ * Making only this one boundary {@code Optional} would move the inconsistency rather than remove
+ * it; doing it properly means threading {@code Optional} through the calculation record, the
+ * confirmation service and the mappers. Tracked in ADR-0039's backlog.
+ */
 @Service
 @Slf4j
 class TradeRoutePlannerHttpAdapter implements RoutePlanner {
 
-    private static final String ROUTE_PLAN_URI = "/api/v1/routes/plan";
     private static final String OBSERVATION_NAME = "reservations.route.plan";
-    private static final String METRIC_ROUTE_PLAN_SUCCESS = "reservations.route.plan.success";
-    private static final String METRIC_ROUTE_PLAN_ERROR = "reservations.route.plan.errors";
     private static final double FUEL_RANGE_SCOUT = 15.0;
     private static final double FUEL_RANGE_FREIGHTER = 25.0;
     private static final double FUEL_RANGE_CRUISER = 40.0;
     private static final double FUEL_RANGE_UNKNOWN = 5.0;
 
-    private final RestClient restClient;
+    private final TradeRoutePlannerClient client;
+    private final TradeRoutePlannerResponseMapper mapper;
     private final ObservationRegistry observationRegistry;
-    private final MeterRegistry meterRegistry;
-    private final Counter routePlanSuccessCounter;
 
     TradeRoutePlannerHttpAdapter(
-            RestClient tradeRoutePlannerRestClient,
-            MeterRegistry meterRegistry,
+            TradeRoutePlannerClient client,
+            TradeRoutePlannerResponseMapper mapper,
             ObservationRegistry observationRegistry) {
-        this.restClient = tradeRoutePlannerRestClient;
+        this.client = client;
+        this.mapper = mapper;
         this.observationRegistry = observationRegistry;
-        this.meterRegistry = meterRegistry;
-        this.routePlanSuccessCounter = Counter.builder(METRIC_ROUTE_PLAN_SUCCESS)
-                .description("Number of successfully planned routes")
-                .register(meterRegistry);
     }
 
     @Override
-    @Retry(name = "trade-route-planner")
-    @CircuitBreaker(name = "trade-route-planner", fallbackMethod = "routeUnavailableFallback")
     public Route calculateRoute(ReserveBayCommand command) {
+        // Both of these run OUTSIDE the resilience proxy on purpose: a null command is our bug,
+        // and "no route requested" never touches the planner. Neither may reach the breaker.
         Objects.requireNonNull(command, "command must not be null");
         if (!command.requestRoute()) {
             return null;
         }
-        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                .lowCardinalityKeyValue("startStarport", Objects.toString(command.startStarportCode(), "unknown"))
-                .lowCardinalityKeyValue("destinationStarport", command.destinationStarportCode())
-                .observe(() -> callTradeRoutePlanner(command));
-    }
 
-    private Route routeUnavailableFallback(ReserveBayCommand command, Throwable t) {
-        // The circuit-breaker fallback fires for EVERY exception, including the ignored domain rejection.
-        // Pass RouteRejectedException through untouched: it must stay a 422 (not become a circuit_open
-        // 409) and must not be logged/counted as an outage.
-        if (t instanceof RouteRejectedException rejected) {
-            throw rejected;
-        }
-        incrementErrorCounter("circuit_open");
-        log.warn(
-                "Circuit breaker open for trade-route-planner, route unavailable: {} -> {}",
-                command.startStarportCode(),
-                command.destinationStarportCode());
-        throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), t);
-    }
-
-    private Route callTradeRoutePlanner(ReserveBayCommand command) {
+        String origin = command.startStarportCode();
+        String destination = command.destinationStarportCode();
         TradeRoutePlannerRequest request = buildRequest(command);
-        try {
-            TradeRoutePlannerResponse response = restClient
-                    .post()
-                    .uri(ROUTE_PLAN_URI)
-                    .body(request)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        // 4xx = DOMAIN rejection: the planner is healthy and deterministically says this
-                        // route can't be planned. Distinct exception so it is NOT retried and does NOT
-                        // count toward the circuit breaker (only infra failures should) — maps to 422.
-                        incrementErrorCounter("domain");
-                        throw new RouteRejectedException(
-                                command.startStarportCode(), command.destinationStarportCode());
-                    })
-                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
-                        // 5xx = infrastructure failure (planner service is down)
-                        incrementErrorCounter("infrastructure");
-                        throw new RouteUnavailableException(
-                                command.startStarportCode(), command.destinationStarportCode());
-                    })
-                    .body(TradeRoutePlannerResponse.class);
 
-            if (response == null) {
-                incrementErrorCounter("empty_response");
-                throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode());
-            }
-
-            routePlanSuccessCounter.increment();
-            log.info(
-                    "Route planned: {} from {} to {} — eta={}h risk={}",
-                    response.routeId(),
-                    command.startStarportCode(),
-                    command.destinationStarportCode(),
-                    response.etaHours(),
-                    response.riskScore());
-
-            return Route.builder()
-                    .routeCode(response.routeId())
-                    .startStarportCode(command.startStarportCode())
-                    .destinationStarportCode(command.destinationStarportCode())
-                    .etaHours(response.etaHours())
-                    .riskScore(response.riskScore())
-                    .isActive(true)
-                    .build();
-
-        } catch (RouteRejectedException | RouteUnavailableException e) {
-            // Domain rejection (4xx) and already-classified infra failure propagate as-is; only genuinely
-            // unexpected errors below are (re)classified as infrastructure.
-            throw e;
-        } catch (Exception e) {
-            incrementErrorCounter("infrastructure");
-            log.error(
-                    "Failed to plan route from {} to {}: {}",
-                    command.startStarportCode(),
-                    command.destinationStarportCode(),
-                    e.getMessage(),
-                    e);
-            throw new RouteUnavailableException(command.startStarportCode(), command.destinationStarportCode(), e);
-        }
-    }
-
-    private void incrementErrorCounter(String errorType) {
-        Counter.builder(METRIC_ROUTE_PLAN_ERROR)
-                .description("Number of failed route planning attempts")
-                .tag("errorType", errorType)
-                .register(meterRegistry)
-                .increment();
+        // The observation wraps the WHOLE operation (every retry attempt plus the mapping), the
+        // resilience proxy wraps only client.plan(). Mapping the DTO here, not in the client, keeps
+        // a mapping bug out of the breaker's window: the planner answered, so as far as the breaker
+        // can tell the dependency is fine — the bug is ours and leaves with its own type.
+        return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
+                .lowCardinalityKeyValue("startStarport", Objects.toString(origin, "unknown"))
+                .lowCardinalityKeyValue("destinationStarport", destination)
+                .observe(() -> mapper.toRoute(client.plan(request, origin, destination), origin, destination));
     }
 
     private TradeRoutePlannerRequest buildRequest(ReserveBayCommand command) {

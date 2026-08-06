@@ -4,7 +4,6 @@ import com.galactic.traderoute.application.PlanRouteService;
 import com.galactic.traderoute.port.in.PlanRouteUseCase;
 import com.galactic.traderoute.port.out.RouteEventPublisher;
 import com.galactic.traderoute.port.out.RouteMetricsPort;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,10 +16,7 @@ import org.springframework.context.annotation.Configuration;
 class RoutePlanningConfig {
 
     @Bean
-    PlanRouteUseCase planRouteService(
-            RouteMetricsPort routeMetricsPort,
-            RouteEventPublisher routeEventPublisher,
-            @Value("${traderoute.hazard.destination-port:}") String hazardDestinationPortId) {
-        return new PlanRouteService(routeMetricsPort, routeEventPublisher, hazardDestinationPortId);
+    PlanRouteUseCase planRouteService(RouteMetricsPort routeMetricsPort, RouteEventPublisher routeEventPublisher) {
+        return new PlanRouteService(routeMetricsPort, routeEventPublisher);
     }
 }

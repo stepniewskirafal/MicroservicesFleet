@@ -25,7 +25,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "## SLO / Error Budget &nbsp;—&nbsp; *czy dotrzymujemy obietnicy?*\n\n**SLO:** 99.5% requestów bez 5xx **i** 99.5% requestów < 500 ms, w oknie **30 dni**. &nbsp;·&nbsp; **Error budget** = 0.5% = ~3.6 h/mies.\n\n> Panele *30d* (górny wiersz) liczą stałe okno 30 dni i **ignorują** time-picker. Wykresy historyczne i burn-rate reagują na zakres czasu. Próg latencji = `le=\"0.5\"` (granica bucketa SLO — patrz `application.yml`)."
+        "content": "## SLO / Error Budget &nbsp;—&nbsp; *are we keeping the promise?*\n\n**SLO:** 99.5% of requests without 5xx **and** 99.5% of requests < 500 ms, over a **30-day** window. &nbsp;·&nbsp; **Error budget** = 0.5% = ~3.6 h/month.\n\n> The *30d* panels (top row) use a fixed 30-day window and **ignore** the time picker. The history and burn-rate charts follow the time range. Latency threshold = `le=\"0.5\"` (SLO bucket boundary — see `application.yml`)."
       }
     },
 
@@ -33,7 +33,7 @@
       "id": 1,
       "type": "stat",
       "title": "Availability SLO — compliance 30d",
-      "description": "Procent requestów HTTP bez błędu serwera (5xx) w ostatnich 30 dniach. Zielony ≥ 99.5% (SLO).",
+      "description": "Percentage of HTTP requests without a server error (5xx) in the last 30 days. Green ≥ 99.5% (SLO).",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 4, "w": 6, "h": 6 },
       "targets": [
@@ -75,7 +75,7 @@
       "id": 2,
       "type": "gauge",
       "title": "Error Budget Remaining 30d",
-      "description": "Ile budżetu błędów (0.5%) jeszcze mamy. (compliance - SLO) / (100 - SLO). Czerwony < 20% — wstrzymaj ryzykowne deploye.",
+      "description": "How much error budget (0.5%) is left. (compliance - SLO) / (100 - SLO). Red < 20% — hold risky deploys.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 6, "y": 4, "w": 6, "h": 6 },
       "targets": [
@@ -115,7 +115,7 @@
       "id": 3,
       "type": "stat",
       "title": "Latency SLO — % < 500ms (30d)",
-      "description": "Procent requestów obsłużonych poniżej 500 ms w 30 dniach (liczony z bucketu le=0.5). Zielony ≥ 99.5%.",
+      "description": "Percentage of requests served under 500 ms in 30 days (computed from the le=0.5 bucket). Green ≥ 99.5%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 4, "w": 6, "h": 6 },
       "targets": [
@@ -157,7 +157,7 @@
       "id": 4,
       "type": "stat",
       "title": "Lost Reservations 30d (business)",
-      "description": "Biznesowy SLI: procent rezerwacji utraconych (no_capacity | route_unavailable) w 30 dniach. Niezależny od $job — metryka globalna. Czerwony > 1%.",
+      "description": "Business SLI: percentage of reservations lost (no_capacity | route_unavailable) in 30 days. Independent of $job — a global metric. Red > 1%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 18, "y": 4, "w": 6, "h": 6 },
       "targets": [
@@ -206,7 +206,7 @@
       "id": 21,
       "type": "timeseries",
       "title": "Availability — success rate (%)",
-      "description": "Bieżący success rate (1 - 5xx ratio). Czerwona linia = SLO 99.5%. Zejście pod nią = palimy error budget.",
+      "description": "Current success rate (1 - 5xx ratio). Red line = SLO 99.5%. Dropping below it = we are burning error budget.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 11, "w": 12, "h": 9 },
       "targets": [
@@ -254,7 +254,7 @@
       "id": 22,
       "type": "timeseries",
       "title": "Latency SLO — % requests < 500ms",
-      "description": "Odsetek requestów szybszych niż 500 ms (bucket le=0.5). Czerwona linia = SLO 99.5%.",
+      "description": "Share of requests faster than 500 ms (bucket le=0.5). Red line = SLO 99.5%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 11, "w": 12, "h": 9 },
       "targets": [
@@ -311,7 +311,7 @@
       "id": 31,
       "type": "timeseries",
       "title": "Error Budget Burn Rate (1h / 6h)",
-      "description": "Burn rate = (error ratio w oknie) / budżet. 1.0 = zużywamy budżet dokładnie w tempie, które wyczerpie go w 30 dni. >1 = palimy za szybko. Klasyczne progi fast-burn: 6 (6h) i 14.4 (1h).",
+      "description": "Burn rate = (error ratio in the window) / budget. 1.0 = we spend the budget exactly at the pace that exhausts it in 30 days. >1 = burning too fast. Classic fast-burn thresholds: 6 (6h) and 14.4 (1h).",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 21, "w": 12, "h": 9 },
       "targets": [
@@ -372,7 +372,7 @@
       "id": 32,
       "type": "table",
       "title": "Top budget consumers — 5xx by service / endpoint (selected range)",
-      "description": "Które endpointy zjadają error budget w wybranym oknie. Suma 5xx (increase) po job+uri, top 10.",
+      "description": "Which endpoints eat the error budget in the selected window. Sum of 5xx (increase) by job+uri, top 10.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 12, "y": 21, "w": 12, "h": 9 },
       "targets": [
@@ -430,7 +430,7 @@
       "gridPos": { "x": 0, "y": 30, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "**Jak czytać** &nbsp;·&nbsp; Górny wiersz = stan na *teraz* (okno 30d). &nbsp;·&nbsp; Gdy *Error Budget Remaining* < 20% → zamrażamy ryzykowne deploye, priorytet na niezawodność. &nbsp;·&nbsp; Burn rate > 1 utrzymujący się = budżet wyczerpie się przed końcem okna.\n\n**Założenia SLO** (do sformalizowania w ADR): availability 99.5% (bez 5xx), latency 99.5% < 500 ms, biznes < 1% utraconych rezerwacji — okno kroczące 30 dni. Próg latencji jest związany z granicą bucketa `le=0.5`; zmiana progu wymaga dodania nowej granicy do `management.metrics.distribution.slo` w `application.yml`."
+        "content": "**How to read** &nbsp;·&nbsp; Top row = state *right now* (30d window). &nbsp;·&nbsp; When *Error Budget Remaining* < 20% → we freeze risky deploys and prioritise reliability. &nbsp;·&nbsp; A sustained burn rate > 1 = the budget runs out before the window ends.\n\n**SLO assumptions** (to be formalised in an ADR): availability 99.5% (no 5xx), latency 99.5% < 500 ms, business < 1% lost reservations — rolling 30-day window. The latency threshold is tied to the `le=0.5` bucket boundary; changing it requires adding a new boundary to `management.metrics.distribution.slo` in `application.yml`."
       }
     }
   ],

@@ -476,7 +476,7 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Circuit Breaker — trade-route-planner",
+      "title": "Dependency State — trade-route-planner",
       "type": "stat",
       "targets": [
         {
@@ -513,7 +513,7 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Circuit Breaker — Failed Calls",
+      "title": "Failed Calls — trade-route-planner",
       "type": "stat",
       "targets": [
         {

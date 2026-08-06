@@ -17,7 +17,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
       "options": {
         "mode": "markdown",
-        "content": "## Success & Error — drill-down\n\n**1.** Wybierz serwis powyżej &nbsp;·&nbsp; **2.** Kliknij kropkę (exemplar) na wykresie &nbsp;·&nbsp; **3.** Trace otworzy się w Tempo &nbsp;·&nbsp; **4.** Klik na span → *Logs for this span* (Loki)"
+        "content": "## Success & Error — drill-down\n\n**1.** Pick a service above &nbsp;·&nbsp; **2.** Click a dot (exemplar) on a chart &nbsp;·&nbsp; **3.** The trace opens in Tempo &nbsp;·&nbsp; **4.** Click a span → *Logs for this span* (Loki)"
       }
     },
     {
@@ -160,7 +160,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Throughput by outcome",
-      "description": "Sukcesy vs błędy. Kropki to exemplars — pojedyncze requesty. Kliknij kropkę, żeby otworzyć trace w Tempo.",
+      "description": "Successes vs errors. The dots are exemplars — individual requests. Click a dot to open the trace in Tempo.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 8, "w": 24, "h": 9 },
       "targets": [
@@ -221,7 +221,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Latency — p50 / p95 / p99",
-      "description": "Percentyle latencji HTTP. Kropki przy linii p99 wskazują konkretny powolny request — kliknij, żeby zobaczyć waterfall w Tempo i znaleźć wąskie gardło.",
+      "description": "HTTP latency percentiles. Dots near the p99 line point to a specific slow request — click one to see the waterfall in Tempo and find the bottleneck.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 17, "w": 24, "h": 9 },
       "targets": [
@@ -298,7 +298,7 @@
       "gridPos": { "x": 0, "y": 26, "w": 24, "h": 3 },
       "options": {
         "mode": "markdown",
-        "content": "**Wskazówka** &nbsp;·&nbsp; Wzrost p99 *bez* wzrostu p50 = długi ogon (zwykle wolna zależność downstream). &nbsp;·&nbsp; Wzrost p50 *i* p99 razem = systemowy load. &nbsp;·&nbsp; Skok `SERVER_ERROR` = backend; skok `CLIENT_ERROR` = walidacja / auth / zły klient."
+        "content": "**Tip** &nbsp;·&nbsp; p99 rising *without* p50 rising = long tail (usually a slow downstream dependency). &nbsp;·&nbsp; p50 *and* p99 rising together = system-wide load. &nbsp;·&nbsp; A `SERVER_ERROR` spike = backend; a `CLIENT_ERROR` spike = validation / auth / bad client."
       }
     }
   ],

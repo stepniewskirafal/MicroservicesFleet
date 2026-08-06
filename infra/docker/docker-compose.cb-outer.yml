@@ -1,0 +1,41 @@
+# =============================================================================
+# OVERLAY cb-outer — odwraca cebulę aspektów NA ŻYWO, bez przebudowy obrazu
+# =============================================================================
+# Dokłada profil `cb-outer` (application-cb-outer.yml) do profilu `demo`, czyli
+# przestawia CircuitBreaker NA ZEWNĄTRZ Retry. Nakłada się na oba poprzednie pliki:
+#
+#   docker compose -f infra/docker/docker-compose.yml \
+#                  -f infra/docker/docker-compose.demo.yml \
+#                  -f infra/docker/docker-compose.cb-outer.yml \
+#                  up -d starport-registry-1 starport-registry-2
+#
+# Powrót do wersji domyślnej (tej, którą prezentujesz jako bazową) — wystarczy
+# pominąć ten plik i podnieść te dwa kontenery ponownie:
+#
+#   docker compose -f infra/docker/docker-compose.yml \
+#                  -f infra/docker/docker-compose.demo.yml \
+#                  up -d starport-registry-1 starport-registry-2
+#
+# CO ZOBACZYSZ NA DASHBOARDZIE (r4j-trade-route) — ZMIERZONE na tym stacku,
+# scenariusz `-Chaos down`, okno 60 s przy otwartym obwodzie:
+#   panel „Wywołania odcięte przez otwarty circuit"
+#       baza (domyślna cebula) ~583 odcięcia   vs   cb-outer ~162   -> słupki wielokrotnie niższe
+#   bo przy retry NA ZEWNĄTRZ każda operacja puka do zamkniętych drzwi dwa razy, nie raz.
+#
+# CZEGO NIE POKAZUJE (też zmierzone — obie wersje tak samo):
+#   czas do otwarcia obwodu (4,1 s vs 4,0 s) oraz licznik porażek po otwarciu (30 vs 26).
+#   Na `-Chaos partial` różnicy NIE MA WCALE: retry odpala się zbyt rzadko (toksyna działa
+#   per połączenie, keep-alive ją rozcieńcza) — przez 90 s wypadł łącznie 1 raz.
+#
+# UWAGA: restart obu replik to ZMIERZONE 41-52 s (up -d wraca po ~8 s, ale repliki
+# potrzebują reszty na healthy) i zerowanie okien breakera. Rób to między scenariuszami,
+# nigdy w trakcie pomiaru.
+# =============================================================================
+services:
+  starport-registry-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo,cb-outer
+
+  starport-registry-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo,cb-outer

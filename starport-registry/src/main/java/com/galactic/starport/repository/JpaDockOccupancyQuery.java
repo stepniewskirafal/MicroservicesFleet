@@ -34,9 +34,7 @@ class JpaDockOccupancyQuery implements DockOccupancyQuery {
                 .getResultList();
         return rows.stream()
                 .map(r -> new DockOccupancySnapshot(
-                        (String) r[0],
-                        ((Number) r[1]).longValue(),
-                        ((Number) r[2]).longValue()))
+                        (String) r[0], ((Number) r[1]).longValue(), ((Number) r[2]).longValue()))
                 .toList();
     }
 }

@@ -13,6 +13,7 @@ global:
 # every panel refresh. See recording.yml for the full set of rules (ADR-0030).
 rule_files:
   - "recording.yml"
+  - "alerts.yml"     # alerty Resilience4j (ADR-0014) — circuit open / failure rate / retry
 
 # Prometheus lives on the Compose network, so we target containers by name +
 # unified internal port (ADR-0031 — host ports removed from app instances).

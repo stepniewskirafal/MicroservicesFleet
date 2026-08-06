@@ -15,8 +15,7 @@ class CreateHoldReservationService implements HoldReservationFacade {
     private final StarportPersistenceFacade persistenceFacade;
     private final ObservationRegistry observationRegistry;
 
-    CreateHoldReservationService(
-            StarportPersistenceFacade persistenceFacade, ObservationRegistry observationRegistry) {
+    CreateHoldReservationService(StarportPersistenceFacade persistenceFacade, ObservationRegistry observationRegistry) {
         this.persistenceFacade = persistenceFacade;
         this.observationRegistry = observationRegistry;
     }

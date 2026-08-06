@@ -7,6 +7,9 @@ import com.galactic.starport.service.InvalidReservationTimeException;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.StarportNotFoundException;
+import com.galactic.starport.service.routeplanner.PlannerContractException;
+import com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException;
+import com.galactic.starport.service.routeplanner.RoutePlanningRejectedException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.time.Instant;
 import java.util.Map;
@@ -71,6 +74,40 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).containsEntry("error", "ROUTE_UNAVAILABLE");
+    }
+
+    @Test
+    void should_return_409_for_domain_rejection() {
+        // Planner answered "no" to this request — client must change the request, not repeat it.
+        ResponseEntity<Map<String, String>> response =
+                handler.handle(new RoutePlanningRejectedException("SP-A", "SP-B", 422));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).containsEntry("error", "ROUTE_UNAVAILABLE");
+    }
+
+    @Test
+    void should_return_503_with_retry_after_for_planner_unavailable() {
+        // Planner did not answer — the request was fine, "come back shortly".
+        ResponseEntity<Map<String, String>> response =
+                handler.handle(new RoutePlannerUnavailableException("SP-A", "SP-B", 503));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("10");
+        assertThat(response.getBody()).containsEntry("error", "ROUTE_PLANNER_UNAVAILABLE");
+    }
+
+    @Test
+    void should_return_502_for_planner_contract_violation() {
+        // A 4xx outside the planner's contract is our bug: not the customer's (no 409), not an
+        // outage (no 503 / Retry-After) — 502 "invalid upstream response". ADR-0040.
+        ResponseEntity<Map<String, String>> response =
+                handler.handle(new PlannerContractException("SP-A", "SP-B", 404, "<html>Not Found</html>"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isNull();
+        assertThat(response.getBody()).containsEntry("error", "ROUTE_PLANNER_CONTRACT");
+        assertThat(response.getBody().get("details")).doesNotContain("<html>");
     }
 
     @Test

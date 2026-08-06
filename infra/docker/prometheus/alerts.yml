@@ -1,0 +1,82 @@
+# =============================================================================
+# Prometheus Alerting Rules — Resilience4j (starport-registry -> trade-route-planner)
+# =============================================================================
+#
+# Pointa talku: "Nigdy więcej odkrywania awarii przez przypadek."
+# Te reguły zamieniają niewidzialną awarię zależności w głośny, czerwony sygnał.
+#
+# UWAGA: w tym stacku NIE ma Alertmanagera — alerty pojawią się w Prometheus UI
+# (Status -> Rules / Alerts) i można je pokazać w Grafanie (Alerting -> Alert rules
+# albo panel z ALERTS{...}). To w zupełności wystarcza na demo. Routing notyfikacji
+# (Slack/PagerDuty) to osobny krok produkcyjny.
+#
+# Labele w tym stacku: serwis = job="starport-registry" (NIE application),
+# replika = instance, circuit = name="trade-route-planner". (prometheus.yml)
+# =============================================================================
+
+groups:
+  - name: starport_registry_resilience4j
+    rules:
+
+      # ── Circuit OTWARTY — zależność realnie odcięta ──────────────────────
+      # state{state="open"} == 1 oznacza, że breaker przestał przepuszczać ruch
+      # i leci fallback. To jest "awaria widoczna w 1 minutę", nie po 3 miesiącach.
+      # `half_open` też: bez max-wait-duration-in-half-open-state breaker po 10 s przechodzi
+      # w HALF_OPEN przy pierwszym wywołaniu i może tam zostać bez końca, gdy ruch ustanie —
+      # sam stan "open" spadłby wtedy do 0 i alert rozwiązałby się, choć zależność nadal leży.
+      - alert: TradeRoutePlannerCircuitOpen
+        expr: max(resilience4j_circuitbreaker_state{job="starport-registry", name="trade-route-planner", state=~"open|half_open"}) == 1
+        for: 20s
+        labels:
+          severity: critical
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Calls to trade-route-planner are cut off"
+          description: "starport-registry has stopped calling trade-route-planner (fallback active). Route planning is degraded."
+
+      # ── Wysoki failure rate — zanim circuit zdąży się otworzyć ──────────
+      # Wczesne ostrzeżenie: 50% to próg otwarcia (failure-rate-threshold),
+      # alarmujemy już od 25%, żeby zobaczyć problem narastający, nie dokonany.
+      - alert: TradeRoutePlannerHighFailureRate
+        expr: max(resilience4j_circuitbreaker_failure_rate{job="starport-registry", name="trade-route-planner"}) >= 25
+        for: 1m
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Elevated failure rate for trade-route-planner ({{ $value | printf \"%.0f\" }}%)"
+          description: "Failure rate exceeded 25% (cut-off threshold: 50%). The dependency is starting to fail."
+
+      # ── Wolne sukcesy — szara strefa (500 ms < t < 800 ms) ─────────────────
+      # Pointa talku: awaria, która zdąża. Bez tej reguły slow_call_rate 40% jest widoczny
+      # tylko temu, kto akurat patrzy na dashboard; próg otwarcia (50%) to za późno na alert.
+      - alert: TradeRoutePlannerSlowCalls
+        expr: max(resilience4j_circuitbreaker_slow_call_rate{job="starport-registry", name="trade-route-planner"}) >= 25
+        for: 2m
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Slow calls to trade-route-planner ({{ $value | printf \"%.0f\" }}% > 500 ms)"
+          description: "At least 25% of planner calls take longer than slow-call-duration-threshold (500 ms). The planner answers correctly but slowly — the cut-off threshold is 50%."
+
+      # ── Licznik, który ma zostać na zerze ───────────────────────────────────
+      # Odsetek nie widzi dwóch błędów dziennie w tysiącach sukcesów; licznik bezwzględny tak.
+      # `empty_response` = planner odpowiedział 2xx bez ciała; `misrouted` = 4xx inne niż
+      # świadoma odmowa 422 ROUTE_REJECTED — nasz serializer, zły URL, kształt naszego DTO (ADR-0040);
+      # `no_instances` = rejestr nie zna plannera, nic nie wysłano — literówka w base-url albo
+      # wszystkie repliki wyrzucone z Eureki (ADR-0042; przy eviction strzela też CircuitOpen).
+      # Zgłoszenie (warning), nie budzik: increase() z godziny, żeby jedno mrugnięcie nie strzelało co 15 s.
+      - alert: TradeRoutePlannerUnexpectedOutcome
+        expr: sum(increase(reservations_route_plan_outcome_total{job="starport-registry", outcome=~"misrouted|empty_response|no_instances"}[1h])) > 0
+        for: 0s
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Unexpected route planning outcome ({{ $value | printf \"%.0f\" }} in the last hour)"
+          description: "An outcome occurred that a healthy system never produces (misrouted / empty_response / no_instances). A rare but certain error — no percentage threshold would catch it."

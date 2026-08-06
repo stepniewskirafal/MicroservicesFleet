@@ -26,7 +26,9 @@ class RestClientConfig {
             RestClientBuilderConfigurer configurer,
             @Value("${downstream.http.connect-timeout-ms:200}") int connectTimeoutMs,
             @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
-        return configurer.configure(RestClient.builder()).requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
+        return configurer
+                .configure(RestClient.builder())
+                .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
     }
 
     /** Plain builder used when discovery is disabled (tests, local dev without Eureka). */
@@ -36,13 +38,31 @@ class RestClientConfig {
             RestClientBuilderConfigurer configurer,
             @Value("${downstream.http.connect-timeout-ms:200}") int connectTimeoutMs,
             @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
-        return configurer.configure(RestClient.builder()).requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
+        return configurer
+                .configure(RestClient.builder())
+                .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
     }
 
+    // The planner client normally rides the @LoadBalanced builder, resolving lb://trade-route-planner
+    // through Eureka. The demo profile flips `app.trade-route-planner.load-balanced=false` to point the
+    // SAME client at a fixed host:port (Toxiproxy) WITHOUT disabling discovery globally — starport must
+    // keep registering with Eureka so the gateway can still route to it. We build a non-LB client from
+    // the configurer (not RestClient.builder()) so Boot's Micrometer customizers still create the client
+    // span + inject `traceparent` (ADR-0017); only the load-balancing interceptor is dropped.
     @Bean
     RestClient tradeRoutePlannerRestClient(
-            @Value("${app.trade-route-planner.base-url}") String baseUrl, RestClient.Builder restClientBuilder) {
-        return restClientBuilder.baseUrl(baseUrl).build();
+            @Value("${app.trade-route-planner.base-url}") String baseUrl,
+            @Value("${app.trade-route-planner.load-balanced:true}") boolean loadBalanced,
+            RestClient.Builder loadBalancedRestClientBuilder,
+            RestClientBuilderConfigurer configurer,
+            @Value("${downstream.http.connect-timeout-ms:200}") int connectTimeoutMs,
+            @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
+        RestClient.Builder builder = loadBalanced
+                ? loadBalancedRestClientBuilder
+                : configurer
+                        .configure(RestClient.builder())
+                        .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
+        return builder.baseUrl(baseUrl).build();
     }
 
     private static SimpleClientHttpRequestFactory requestFactory(int connectTimeoutMs, int readTimeoutMs) {
