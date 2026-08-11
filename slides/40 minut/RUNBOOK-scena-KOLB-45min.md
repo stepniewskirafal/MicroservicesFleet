@@ -971,10 +971,11 @@ kaskada mniejszy-model/cache · „jedyne, co widzi czwarty stan" · druga kotwi
 
 ### 8.6 Szkic slajdu — ✅ WERSJA POPRAWIONA (v5), WDROŻONA W PPTX (2026-08-11)
 
-**Stan: `Działanierównasiędziała_KOLB_v4.pptx` ma już poniższą wersję.** Backup sprzed poprawki:
-`Działanierównasiędziała_KOLB_v4.BACKUP-2026-08-11.pptx`. Zweryfikowane otwarciem przez
-PowerPoint (nie przez LibreOffice — on toleruje pliki, które PowerPoint odrzuca) i eksportem
+**Stan: `Działanierównasiędziała_KOLB_v4.pptx` ma już poniższą wersję.** Zweryfikowane otwarciem
+przez PowerPoint (nie przez LibreOffice — on toleruje pliki, które PowerPoint odrzuca) i eksportem
 slajdu do PNG: tekst mieści się w karcie, kolumna lewa nietknięta.
+Wersja sprzed poprawki: `git show e661f07:"slides/40 minut/Działanierównasiędziała_KOLB_v4.pptx"`
+*(osobnego pliku backup nie trzymamy — historia git to ten backup)*.
 
 ```
    HTTP do serwisu            HTTP do modelu
@@ -1071,7 +1072,7 @@ cięcie**. Zrobione w runbooku:
 - [x] **pptx, slajd 21 (deck #23) poprawiony wg 8.6:** „timeout (te same sekundy, drożsi klienci)"
       → **„DWA timeouty / pierwszy token / cisza w środku"**; „mniejszy model / cache" →
       **„który zostawia ślad"**. Lewa kolumna (HTTP do serwisu) **nietknięta** — jej „timeout"
-      jest poprawny. Backup: `..._v4.BACKUP-2026-08-11.pptx`. Weryfikacja: otwarcie przez
+      jest poprawny. Wersja sprzed poprawki: w historii git (`e661f07`). Weryfikacja: otwarcie przez
       **PowerPoint** + eksport slajdu do PNG (tekst mieści się, brak przepełnienia karty)
 
 **Do zrobienia poza runbookiem (blokujące przed wystąpieniem):**
