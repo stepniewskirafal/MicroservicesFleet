@@ -3,9 +3,10 @@
 Krótkie, gotowe odpowiedzi. Każda osadzona w realnej konfiguracji demo
 (`starport-registry → trade-route-planner`). Format: **pytanie → 1 zdanie pointy → uzasadnienie**.
 
-> **Zgrane z** `RUNBOOK-scena-KOLB-45min.md` (v4) **i** deckiem `Działanierównasiędziała_KOLB_v4.pptx` (slot 21 = „Czwarty stan" (AI); stary slajd SB4 jako rezerwowy za Q&A; v3 zostaje jako backup).
+> **Zgrane z** `RUNBOOK-scena-KOLB-45min.md` (**v5**) **i** deckiem `Działanierównasiędziała_KOLB_v4.pptx` (slot 21 = „Czwarty stan" (AI); stary slajd SB4 jako rezerwowy za Q&A; v3 zostaje jako backup).
 > Tam, gdzie warto pokazać ekran w trakcie odpowiedzi, dopisana jest slajd-kotwica (**→ slajd N**).
 > Głębsze rozwinięcie każdego tematu: `WYKLAD-resilience-mid-java.pdf` (26 stron) — możesz je bez wstydu podać jako follow-up.
+> **Dla sekcji D2 (AI) drugim materiałem jest** `Observability_w_AI_od_juniora_do_seniora.pdf` (37 stron); pełne zaplecze merytoryczne: **runbook, sekcja 9**.
 >
 > **Zasada nadrzędna na Q&A:** jeśli ktoś przed slajdem 24 zapyta „a zdarzyło się to Panu?" — **NIE odpowiadaj** (pyt. 18).
 
@@ -118,11 +119,25 @@ W Spring Framework 7 `maxAttempts` liczy **wyłącznie ponowienia**; pierwsze wy
 
 ## D2. AI / „Czwarty stan" — po slajdzie 21
 
-### 13b. „To jak się bronić przed halucynacją?"
-**Dziś: ręczna metryka jakości i human-in-the-loop. Systemowo — to temat osobnego talku.**
-Wszystko, co pokazały dzisiejsze dashboardy — failure rate, latencja, stan obwodu — patrzy na transport, a halucynacja przychodzi w poprawnym transporcie: 200 OK, szybko, zero błędów. Kierunek obrony widzieliście na slajdzie 18: jedyny licznik pisany ręcznie (`outcome`) istnieje, bo metryka, która ma znaczyć „dobrze", musi być **domenowa**, nie infrastrukturalna — dla modelu to walidacja odpowiedzi względem reguł domeny plus człowiek w pętli tam, gdzie decyzja jest kosztowna. Nie obiecuj więcej: „jak to zrobić systemowo — evale, sędziowie, monitoring jakości — to materiał na osobną prezentację". *(→ slajd 21)*
+> **Zasada tej sekcji:** slajd 21 świadomie **nie odpowiada** na czerwone `???` — i to jest
+> uczciwe, nie wykrętne. Tu masz odpowiedzi na poziomie, na który sala zasługuje w Q&A, plus trzy
+> rzeczy, których **nie wolno** powiedzieć ze sceny (429 ≠ 503 · semconv · kaskada fallbacku),
+> a które w rozmowie po talku są największą wartością. Nie licytuj się na głębokość: jeśli wątek
+> ciągnie się dłużej niż dwa pytania, przekieruj na drugi PDF i rozmowę po sesji.
 
-**Gdyby ktoś dopytał: „skoro OTel standaryzuje GenAI, to po co ręczny licznik?"** — `gen_ai.*` standaryzuje **transport**: tokeny, model, latencję, błędy. Prawdziwości treści tam nie ma — czwarty stan w `gen_ai.client.*` pozostaje niewidzialny. Standard porządkuje to, co dziś widzieliście na wykresach; metrykę domenową nadal piszesz sam.
+### 13b. „To jak się bronić przed halucynacją?"
+**Warstwami — od darmowych do drogich. Warstwę darmową mam w repo; drogiej jeszcze nie zbudowałem.**
+Wszystko, co pokazały dzisiejsze dashboardy — failure rate, latencja, stan obwodu — patrzy na transport, a halucynacja przychodzi w poprawnym transporcie: 200 OK, szybko, zero błędów. Kierunek obrony widzieliście na slajdzie 18: jedyny licznik pisany ręcznie (`outcome`) istnieje, bo metryka, która ma znaczyć „dobrze", musi być **domenowa**, nie infrastrukturalna. Kolejność wdrażania jest odwrotna do intuicji — **zaczynasz od tego, co nic nie kosztuje**:
+1. **strukturalna** — walidacja schematu, `finish_reason`, obecność wymaganych pól *(koszt zero, wąska, ale wysoce wiarygodna)*;
+2. **domenowa** — odpowiedź musi wskazać byt, który **istnieje w Twojej bazie** *(koszt zero; u mnie robi to `StarportCodeAllowlist`, a `telemetry-pipeline` ma na to gotową architekturę: `ValidationFilter` → `AnomalyDetectionFilter`)*;
+3. **sygnały od użytkownika** — regeneracja odpowiedzi, porzucenie sesji, eskalacja do człowieka *(koszt zero i koreluje z niezadowoleniem lepiej niż większość heurystyk)*;
+4. dopiero potem **LLM-as-judge** — asynchronicznie, na próbce 1–5%, z przypiętą wersją modelu i promptu sędziego.
+
+Nie obiecuj więcej: „jak to zrobić systemowo — evale, sędziowie, monitoring jakości — to materiał na osobną prezentację". *(→ slajd 21)*
+
+**Jedno zastrzeżenie, które warto powiedzieć samemu, zanim ktoś je wyciągnie:** licznik `outcome` liczy to, co **kod potrafi rozstrzygnąć**. Ocena jakości modelu wymaga **oracle'a** — czegoś, co wie, jak brzmi dobra odpowiedź. To jest realna luka, nie retoryczna.
+
+**Gdyby ktoś dopytał: „skoro OTel standaryzuje GenAI, to po co ręczny licznik?"** — bo standard porządkuje **transport** (tokeny, model, latencja, błędy), a ocenę jakości dopiero zaczyna obejmować — atrybuty na wynik ewaluacji już się w konwencjach pojawiły. **I tak zostawia Tobie decyzję, co znaczy „dobrze" w Twojej domenie** — tej jednej rzeczy żaden standard nie zdejmie, bo nie zna Twojego biznesu. *(Nie mów „prawdziwości treści tam nie ma" — to zdanie ma datę ważności liczoną w miesiącach; patrz 13g.)*
 
 ---
 
@@ -140,7 +155,49 @@ Modele woła się streamingiem, a generacja legalnie trwa dziesiątki sekund —
 
 ### 13e. „Spring AI ma przecież retry wbudowane. Po co mi ta wiedza?"
 **Właśnie po to — sprawdź defaulty, zanim zapłacisz za nie tokenami.**
-Spring AI 1.0 ponawia domyślnie z `maxAttempts = 10` i backoffem od 2 s do 3 minut (`spring.ai.retry.*`) — dziesięć płatnych prób bez jednej świadomej decyzji; to pułapka z pyt. 12 w wersji z rachunkiem. Do tego ponowienie modelu może zwrócić **inną odpowiedź** — idempotencja znaczy tu mniej niż przy plannerze. Recepta ta sama co dziś: własny `max-attempts`, budżet na ponowienia i licznik prób na dashboardzie. *(Przed talkiem sprawdź defaulty w używanej wersji Spring AI — mogły się zmienić.)*
+Spring AI 1.0 ponawia domyślnie z `maxAttempts = 10` i backoffem od 2 s do 3 minut (`spring.ai.retry.*`) — dziesięć płatnych prób bez jednej świadomej decyzji; to pułapka z pyt. 12 w wersji z rachunkiem. Do tego ponowienie modelu może zwrócić **inną odpowiedź** — idempotencja znaczy tu mniej niż przy plannerze: retry przestaje być drugą próbą tego samego, a staje się **losowaniem**. Recepta ta sama co dziś: własny `max-attempts`, budżet na ponowienia i licznik prób na dashboardzie. *(Przed talkiem sprawdź defaulty w używanej wersji Spring AI — mogły się zmienić.)*
+
+---
+
+### 13f. „Po co mi Resilience4j, skoro idziemy w AI?" — **najważniejsze pytanie tej sekcji**
+**Bo wywołanie modelu to najdroższa i najmniej przewidywalna zdalna zależność, jaką dziś macie w systemie.**
+Wszystko, co zobaczyliście, jest warstwą pod spodem: timeout, ponowienie, odcięcie, tryb awaryjny, metryka wyniku. Zmienia się jedna rzecz — **liczby**. I dochodzi jedna nowa — to, że odpowiedź może być nieprawdziwa. Jeśli ktoś chce dowodu, że to nie jest naciągane pod temat: materiał o observability w AI ma osobny rozdział o Resilience4j, w którym **pułapka nr 5 to dokładnie kolejność aspektów ze slajdu jedenastego** — ta sama cebula, ten sam skutek dla znaczenia metryk. Nie musiałem tego dopasowywać; to po prostu ta sama warstwa. *(→ slajd 21; drugi PDF)*
+
+---
+
+### 13g. „Skoro OpenTelemetry standaryzuje GenAI, to problem sam się rozwiąże?"
+**Nie — standaryzuje transport, nie prawdę. I sam jeszcze nie jest stabilny.**
+Stan faktyczny, warto go znać przed decyzją architektoniczną: **nic specyficznego dla GenAI nie ma dziś statusu Stable**, konwencje zostały wydzielone do osobnego repozytorium (`semantic-conventions-genai`) bez wersjonowanych wydań, a nazwy atrybutów zmieniają się między rewizjami — `gen_ai.system` stało się `gen_ai.provider.name`, `prompt_tokens` → `input_tokens`. Praktyczna konsekwencja: **biblioteki w jednej instalacji potrafią emitować oba pokolenia naraz** — jeden filtr w PromQL i połowa ruchu znika z panelu, co wygląda jak awaria, a jest dwiema nazwami tego samego. Przypnij wersje instrumentacji i czytaj changelogi. Standard porządkuje to, co widzieliście na wykresach; **co znaczy „dobrze" w Waszej domenie, i tak definiujecie sami**.
+
+---
+
+### 13h. „429 to przecież to samo co Wasze 503 — mogę wrzucić do tej samej listy?"
+**Nie. To jest pułapka — i to dokładnie ta, przed którą ostrzegałem na slajdzie dwunastym.**
+503 znaczy „**on** jest chory — odetnij go". 429 znaczy „**on jest w idealnym stanie** — to ja przesadziłem". Wrzucicie 429 do `record-exceptions`, a bezpiecznik odetnie zdrową zależność — czyli powtórzycie mój błąd z NPE, tylko drożej. Miejsce 429 to `ignore-exceptions` **plus** backoff wynikający z nagłówka `Retry-After` (sekundy–minuty, nie moje 100 ms), a systemowo — limiter po Waszej stronie, żeby w ogóle tam nie dojechać. To jest ta rodzina wzorców, której dziś nie pokazałem. *(→ slajdy 12-bis i 16)*
+
+---
+
+### 13i. „To bezpiecznik ochroni mnie przed rachunkiem?"
+**Nie. Bezpiecznik chroni przed przepalaniem NA AWARII. Przed przepalaniem NA SUKCESIE chroni limiter.**
+Bezpiecznik wyzwala się na **porażkach** — pętla, która w stu procentach się udaje i przepala dwa miliony tokenów, **nie otworzy go nigdy**. To rozróżnienie warto mieć w głowie, zanim ktoś sprzeda Wam CB jako mechanizm kosztowy. Od pieniędzy są trzy inne rzeczy: budżet tokenów jako osobna metryka (wejście i wyjście liczone **oddzielnie**, bo mają różne stawki), limit po własnej stronie i alert na **koszt godzinowy**, nie na stan komponentu. I jedno przełożenie na dziś: liczba, która interesuje biznes, to nie „ile wydaliśmy", tylko **koszt jednej jednostki wartości** — u mnie byłby to koszt jednej zaplanowanej trasy. To dokładnie ten drugi rząd dashboardu ze slajdu 17, tylko z walutą. *(→ slajd 17)*
+
+---
+
+### 13j. „Ile etykiet mogę dołożyć do metryk modelu?"
+**Mniej, niż się wydaje — bo liczba serii to iloczyn, nie suma.**
+Cztery modele × trzy środowiska × dwanaście kubełków histogramu to już setki serii; dołóżcie `user_id` i zabijacie Prometheusa w tydzień — a wygląda to jak awaria infrastruktury, nie jak błąd w kodzie aplikacji. Podział jest ten sam co w pyt. 16, tylko stawka wyższa, bo kusi więcej wymiarów naraz: **do metryki** — model, dostawca, operacja, `feature`, wersja promptu, klasa błędu; **do trace'a** — identyfikatory konwersacji i użytkownika, liczby tokenów pojedynczego żądania; **do logu albo eventu** — treść. Plus dwa bezpieczniki w kodzie od pierwszego dnia: `MeterFilter.ignoreTags(...)` na to, co ktoś dołoży przez nieuwagę, i `maximumAllowableTags(..., deny())`, żeby nadmiar był **odrzucany zamiast zabijać klaster**. I test przed wdrożeniem, nie po: `topk(20, count by (__name__)({__name__=~".+"}))` na środowisku z realistycznym ruchem. *(→ pyt. 16)*
+
+---
+
+### 13k. „Czy AI zrobi observability za mnie?" — *(pytanie odwrotne: modele PO stronie narzędzi)*
+**Częściowo — i nie tam, gdzie obiecują.**
+Działa dobrze: wykrywanie anomalii w szeregach czasowych *(istnieje długo przed LLM-ami i ich nie wymaga)*, grupowanie podobnych błędów w logach, pisanie PromQL i LogQL z opisu po ludzku, streszczanie przebiegu incydentu z rozproszonych źródeł. Działa gorzej, niż obiecują materiały marketingowe: **automatyczne ustalanie przyczyny źródłowej** — model wskaże, co zmieniło się *razem* z awarią, ale korelacja nie jest przyczyną, a systemy rozproszone są pełne zmian współbieżnych. Generator hipotez, nie wyrocznia. I rekurencja, którą warto rzucić na koniec: **asystent do analizy incydentów sam ma koszt, latencję i tryby awarii — a taki, który jest niedostępny podczas incydentu, jest ozdobą, nie narzędziem.**
+
+---
+
+### 13l. „A prywatność? Prompty w logach?" — *(jeśli padnie; częściej pada po talku niż na sali)*
+**Domyślnie wyłączone i to jedyne rozsądne ustawienie domyślne.**
+Użytkownik potrafi wkleić do czatu PESEL, dane medyczne albo fragment umowy pod NDA — a stamtąd tekst leci do Loki, jest replikowany, backupowany i przeszukiwalny przez każdego, kto ma dostęp do Grafany. Wzorce, które godzą debugowanie z prywatnością, w kolejności sensowności: **metadane zamiast treści** (długość, hash, wersja szablonu — wystarcza w ~80% diagnostyki) · osobny kanał z krótką retencją i własnym RBAC · próbkowanie z opt-inem · flaga włączana na czas incydentu i automatycznie gasnąca. I jedno rozróżnienie architektoniczne, które warto znać: **observability to nie audyt** — systemy observability są z założenia stratne (sampling, retencja, brak niezmienności), a audyt wymaga dokładnie odwrotnych własności. Wrzucenie wszystkiego do Loki i nazwanie tego audytem to jeden z najczęstszych błędów w tym obszarze.
 
 ---
 
@@ -203,3 +260,18 @@ Mesh świetnie robi retry, timeout i outlier detection bez dotykania kodu — al
 | Kolejność aspektów | CircuitBreaker **1** (zewnętrzny) · Retry **2** (wewnętrzny) |
 | Kontrakt HTTP | 409 odmowa · 503 + `Retry-After: 10` niedostępność · 500 nasz bug |
 | Alert | `for: 30s` → realnie FIRING po ~60–90 s |
+
+## Szybkie liczby pod ręką — sekcja AI (D2)
+
+| Co | Wartość / zasada |
+|---|---|
+| Timeouty przy modelu | **dwa**: time-to-first-token + idle między tokenami. 800 ms = 100% timeoutów |
+| 429 | **`ignore-exceptions`**, nigdy `record-exceptions`; backoff z nagłówka `Retry-After` |
+| Retry Spring AI (default) | `maxAttempts = 10`, backoff 2 s → 3 min — **sprawdź w swojej wersji** |
+| Sędzia-model (LLM-as-judge) | asynchronicznie, próbka **1–5%**, przypięta wersja modelu i promptu |
+| Kubełki histogramu w semconv | kończą się na **10 s** — przy dłuższych generacjach własne SLO |
+| Nazwy w Prometheusie | `gen_ai.client.operation` → `gen_ai_client_operation_seconds_*` · `gen_ai.client.token.usage` → `..._total` |
+| Pułapka nazw | `_active_count` (trwające) ≠ `_count` (zakończone) |
+| Dwa pokolenia atrybutów | `gen_ai.system` → `gen_ai.provider.name` · `prompt_tokens` → `input_tokens` |
+| Status semconv GenAI | **nic nie jest Stable**; osobne repo, brak wersjonowanych wydań |
+| Detektor cichej podmiany modelu | alert na nową wartość `gen_ai_response_model` — kilka linijek, wykrywa klasę problemów |
