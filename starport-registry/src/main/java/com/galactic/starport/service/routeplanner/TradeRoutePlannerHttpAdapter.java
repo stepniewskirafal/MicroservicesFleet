@@ -34,10 +34,15 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
     private static final double FUEL_RANGE_UNKNOWN = 5.0;
 
     private final TradeRoutePlannerClient client;
+    private final TradeRoutePlannerResponseMapper mapper;
     private final ObservationRegistry observationRegistry;
 
-    TradeRoutePlannerHttpAdapter(TradeRoutePlannerClient client, ObservationRegistry observationRegistry) {
+    TradeRoutePlannerHttpAdapter(
+            TradeRoutePlannerClient client,
+            TradeRoutePlannerResponseMapper mapper,
+            ObservationRegistry observationRegistry) {
         this.client = client;
+        this.mapper = mapper;
         this.observationRegistry = observationRegistry;
     }
 
@@ -54,10 +59,14 @@ class TradeRoutePlannerHttpAdapter implements RoutePlanner {
         String destination = command.destinationStarportCode();
         TradeRoutePlannerRequest request = buildRequest(command);
 
+        // The observation wraps the WHOLE operation (every retry attempt plus the mapping), the
+        // resilience proxy wraps only client.plan(). Mapping the DTO here, not in the client, keeps
+        // a mapping bug out of the breaker's window: the planner answered, so as far as the breaker
+        // can tell the dependency is fine — the bug is ours and leaves with its own type.
         return Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
                 .lowCardinalityKeyValue("startStarport", Objects.toString(origin, "unknown"))
                 .lowCardinalityKeyValue("destinationStarport", destination)
-                .observe(() -> client.plan(request, origin, destination));
+                .observe(() -> mapper.toRoute(client.plan(request, origin, destination), origin, destination));
     }
 
     private TradeRoutePlannerRequest buildRequest(ReserveBayCommand command) {
