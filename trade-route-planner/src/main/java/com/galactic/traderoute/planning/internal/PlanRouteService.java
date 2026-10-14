@@ -1,20 +1,23 @@
-package com.galactic.traderoute.application;
+package com.galactic.traderoute.planning.internal;
 
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RoutePlannedEvent;
-import com.galactic.traderoute.domain.model.RouteRejectionException;
-import com.galactic.traderoute.domain.model.RouteRequest;
-import com.galactic.traderoute.port.in.PlanRouteUseCase;
-import com.galactic.traderoute.port.out.RouteEventPublisher;
-import com.galactic.traderoute.port.out.RouteMetricsPort;
+import com.galactic.traderoute.planning.PlanRouteUseCase;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteEventPublisher;
+import com.galactic.traderoute.planning.RoutePlannedEvent;
+import com.galactic.traderoute.planning.RouteRejectionException;
+import com.galactic.traderoute.planning.RouteRequest;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 @Slf4j
-public class PlanRouteService implements PlanRouteUseCase {
+@Service
+class PlanRouteService implements PlanRouteUseCase {
 
     private static final double MIN_FUEL_RANGE_LY = 1.0;
     private static final String REJECTION_INSUFFICIENT_RANGE = "INSUFFICIENT_RANGE";
@@ -31,7 +34,7 @@ public class PlanRouteService implements PlanRouteUseCase {
 
     private static final String REJECTION_HAZARD_ZONE = "HAZARD_ZONE";
 
-    private final RouteMetricsPort metrics;
+    private final RouteMetrics metrics;
     private final RouteEventPublisher routeEventPublisher;
 
     /**
@@ -42,12 +45,15 @@ public class PlanRouteService implements PlanRouteUseCase {
      */
     private final String hazardDestinationPortId;
 
-    public PlanRouteService(RouteMetricsPort metrics, RouteEventPublisher routeEventPublisher) {
+    PlanRouteService(RouteMetrics metrics, RouteEventPublisher routeEventPublisher) {
         this(metrics, routeEventPublisher, null);
     }
 
-    public PlanRouteService(
-            RouteMetricsPort metrics, RouteEventPublisher routeEventPublisher, String hazardDestinationPortId) {
+    @Autowired
+    PlanRouteService(
+            RouteMetrics metrics,
+            RouteEventPublisher routeEventPublisher,
+            @Value("${traderoute.hazard.destination-port:}") String hazardDestinationPortId) {
         this.metrics = metrics;
         this.routeEventPublisher = routeEventPublisher;
         this.hazardDestinationPortId = hazardDestinationPortId;
@@ -116,9 +122,8 @@ public class PlanRouteService implements PlanRouteUseCase {
         // previous dice-roll. Symmetric: A→B and B→A share a corridor, so they share a hazard rating.
         String origin = request.originPortId().trim().toUpperCase();
         String destination = request.destinationPortId().trim().toUpperCase();
-        String corridor = origin.compareTo(destination) <= 0
-                ? origin + "::" + destination
-                : destination + "::" + origin;
+        String corridor =
+                origin.compareTo(destination) <= 0 ? origin + "::" + destination : destination + "::" + origin;
         // Fold the stable String hash into a uniform value in [0.0, 1.0).
         int bucket = Math.floorMod(corridor.hashCode(), RISK_BUCKETS);
         return (double) bucket / RISK_BUCKETS;

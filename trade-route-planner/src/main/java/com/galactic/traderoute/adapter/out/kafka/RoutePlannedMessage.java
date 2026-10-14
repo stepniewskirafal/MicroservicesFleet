@@ -1,6 +1,6 @@
 package com.galactic.traderoute.adapter.out.kafka;
 
-import com.galactic.traderoute.domain.model.RoutePlannedEvent;
+import com.galactic.traderoute.planning.RoutePlannedEvent;
 import java.time.Instant;
 
 /**

@@ -1,12 +1,11 @@
-package com.galactic.traderoute.application;
+package com.galactic.traderoute.planning.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRejectionException;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRejectionException;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -24,8 +23,8 @@ class PlanRouteServiceTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        service = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {});
+        service =
+                new PlanRouteService(new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), event -> {});
     }
 
     @Test
@@ -75,7 +74,7 @@ class PlanRouteServiceTest {
         // Hazard destination configured → planner rejects with ROUTE_REJECTED/HAZARD_ZONE (422),
         // so the error surfaces INSIDE the planner span in the trace.
         PlanRouteService hazardAware = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
+                new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
 
         assertThatThrownBy(() -> hazardAware.planRoute(aRequest("SP-A", "MUSTAF", "SCOUT", 15.0)))
                 .isInstanceOf(RouteRejectionException.class)
@@ -88,7 +87,7 @@ class PlanRouteServiceTest {
     @Test
     void should_not_reject_non_hazard_destination_when_hazard_configured() {
         PlanRouteService hazardAware = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
+                new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), event -> {}, "MUSTAF");
 
         PlannedRoute route = hazardAware.planRoute(aRequest("SP-A", "TATOO", "SCOUT", 15.0));
 

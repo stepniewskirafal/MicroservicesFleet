@@ -1,7 +1,6 @@
-package com.galactic.traderoute.application;
+package com.galactic.traderoute.planning.internal;
 
-import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.tck.TestObservationRegistry;
 import io.micrometer.observation.tck.TestObservationRegistryAssert;
@@ -25,7 +24,7 @@ class PlanRouteServiceObservabilityTest {
     void setUp() {
         observationRegistry = TestObservationRegistry.create();
         service = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(new SimpleMeterRegistry(), observationRegistry), event -> {});
+                new MicrometerRouteMetrics(new SimpleMeterRegistry(), observationRegistry), event -> {});
     }
 
     @Test

@@ -1,7 +1,7 @@
-package com.galactic.traderoute.port.out;
+package com.galactic.traderoute.planning.internal;
 
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRequest;
 import java.util.function.Supplier;
 
 /**
@@ -9,7 +9,7 @@ import java.util.function.Supplier;
  * the application core: the core states WHAT happened — a route was planned or rejected — and the
  * adapter decides HOW it is measured.
  */
-public interface RouteMetricsPort {
+public interface RouteMetrics {
 
     /** Observe a planning attempt (span + timer), tagged with the request's routing context. */
     PlannedRoute observePlan(RouteRequest request, Supplier<PlannedRoute> planning);

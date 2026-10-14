@@ -1,7 +1,7 @@
 package com.galactic.traderoute.contract;
 
 import com.galactic.traderoute.TradeRoutePlannerApplication;
-import com.galactic.traderoute.port.out.RouteEventPublisher;
+import com.galactic.traderoute.planning.RouteEventPublisher;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;

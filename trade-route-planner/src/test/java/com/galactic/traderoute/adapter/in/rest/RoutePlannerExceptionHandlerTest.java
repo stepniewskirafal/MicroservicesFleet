@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
-import com.galactic.traderoute.domain.model.RouteRejectionException;
-import com.galactic.traderoute.port.in.PlanRouteUseCase;
+import com.galactic.traderoute.planning.PlanRouteUseCase;
+import com.galactic.traderoute.planning.RouteRejectionException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;

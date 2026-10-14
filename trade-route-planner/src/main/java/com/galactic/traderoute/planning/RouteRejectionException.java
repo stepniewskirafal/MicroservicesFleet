@@ -1,4 +1,4 @@
-package com.galactic.traderoute.domain.model;
+package com.galactic.traderoute.planning;
 
 public class RouteRejectionException extends RuntimeException {
 

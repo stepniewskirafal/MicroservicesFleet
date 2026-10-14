@@ -1,7 +1,7 @@
 package com.galactic.traderoute.adapter.out.kafka;
 
-import com.galactic.traderoute.domain.model.RoutePlannedEvent;
-import com.galactic.traderoute.port.out.RouteEventPublisher;
+import com.galactic.traderoute.planning.RouteEventPublisher;
+import com.galactic.traderoute.planning.RoutePlannedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
