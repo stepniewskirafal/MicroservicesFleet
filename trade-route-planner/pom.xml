@@ -21,7 +21,9 @@
         <!-- 1.4.x is the Spring Boot 3.5 line (2.x requires Boot 4) -->
         <spring-modulith.version>1.4.13</spring-modulith.version>
         <pitest.version>1.16.1</pitest.version>
-        <pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
+        <!-- 1.2.1 bundles a junit-platform-launcher older than the Boot-3.5-managed platform 1.12 —
+             the coverage minion dies with "OutputDirectoryProvider not available" (UNKNOWN_ERROR). -->
+        <pitest-junit5-plugin.version>1.2.3</pitest-junit5-plugin.version>
         <spring-cloud-contract.version>4.2.1</spring-cloud-contract.version>
     </properties>
 
@@ -242,6 +244,20 @@
                     <targetTests>
                         <param>com.galactic.traderoute.*</param>
                     </targetTests>
+                    <!-- PIT's coverage minion must only run fast tests: the Testcontainers/full-context
+                         suites (acceptance/integration/contract) crash it with UNKNOWN_ERROR, and
+                         ModularityTest adds nothing to mutation coverage. -->
+                    <excludedTestClasses>
+                        <param>com.galactic.traderoute.acceptance.*</param>
+                        <param>com.galactic.traderoute.integration.*</param>
+                        <param>com.galactic.traderoute.contract.*</param>
+                        <param>com.galactic.traderoute.ModularityTest</param>
+                    </excludedTestClasses>
+                    <!-- junit-platform.properties enables concurrent execution; keep minion runs
+                         serial so per-test coverage attribution stays deterministic. -->
+                    <jvmArgs>
+                        <jvmArg>-Djunit.jupiter.execution.parallel.enabled=false</jvmArg>
+                    </jvmArgs>
                     <mutators>
                         <mutator>DEFAULTS</mutator>
                         <mutator>REMOVE_CONDITIONALS</mutator>

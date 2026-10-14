@@ -50,3 +50,6 @@ Thumbs.db
 # Local backup copies of docs — history is the backup
 *.bak
 *.v2.bak.md
+
+# Cygwin/git-bash crash dumps
+*.stackdump
