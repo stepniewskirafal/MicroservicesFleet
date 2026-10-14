@@ -1,4 +1,4 @@
-package com.galactic.traderoute.config;
+package com.galactic.traderoute.observability;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender;

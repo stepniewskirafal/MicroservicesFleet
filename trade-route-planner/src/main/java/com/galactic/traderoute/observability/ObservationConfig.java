@@ -1,4 +1,4 @@
-package com.galactic.traderoute.adapter.in.rest;
+package com.galactic.traderoute.observability;
 
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.aop.ObservedAspect;
