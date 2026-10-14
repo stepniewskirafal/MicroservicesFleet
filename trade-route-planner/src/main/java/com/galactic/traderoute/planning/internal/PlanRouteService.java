@@ -2,7 +2,6 @@ package com.galactic.traderoute.planning.internal;
 
 import com.galactic.traderoute.planning.PlanRouteUseCase;
 import com.galactic.traderoute.planning.PlannedRoute;
-import com.galactic.traderoute.planning.RouteEventPublisher;
 import com.galactic.traderoute.planning.RoutePlannedEvent;
 import com.galactic.traderoute.planning.RouteRejectionException;
 import com.galactic.traderoute.planning.RouteRequest;
@@ -13,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -35,7 +35,7 @@ class PlanRouteService implements PlanRouteUseCase {
     private static final String REJECTION_HAZARD_ZONE = "HAZARD_ZONE";
 
     private final RouteMetrics metrics;
-    private final RouteEventPublisher routeEventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Optional destination port that is treated as an interdicted hazard zone: any route INTO it is
@@ -45,17 +45,17 @@ class PlanRouteService implements PlanRouteUseCase {
      */
     private final String hazardDestinationPortId;
 
-    PlanRouteService(RouteMetrics metrics, RouteEventPublisher routeEventPublisher) {
-        this(metrics, routeEventPublisher, null);
+    PlanRouteService(RouteMetrics metrics, ApplicationEventPublisher eventPublisher) {
+        this(metrics, eventPublisher, null);
     }
 
     @Autowired
     PlanRouteService(
             RouteMetrics metrics,
-            RouteEventPublisher routeEventPublisher,
+            ApplicationEventPublisher eventPublisher,
             @Value("${traderoute.hazard.destination-port:}") String hazardDestinationPortId) {
         this.metrics = metrics;
-        this.routeEventPublisher = routeEventPublisher;
+        this.eventPublisher = eventPublisher;
         this.hazardDestinationPortId = hazardDestinationPortId;
     }
 
@@ -90,7 +90,8 @@ class PlanRouteService implements PlanRouteUseCase {
             // once its RoutePlannedEvent is on the wire. Recording metrics first over-counts
             // routes.planned.count (and the ETA/risk summaries) whenever publishing fails. On failure
             // we record routes.publish.failed and propagate (no outbox here yet — the event is lost),
-            // so recordPlanned() never runs and the success counter is not inflated.
+            // so recordPlanned() never runs and the success counter is not inflated. The publishing
+            // module's listener is synchronous, so its failure surfaces right here in this try.
             try {
                 metrics.observeStep(STEP_PUBLISH, () -> publishRouteEvent(request, result));
             } catch (RuntimeException ex) {
@@ -138,7 +139,7 @@ class PlanRouteService implements PlanRouteUseCase {
     }
 
     private void publishRouteEvent(RouteRequest request, PlannedRoute route) {
-        routeEventPublisher.publish(RoutePlannedEvent.builder()
+        eventPublisher.publishEvent(RoutePlannedEvent.builder()
                 .routeId(route.routeId())
                 .originPortId(request.originPortId())
                 .destinationPortId(request.destinationPortId())

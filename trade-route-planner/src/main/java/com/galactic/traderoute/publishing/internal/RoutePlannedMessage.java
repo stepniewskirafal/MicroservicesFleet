@@ -1,4 +1,4 @@
-package com.galactic.traderoute.adapter.out.kafka;
+package com.galactic.traderoute.publishing.internal;
 
 import com.galactic.traderoute.planning.RoutePlannedEvent;
 import java.time.Instant;

@@ -3,10 +3,10 @@ package com.galactic.traderoute.planning.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
 import com.galactic.traderoute.planning.PlannedRoute;
 import com.galactic.traderoute.planning.RoutePlannedEvent;
 import com.galactic.traderoute.planning.RouteRequest;
+import com.galactic.traderoute.publishing.EventPublishingException;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -33,7 +33,8 @@ class PlanRouteServiceEventPublishingTest {
         meterRegistry = new SimpleMeterRegistry();
         publishedEvents = new ArrayList<>();
         service = new PlanRouteService(
-                new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), publishedEvents::add);
+                new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP),
+                event -> publishedEvents.add((RoutePlannedEvent) event));
     }
 
     @Test

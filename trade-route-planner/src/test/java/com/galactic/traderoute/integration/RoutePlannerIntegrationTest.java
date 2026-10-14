@@ -1,13 +1,15 @@
 package com.galactic.traderoute.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.galactic.traderoute.planning.RouteEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -16,6 +18,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -43,10 +46,16 @@ class RoutePlannerIntegrationTest {
     @Autowired
     ObjectMapper objectMapper;
 
-    // Stub the outbound Kafka port: this test covers the HTTP pipeline, not event delivery, and the
-    // real StreamBridge would block ~60s on broker metadata without a broker.
+    // Stub StreamBridge (the framework seam, independent of module structure): this test covers the
+    // HTTP pipeline, not event delivery, and the real StreamBridge would block ~60s on broker
+    // metadata without a broker. send() must report success or the 200 path would turn into a 502.
     @MockitoBean
-    RouteEventPublisher routeEventPublisher;
+    StreamBridge streamBridge;
+
+    @BeforeEach
+    void stubSuccessfulPublish() {
+        when(streamBridge.send(any(), any(Object.class))).thenReturn(true);
+    }
 
     // ── Happy path ────────────────────────────────────────────────────────────
 
