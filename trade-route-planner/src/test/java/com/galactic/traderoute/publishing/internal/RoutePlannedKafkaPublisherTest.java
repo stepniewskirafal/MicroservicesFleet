@@ -1,4 +1,4 @@
-package com.galactic.traderoute.adapter.out.kafka;
+package com.galactic.traderoute.publishing.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.galactic.traderoute.planning.RoutePlannedEvent;
+import com.galactic.traderoute.publishing.EventPublishingException;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,15 +20,15 @@ import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.messaging.Message;
 
 @Execution(ExecutionMode.CONCURRENT)
-class StreamBridgeRouteEventPublisherTest {
+class RoutePlannedKafkaPublisherTest {
 
     private StreamBridge streamBridge;
-    private StreamBridgeRouteEventPublisher publisher;
+    private RoutePlannedKafkaPublisher publisher;
 
     @BeforeEach
     void setUp() {
         streamBridge = mock(StreamBridge.class);
-        publisher = new StreamBridgeRouteEventPublisher(streamBridge);
+        publisher = new RoutePlannedKafkaPublisher(streamBridge);
     }
 
     @Test
@@ -35,7 +36,7 @@ class StreamBridgeRouteEventPublisherTest {
         when(streamBridge.send(any(), any())).thenReturn(true);
         RoutePlannedEvent event = anEvent("ROUTE-ABC12345");
 
-        publisher.publish(event);
+        publisher.on(event);
 
         verify(streamBridge).send(eq("routePlanned-out-0"), any(Message.class));
     }
@@ -45,7 +46,7 @@ class StreamBridgeRouteEventPublisherTest {
         when(streamBridge.send(any(), any())).thenReturn(true);
         RoutePlannedEvent event = anEvent("ROUTE-KEY99");
 
-        publisher.publish(event);
+        publisher.on(event);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Message<RoutePlannedEvent>> captor = ArgumentCaptor.forClass(Message.class);
@@ -60,7 +61,7 @@ class StreamBridgeRouteEventPublisherTest {
         when(streamBridge.send(any(), any())).thenReturn(true);
         RoutePlannedEvent event = anEvent("ROUTE-PAY00");
 
-        publisher.publish(event);
+        publisher.on(event);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Message<RoutePlannedMessage>> captor = ArgumentCaptor.forClass(Message.class);
@@ -75,7 +76,7 @@ class StreamBridgeRouteEventPublisherTest {
         when(streamBridge.send(any(), any())).thenReturn(false);
         RoutePlannedEvent event = anEvent("ROUTE-FAIL01");
 
-        assertThatThrownBy(() -> publisher.publish(event))
+        assertThatThrownBy(() -> publisher.on(event))
                 .isInstanceOf(EventPublishingException.class)
                 .hasMessageContaining("ROUTE-FAIL01");
     }

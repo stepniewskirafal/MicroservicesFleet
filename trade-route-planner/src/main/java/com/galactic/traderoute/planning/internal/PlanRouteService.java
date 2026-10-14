@@ -2,7 +2,6 @@ package com.galactic.traderoute.planning.internal;
 
 import com.galactic.traderoute.planning.PlanRouteUseCase;
 import com.galactic.traderoute.planning.PlannedRoute;
-import com.galactic.traderoute.planning.RouteEventPublisher;
 import com.galactic.traderoute.planning.RoutePlannedEvent;
 import com.galactic.traderoute.planning.RouteRejectionException;
 import com.galactic.traderoute.planning.RouteRequest;
@@ -11,6 +10,7 @@ import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -29,11 +29,11 @@ class PlanRouteService implements PlanRouteUseCase {
     private static final int ROUTE_ID_SUFFIX_LENGTH = 8;
 
     private final RouteMetrics metrics;
-    private final RouteEventPublisher routeEventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public PlanRouteService(RouteMetrics metrics, RouteEventPublisher routeEventPublisher) {
+    public PlanRouteService(RouteMetrics metrics, ApplicationEventPublisher eventPublisher) {
         this.metrics = metrics;
-        this.routeEventPublisher = routeEventPublisher;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -71,7 +71,8 @@ class PlanRouteService implements PlanRouteUseCase {
             // once its RoutePlannedEvent is on the wire. Recording metrics first over-counts
             // routes.planned.count (and the ETA/risk summaries) whenever publishing fails. On failure
             // we record routes.publish.failed and propagate (no outbox here yet — the event is lost),
-            // so recordPlanned() never runs and the success counter is not inflated.
+            // so recordPlanned() never runs and the success counter is not inflated. The publishing
+            // module's listener is synchronous, so its failure surfaces right here in this try.
             try {
                 publishRouteEvent(request, routeId, etaHours, riskScore);
             } catch (RuntimeException ex) {
@@ -108,7 +109,7 @@ class PlanRouteService implements PlanRouteUseCase {
     }
 
     private void publishRouteEvent(RouteRequest request, String routeId, double etaHours, double riskScore) {
-        routeEventPublisher.publish(RoutePlannedEvent.builder()
+        eventPublisher.publishEvent(RoutePlannedEvent.builder()
                 .routeId(routeId)
                 .originPortId(request.originPortId())
                 .destinationPortId(request.destinationPortId())
