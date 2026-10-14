@@ -1,12 +1,11 @@
-package com.galactic.traderoute.application;
+package com.galactic.traderoute.planning.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRejectionException;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRejectionException;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -24,8 +23,8 @@ class PlanRouteServiceTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        service = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {});
+        service =
+                new PlanRouteService(new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), event -> {});
     }
 
     @Test

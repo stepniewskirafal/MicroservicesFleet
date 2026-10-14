@@ -1,8 +1,8 @@
 package com.galactic.traderoute.adapter.in.rest;
 
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRequest;
-import com.galactic.traderoute.port.in.PlanRouteUseCase;
+import com.galactic.traderoute.planning.PlanRouteUseCase;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;

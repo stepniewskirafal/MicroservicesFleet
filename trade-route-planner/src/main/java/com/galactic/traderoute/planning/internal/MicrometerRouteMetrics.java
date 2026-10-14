@@ -1,8 +1,7 @@
-package com.galactic.traderoute.adapter.out.metrics;
+package com.galactic.traderoute.planning.internal;
 
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRequest;
-import com.galactic.traderoute.port.out.RouteMetricsPort;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -12,11 +11,11 @@ import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
- * Micrometer-backed implementation of {@link RouteMetricsPort}. All observability wiring lives here,
+ * Micrometer-backed implementation of {@link RouteMetrics}. All observability wiring lives here,
  * in the adapter layer — the application core has no Micrometer dependency.
  */
 @Component
-public class MicrometerRouteMetricsAdapter implements RouteMetricsPort {
+public class MicrometerRouteMetrics implements RouteMetrics {
 
     private static final String OBSERVATION_NAME = "routes.plan";
     private static final String METRIC_SUCCESS = "routes.planned.count";
@@ -30,7 +29,7 @@ public class MicrometerRouteMetricsAdapter implements RouteMetricsPort {
     private final Counter plannedCounter;
     private final DistributionSummary riskScoreSummary;
 
-    public MicrometerRouteMetricsAdapter(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
+    public MicrometerRouteMetrics(MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.meterRegistry = meterRegistry;
         this.observationRegistry = observationRegistry;
         this.plannedCounter = Counter.builder(METRIC_SUCCESS)

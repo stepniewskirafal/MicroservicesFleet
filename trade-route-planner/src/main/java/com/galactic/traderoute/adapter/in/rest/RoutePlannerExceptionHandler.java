@@ -1,7 +1,7 @@
 package com.galactic.traderoute.adapter.in.rest;
 
 import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
-import com.galactic.traderoute.domain.model.RouteRejectionException;
+import com.galactic.traderoute.planning.RouteRejectionException;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;

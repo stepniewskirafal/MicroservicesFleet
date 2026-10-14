@@ -1,13 +1,12 @@
-package com.galactic.traderoute.application;
+package com.galactic.traderoute.planning.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
-import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RoutePlannedEvent;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RoutePlannedEvent;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -34,7 +33,7 @@ class PlanRouteServiceEventPublishingTest {
         meterRegistry = new SimpleMeterRegistry();
         publishedEvents = new ArrayList<>();
         service = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), publishedEvents::add);
+                new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), publishedEvents::add);
     }
 
     @Test
@@ -114,8 +113,8 @@ class PlanRouteServiceEventPublishingTest {
         // CRITICAL-2: route computed, but the event fails to publish (broker down). The success
         // counter must NOT be incremented (no over-count) and a dedicated failure metric must record
         // the lost event. The exception propagates so the controller can map it to 502.
-        PlanRouteService failingService = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(meterRegistry, ObservationRegistry.NOOP), event -> {
+        PlanRouteService failingService =
+                new PlanRouteService(new MicrometerRouteMetrics(meterRegistry, ObservationRegistry.NOOP), event -> {
                     throw new EventPublishingException("broker unavailable");
                 });
 

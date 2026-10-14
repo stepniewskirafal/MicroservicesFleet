@@ -1,11 +1,9 @@
-package com.galactic.traderoute.parallel;
+package com.galactic.traderoute.planning.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.galactic.traderoute.adapter.out.metrics.MicrometerRouteMetricsAdapter;
-import com.galactic.traderoute.application.PlanRouteService;
-import com.galactic.traderoute.domain.model.PlannedRoute;
-import com.galactic.traderoute.domain.model.RouteRequest;
+import com.galactic.traderoute.planning.PlannedRoute;
+import com.galactic.traderoute.planning.RouteRequest;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.ArrayList;
@@ -38,7 +36,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 class ParallelRoutePlannerTest {
 
     private static final PlanRouteService SERVICE = new PlanRouteService(
-            new MicrometerRouteMetricsAdapter(new SimpleMeterRegistry(), ObservationRegistry.NOOP), event -> {});
+            new MicrometerRouteMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP), event -> {});
 
     @RepeatedTest(value = 20, name = "concurrent planning #{currentRepetition}/{totalRepetitions}")
     void should_produce_valid_route_under_concurrent_junit5_execution(TestInfo info) {
@@ -131,8 +129,8 @@ class ParallelRoutePlannerTest {
     @Test
     void counter_should_be_incremented_atomically_by_all_threads() throws Exception {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        PlanRouteService localService = new PlanRouteService(
-                new MicrometerRouteMetricsAdapter(registry, ObservationRegistry.NOOP), event -> {});
+        PlanRouteService localService =
+                new PlanRouteService(new MicrometerRouteMetrics(registry, ObservationRegistry.NOOP), event -> {});
 
         int threadCount = 30;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
