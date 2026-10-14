@@ -19,7 +19,7 @@
 # KONWENCJA NAZW (zgodna z ADR-0030)
 # -----------------------------------
 # Nazwa wynikowej metryki: job:<metryka>:<agregacja>
-# Przykład:  job:reservations_hold_allocate_seconds:rate5m
+# Przykład:  job:reservations_bay_allocate_seconds:rate5m
 #              ↑                ↑                      ↑
 #           prefix job   oryginalna metryka      co mierzy reguła
 #
@@ -33,7 +33,7 @@ groups:
 
   # ---------------------------------------------------------------------------
   # STARPORT REGISTRY — Rezerwacje
-  # Metryki z: Observation("reservations.hold.allocate", ...)
+  # Metryki z: Observation("reservations.bay.allocate", ...)
   #            Observation("reservations.fees.calculate", ...)
   #            Observation("reservations.route.plan", ...)
   # Niskie tagi (lowCardinalityKeyValue): starport, shipClass, outcome
@@ -43,54 +43,54 @@ groups:
     rules:
 
       # ── Throughput: ile rezerwacji na sekundę (per starport) ─────────────
-      # Bazowa metryka:  reservations_hold_allocate_seconds_count
+      # Bazowa metryka:  reservations_bay_allocate_seconds_count
       #                  (Timer → Micrometer tłumaczy dot-notation na _)
       # Okno: 5 minut — wygładza krótkie skoki, dobre dla dashboardu
-      - record: job:reservations_hold_allocate_seconds:rate5m
+      - record: job:reservations_bay_allocate_seconds:rate5m
         expr: |
           sum by (job, starport, outcome) (
-            rate(reservations_hold_allocate_seconds_count[5m])
+            rate(reservations_bay_allocate_seconds_count[5m])
           )
-        # Wynik: ile razy na sekundę operacja "hold.allocate" wykonała się
+        # Wynik: ile razy na sekundę operacja "bay.allocate" wykonała się
         # w ostatnich 5 min — pogrupowane wg starportu i outcome (SUCCESS/ERROR).
         #
         # Przykładowe użycie w Grafanie (panel "Throughput per starport"):
-        #   job:reservations_hold_allocate_seconds:rate5m{outcome="SUCCESS"}
+        #   job:reservations_bay_allocate_seconds:rate5m{outcome="SUCCESS"}
 
       # ── Latencja P99 per shipClass ────────────────────────────────────────
       # histogram_quantile oblicza percentyl z bucketów histogramu.
       # Bez recording rule: każdy panel w Grafanie przelicza wszystkie buckety
       # dla obu replik od nowa. Z regułą: wynik gotowy.
-      - record: job:reservations_hold_allocate_seconds:p99_5m
+      - record: job:reservations_bay_allocate_seconds:p99_5m
         expr: |
           histogram_quantile(0.99,
             sum by (job, shipClass, le) (
-              rate(reservations_hold_allocate_seconds_bucket[5m])
+              rate(reservations_bay_allocate_seconds_bucket[5m])
             )
           )
         # "le" (less or equal) to specjalny label bucketów histogramu —
         # musi pozostać w grupowaniu, bo histogram_quantile go potrzebuje.
 
       # ── P50 (mediana) latencji rezerwacji ─────────────────────────────────
-      - record: job:reservations_hold_allocate_seconds:p50_5m
+      - record: job:reservations_bay_allocate_seconds:p50_5m
         expr: |
           histogram_quantile(0.50,
             sum by (job, shipClass, le) (
-              rate(reservations_hold_allocate_seconds_bucket[5m])
+              rate(reservations_bay_allocate_seconds_bucket[5m])
             )
           )
 
       # ── Error rate rezerwacji ─────────────────────────────────────────────
       # Stosunek błędów do wszystkich wywołań.
       # Wynik: liczba z przedziału [0, 1], np. 0.05 = 5% błędów.
-      - record: job:reservations_hold_allocate:error_ratio5m
+      - record: job:reservations_bay_allocate:error_ratio5m
         expr: |
           sum by (job, starport) (
-            rate(reservations_hold_allocate_seconds_count{outcome="ERROR"}[5m])
+            rate(reservations_bay_allocate_seconds_count{outcome="ERROR"}[5m])
           )
           /
           sum by (job, starport) (
-            rate(reservations_hold_allocate_seconds_count[5m])
+            rate(reservations_bay_allocate_seconds_count[5m])
           )
         # Dzielenie dwóch wektorów: Prometheus dopasowuje labele automatycznie.
         # Jeśli mianownik = 0 (zero requestów), wynik = NaN — Grafana
@@ -138,6 +138,19 @@ groups:
       - record: job:routes_plan_seconds:p95_5m
         expr: |
           histogram_quantile(0.95,
+            sum by (job, le) (
+              rate(routes_plan_seconds_bucket[5m])
+            )
+          )
+
+      # ── P99 latencji planowania trasy — strażnik wywołania synchronicznego ──
+      # `booking` woła `routeplanning` na wątku żądania HTTP (ADR-0046). Dopóki planowanie
+      # jest czystym obliczeniem, p99 leży w najniższym kubełku (10 ms). Próg rewizji
+      # z ADR-0048: p99 > 50 ms — wtedy planowanie przestało być tanie i trzeba wrócić
+      # do decyzji o trybie asynchronicznym.
+      - record: job:routes_plan_seconds:p99_5m
+        expr: |
+          histogram_quantile(0.99,
             sum by (job, le) (
               rate(routes_plan_seconds_bucket[5m])
             )

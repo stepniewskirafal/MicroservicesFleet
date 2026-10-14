@@ -1,7 +1,6 @@
 // Grafana Alloy — TYLKO logi infra (ADR-0037).
 //
-// Logi aplikacji (api-gateway, starport-registry, trade-route-planner,
-// telemetry-pipeline, eureka) idą teraz przez OTel Collector:
+// Logi aplikacji (galactic-fleet) idą przez OTel Collector:
 //     apps → OTel Collector (OTLP) → Loki (100%).
 // Alloy NIE przyjmuje już OTLP od aplikacji — receiver, filtry i sampler
 // usunięte (były tu w ADR-0035). Zostaje wyłącznie scrape stdoutu kontenerów
@@ -45,7 +44,7 @@ discovery.relabel "infra" {
   }
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    regex         = "(api-gateway|eureka|starport-registry-\\d+|trade-route-planner-\\d+|telemetry-pipeline-\\d+)"
+    regex         = "galactic-fleet"
     action        = "drop"
   }
 }

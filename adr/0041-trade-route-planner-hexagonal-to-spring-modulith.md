@@ -43,7 +43,9 @@ Mapowanie pojęć heksagonalnych:
 - **composition root** (`RoutePlanningConfig`) → znika; `PlanRouteService` jest `@Service`
   (Modulith nie wymaga rdzenia wolnego od frameworka — granice pilnuje weryfikacja modułów).
 
-Granice egzekwuje test `ModularityIntegrationTest` (`ApplicationModules.verify()` + `Documenter`).
+Granice egzekwuje test `ModularityTest` (`ApplicationModules.verify()` + `Documenter`) — celowo
+z sufiksem `*Test`, nie `*IntegrationTest`: biegnie w fazie unit (surefire), więc naruszenie granic
+łamie też szybką pętlę `-Pfast`, bez Dockera.
 
 ## Dlaczego
 

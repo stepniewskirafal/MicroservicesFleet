@@ -1,12 +1,6 @@
 global:
     scrape_interval: 3s
     evaluation_interval: 3s
-    # external_labels identyfikują tę instancję Prometheusa w Thanosie.
-    # Thanos Query używa `replica` do deduplikacji, a `cluster` do grupowania.
-    # WYMAGANE przez sidecar — bez tego upload bloków do object store się nie powiedzie.
-    external_labels:
-        cluster: microservices-fleet
-        replica: prometheus-a
 
 # Recording rules pre-aggregate expensive PromQL expressions into new metrics
 # so Grafana dashboards read pre-computed values instead of recalculating on
@@ -16,32 +10,13 @@ rule_files:
 
 # Prometheus lives on the Compose network, so we target containers by name +
 # unified internal port (ADR-0031 — host ports removed from app instances).
-# Adding a replica is a one-line change: extend the targets array.
 scrape_configs:
-  - job_name: "api-gateway"
+  # One application, one target (ADR-0043). Metric NAMES are unchanged from the three-service fleet;
+  # only the job label collapsed from three service names into one.
+  - job_name: "galactic-fleet"
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["api-gateway:8080"]
-
-  - job_name: "starport-registry"
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ["starport-registry-1:8081", "starport-registry-2:8081"]
-
-  - job_name: "trade-route-planner"
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ["trade-route-planner-1:8082", "trade-route-planner-2:8082"]
-
-  - job_name: "telemetry-pipeline"
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ["telemetry-pipeline-1:8090", "telemetry-pipeline-2:8090"]
-
-  - job_name: "eureka"
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ["eureka:8761"]
+      - targets: ["galactic-fleet:8080"]
 
   - job_name: "loki"
     metrics_path: /metrics

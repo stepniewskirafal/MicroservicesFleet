@@ -1,5 +1,0 @@
-name: microservices_fleet
-
-include:
-  - docker-compose.observability.yml
-  - docker-compose.apps.yml

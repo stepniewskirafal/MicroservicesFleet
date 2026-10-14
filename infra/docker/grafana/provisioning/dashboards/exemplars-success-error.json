@@ -320,8 +320,8 @@
         },
         "current": {
           "selected": false,
-          "text": "starport-registry",
-          "value": "starport-registry"
+          "text": "galactic-fleet",
+          "value": "galactic-fleet"
         },
         "refresh": 2,
         "multi": false,

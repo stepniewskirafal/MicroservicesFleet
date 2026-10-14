@@ -14,7 +14,7 @@
 #                   prometheus (scrapes app /actuator/prometheus). loki and
 #                   grafana stay observability-only.
 #
-# Included by the top-level docker-compose.yml. Can also run standalone as an
+# Included by docker-compose.modulith.yml. Can also run standalone as an
 # observability-only sandbox: `docker compose -f docker-compose.observability.yml up`.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -41,175 +41,27 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Pinned (was :latest) — Thanos sidecar reads Prometheus' TSDB block format,
-  # więc wersja musi być zgodna z sidecarem (v2.x ↔ thanos v0.36).
+  # Jeden Prometheus z lokalną retencją — bez Thanosa i MinIO (ADR-0047).
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      # Lokalna retencja krótka (6h) — długoterminowe dane żyją w MinIO przez Thanos.
-      - --storage.tsdb.retention.time=6h
-      # min == max block duration WYŁĄCZA lokalną kompakcję — WYMAGANE przez Thanos
-      # sidecar (Thanos Compactor robi kompakcję na object store, nie Prometheus).
-      - --storage.tsdb.min-block-duration=2h
-      - --storage.tsdb.max-block-duration=2h
+      - --storage.tsdb.retention.time=15d
+      # remote-write receiver: Tempo metrics-generator zapisuje tu span-metrics i service-graphs.
       - --web.enable-remote-write-receiver
       - --web.enable-lifecycle
       - --enable-feature=exemplar-storage
     volumes:
       - ./prometheus:/etc/prometheus:ro
-      # Trwały wolumen na TSDB — świeże (0–2h) dane przeżywają restart Prometheusa.
-      # Sidecar montuje TEN SAM wolumen (read), żeby wysyłać domknięte bloki do MinIO.
+      # Trwały wolumen na TSDB — metryki przeżywają restart Prometheusa.
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     networks:
       - app
       - observability
-    restart: unless-stopped
-
-  # ── Thanos: długoterminowa retencja + globalny widok (ADR-pending) ──────────
-  # Topologia: sidecar (upload bloków) → MinIO (object store) → store (odczyt
-  # historii) → query (łączy sidecar+store, Prom-API-compatible). Grafana pyta
-  # query zamiast bezpośrednio Prometheusa.
-
-  minio:
-    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
-    container_name: minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}        # z .env (DEV: minio)
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD} # z .env (DEV: minio123)
-    ports:
-      - "9001:9001"   # konsola web (http://localhost:9001 — login z .env)
-    volumes:
-      - minio-data:/data
-    networks:
-      - observability
-    restart: unless-stopped
-
-  # One-shot: czeka na MinIO i tworzy bucket `thanos`. Thanos startuje dopiero
-  # po jego sukcesie (service_completed_successfully) — brak race'a na bucket.
-  minio-init:
-    image: minio/mc:RELEASE.2024-09-16T17-43-14Z
-    container_name: minio-init
-    depends_on:
-      - minio
-    entrypoint:
-      - /bin/sh
-      - -c
-      - >
-        until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
-          echo 'waiting for minio...'; sleep 2;
-        done;
-        mc mb --ignore-existing local/thanos;
-        echo 'bucket thanos ready';
-    networks:
-      - observability
-    restart: "no"
-
-  thanos-sidecar:
-    image: quay.io/thanos/thanos:v0.36.1
-    container_name: thanos-sidecar
-    environment:                              # S3 creds przez łańcuch AWS (objstore.yml ma puste klucze)
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-    command:
-      - sidecar
-      - --tsdb.path=/prometheus
-      - --prometheus.url=http://prometheus:9090
-      - --objstore.config-file=/etc/thanos/objstore.yml
-      - --grpc-address=0.0.0.0:10901
-      - --http-address=0.0.0.0:10902
-    volumes:
-      - prometheus-data:/prometheus
-      - ./thanos/objstore.yml:/etc/thanos/objstore.yml:ro
-    networks:
-      - observability
-    depends_on:
-      prometheus:
-        condition: service_started
-      minio-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  thanos-store:
-    image: quay.io/thanos/thanos:v0.36.1
-    container_name: thanos-store
-    # Thanos image runs as uid 1001; a freshly recreated named volume (after `down -v`) is
-    # root-owned, so the non-root process can't mkdir its --data-dir. Run as root for the dev stack.
-    user: root
-    environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-    command:
-      - store
-      - --data-dir=/var/thanos/store
-      - --objstore.config-file=/etc/thanos/objstore.yml
-      - --grpc-address=0.0.0.0:10901
-      - --http-address=0.0.0.0:10902
-    volumes:
-      - thanos-store-data:/var/thanos/store
-      - ./thanos/objstore.yml:/etc/thanos/objstore.yml:ro
-    networks:
-      - observability
-    depends_on:
-      minio-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  thanos-query:
-    image: quay.io/thanos/thanos:v0.36.1
-    container_name: thanos-query
-    command:
-      # query nie pisze do bucketu, ale env nie szkodzi; pominięte celowo
-      - query
-      - --http-address=0.0.0.0:10902
-      - --grpc-address=0.0.0.0:10901
-      - --query.replica-label=replica
-      - --endpoint=thanos-sidecar:10901
-      - --endpoint=thanos-store:10901
-    ports:
-      - "10902:10902"   # Thanos Query UI/API (http://localhost:10902)
-    networks:
-      - observability
-    depends_on:
-      - thanos-sidecar
-      - thanos-store
-    restart: unless-stopped
-
-  # Compactor: kompakcja + downsampling + egzekwowanie retencji w buckecie.
-  # SINGLETON na bucket (nigdy >1 instancja!). Bez niego Thanos jest połowiczny:
-  # brak downsamplingu (wolne zapytania 30d+) i bucket rośnie bez końca (ADR-0037 §B3).
-  thanos-compactor:
-    image: quay.io/thanos/thanos:v0.36.1
-    container_name: thanos-compactor
-    # Same as thanos-store: write to a root-owned fresh volume as root in the dev stack.
-    user: root
-    environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-    command:
-      - compact
-      - --wait                              # tryb ciągły (nie one-shot)
-      - --data-dir=/var/thanos/compact
-      - --objstore.config-file=/etc/thanos/objstore.yml
-      - --http-address=0.0.0.0:10902
-      - --retention.resolution-raw=30d      # surowe dane: 30 dni
-      - --retention.resolution-5m=90d       # downsample 5m: 90 dni
-      - --retention.resolution-1h=365d      # downsample 1h: rok
-      - --compact.concurrency=1
-      - --downsample.concurrency=1
-    volumes:
-      - thanos-compact-data:/var/thanos/compact
-      - ./thanos/objstore.yml:/etc/thanos/objstore.yml:ro
-    networks:
-      - observability
-    depends_on:
-      minio-init:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   # ── OTel Collector — centralny hub observability (ADR-0037) ─────────────────
@@ -323,10 +175,7 @@ services:
 
 volumes:
   grafana-data:
-  prometheus-data:      # TSDB Prometheusa (przeżywa restart; źródło bloków dla sidecara)
-  minio-data:           # object store (długoterminowe bloki Thanos)
-  thanos-store-data:    # cache indeksów Thanos Store
-  thanos-compact-data:  # workspace kompaktora (kompakcja/downsampling)
+  prometheus-data:      # TSDB Prometheusa (przeżywa restart; retencja 15 dni)
 
 networks:
   app:

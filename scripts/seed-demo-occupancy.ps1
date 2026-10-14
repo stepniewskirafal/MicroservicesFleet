@@ -71,7 +71,7 @@ function Test-Container {
     if (-not $running) {
         Write-Host ""
         Write-Host "[ERROR] Kontener '$Name' nie jest uruchomiony." -ForegroundColor Red
-        Write-Host "        Uruchom stack: docker compose -f infra/docker/docker-compose.yml up -d postgres" -ForegroundColor Red
+        Write-Host "        Uruchom stack: docker compose -f infra/docker/docker-compose.modulith.yml up -d postgres" -ForegroundColor Red
         exit 1
     }
 }

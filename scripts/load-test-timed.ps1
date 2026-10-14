@@ -5,26 +5,14 @@
 #   - Runs for a fixed duration (-DurationMinutes 5/10/30/...)
 #   - Stoppable any time with 'Q' or Esc (clean summary on exit)
 #   - 80% good / 20% bad mix (configurable with -ErrorRatio)
-#   - Good requests route (requestRoute=true) to a non-hazard port -> exercise trade-route-planner
-#     AND generate successful route calls that keep the circuit breaker closed. These are also the
+#   - Good requests route (requestRoute=true) -> exercise trade-route-planner. These are also the
 #     RICHEST traces (full chain: hold -> calculate -> route.plan -> compute -> publish -> Kafka ->
 #     telemetry enrich = ~15-30 spans).
-#   - Error DEPTH matters for Tempo. Errors come in two flavours:
-#       * DEEP (many spans): -HazardRatio (default 0.5) of the bad requests route INTO the hazard port
-#         ($HazardPort, default MUSTAF). These pass EVERY starport-side check (valid customer/ship,
-#         requestRoute=true), so the request travels hold.allocate -> calculate -> route.plan -> the
-#         planner's HTTP server span -> routes.plan, and only THERE is rejected (422 ROUTE_REJECTED /
-#         reason=HAZARD_ZONE). Result: ~10-14 spans with the error visible in the trade-route-planner
-#         span, not only in starport. Client sees 422 (starport treats it as a domain rejection, not an
-#         outage: no retry, does not trip the circuit breaker — so HazardRatio can be pushed to 1.0).
-#         Requires the planner running with traderoute.hazard.destination-port = $HazardPort.
-#       * SHALLOW (few spans): the rest are starport-side validation / not-found errors. They fail at
-#         the first business step (bean validation, customer/ship lookup in hold.allocate) BEFORE the
-#         planner is ever called => ~3-5 spans. Good for exercising GlobalExceptionHandler, useless for
-#         seeing a deep waterfall.
-#     NOTE: HAZARD is the ONLY request-controllable deep error. INSUFFICIENT_RANGE is unreachable from
-#     the client (every ship class maps to >= 5 LY, threshold is < 1 LY), and a publish/Kafka failure
-#     needs a broken broker, not a crafted request. So to guarantee deep traces we lean on hazard.
+#   - Bad requests are starport-side validation / not-found errors. They fail at the first business
+#     step (bean validation, customer/ship lookup in hold.allocate) BEFORE the planner is ever
+#     called => ~3-5 spans. Good for exercising GlobalExceptionHandler. A planner-side rejection is
+#     not reachable from the client: INSUFFICIENT_RANGE needs < 1 LY and every ship class maps to
+#     >= 5 LY, and a publish/Kafka failure needs a broken broker, not a crafted request.
 #   - Throttled (default 5 req/s = 300/min, configurable)
 #   - Each good request gets a globally unique 1h time slot starting at
 #     `now + 5 min` (slot 0 = earliest possible), then slot i = base + i hours.
@@ -37,14 +25,8 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\load-test-timed.ps1 -DurationMinutes 30 -RatePerSecond 8
 #   powershell -ExecutionPolicy Bypass -File scripts\load-test-timed.ps1 -DurationMinutes 10 -ErrorRatio 0.20
 #
-#   # Domyślnie: 50% błędów głębokich
-#   powershell -ExecutionPolicy Bypass -File scripts\load-test-timed.ps1 -DurationMinutes 5
-#
-#   # Chcesz zalać Tempo głębokimi błędami (każdy błąd → planer, ~10-14 spanów):
-#   powershell -ExecutionPolicy Bypass -File scripts\load-test-timed.ps1 -DurationMinutes 5 -ErrorRatio 0.4 -HazardRatio 1.0
-#
 # Why 5 req/s default?
-#   Benchmarked the running stack (gateway -> 2x starport-registry -> Postgres)
+#   Benchmarked the running stack (galactic-fleet -> Postgres)
 #   and saw ~70ms mean / ~92ms p95 latency per reservation. At 5 req/s the
 #   slot is 200ms - request completes in <100ms, leaving >100ms headroom.
 #   Tomcat `threads.max=60` per instance × 2 instances = 120 worker threads;
@@ -68,19 +50,7 @@ param(
     [double]$RatePerSecond = 5.0,
 
     [ValidateRange(0.0, 1.0)]
-    [double]$ErrorRatio = 0.20,
-
-    # Jaka CZĘŚĆ błędów (ErrorRatio) ma być GŁĘBOKIM błędem PLANNERA (route do hazard-portu, ~10-14
-    # spanów), a nie płytkim błędem walidacji w starporcie (~3-5 spanów). 0.5 = połowa błędów sięga
-    # planera (dużo spanów), połowa pada na starcie. Podnieś do 1.0, żeby KAŻDY błąd był głęboki.
-    # Domenowe odrzucenie plannera (422 ROUTE_REJECTED) starport traktuje jako decyzję domenową,
-    # NIE awarię: nie ponawia i NIE liczy do circuit-breakera (ignore-exceptions). Dzięki temu
-    # HazardRatio można podnosić do 1.0 bez ryzyka otwarcia obwodu i psucia dobrych tras.
-    [ValidateRange(0.0, 1.0)]
-    [double]$HazardRatio = 0.5,
-
-    # Starport, do którego trasy są odrzucane w trade-route-planner (musi = traderoute.hazard.destination-port).
-    [string]$HazardPort = "MUSTAF"
+    [double]$ErrorRatio = 0.20
 )
 
 $ErrorActionPreference = "Stop"
@@ -94,15 +64,9 @@ $script:serverErr      = 0     # 5xx
 $script:netErr         = 0     # transport errors / DNS / refused
 $script:expectedMatch  = 0     # status matched the expectation we sent
 $script:expectedMiss   = 0     # status did not match expectation
-$script:hazardSent     = 0     # DEEP errors: reach the planner (route into hazard port) → ~10-14 spans
-$script:shallowSent    = 0     # SHALLOW errors: fail in starport validation/not-found → ~3-5 spans
 
 # --- data: starports + ship designs (must match V2 migration) ---
 $STARPORTS = @("TATOO", "CORUS", "ALDER", "HOTH", "ENDOR", "NABOO", "DAGO", "BESPIN", "KAMINO", "MUSTAF")
-
-# Good requests route to a NON-hazard destination (routing there succeeds). The hazard port is
-# reserved for the deliberate planner-error path (New-HazardRouteCall).
-$GOOD_STARPORTS = $STARPORTS | Where-Object { $_ -ne $HazardPort }
 
 # Index is (customerIdx - 1) % 6.  Returns @{Code=...; Class=...} for that customer's ship.
 function Get-ShipForCustomer {
@@ -126,9 +90,7 @@ function Get-ShipForCustomer {
 # dashboard sees live data while the test runs.
 #
 # requestRoute is TRUE with a valid $OriginPort, so every good request also exercises the
-# trade-route-planner (route span in the trace) and — crucially — produces SUCCESSFUL route calls.
-# Those successes dilute the circuit-breaker failure rate below its 50% threshold, so the deliberate
-# hazard failures (New-HazardRouteCall) keep reaching the planner instead of tripping the breaker open.
+# trade-route-planner (route span in the trace).
 function New-GoodBody {
     param(
         [int]$SlotIdx,
@@ -155,24 +117,6 @@ function New-GoodBody {
   "originPortId": "$OriginPort"
 }
 "@
-}
-
-# Builds a DELIBERATE planner-error call: a fully valid reservation (passes every starport-side
-# validation) whose route goes INTO the hazard port. starport therefore calls the planner, the planner
-# rejects it (422 ROUTE_REJECTED / reason=HAZARD_ZONE), and that error is visible in the
-# trade-route-planner span. starport treats this as a DOMAIN rejection (RouteRejectedException) —
-# NOT an outage — so it is not retried, does not trip the circuit breaker, and maps to HTTP 422.
-function New-HazardRouteCall {
-    param([int]$SlotIdx)
-    # Origin must be a real, existing starport (StartStarportValidationRule) and != the hazard dest.
-    $origin  = $GOOD_STARPORTS | Get-Random
-    $custIdx = Get-Random -Minimum 1 -Maximum 201
-    return @{
-        Label = "HAZARD route $origin -> $HazardPort (planner 422)"
-        Url   = "$API/$HazardPort/reservations"
-        Body  = (New-GoodBody -SlotIdx $SlotIdx -CustomerIdx $custIdx -OriginPort $origin)
-        Expect = 422
-    }
 }
 
 # Returns one bad-call template @{Url; Body; Expect; Label} chosen at random.
@@ -292,8 +236,6 @@ function Write-Summary {
     Write-Host (" Done.  duration={0,5:N0}s  sent={1}  rate={2:N2} req/s" -f $elapsed.TotalSeconds, $script:sent, $rate)
     Write-Host (" 2xx (ok)        : {0}   (full chain, ~15-30 spans in Tempo)" -f $script:ok)
     Write-Host (" 4xx (client err): {0}" -f $script:clientErr)
-    Write-Host (" errors DEEP     : {0}   (route -> {1}, 422 ROUTE_REJECTED in trade-route-planner -> ~10-14 spans)" -f $script:hazardSent, $HazardPort)
-    Write-Host (" errors SHALLOW  : {0}   (starport validation/not-found, planner not reached -> ~3-5 spans)" -f $script:shallowSent)
     Write-Host (" 5xx (server err): {0}   <-- watch this; should be 0" -f $script:serverErr)
     Write-Host (" transport err   : {0}" -f $script:netErr)
     Write-Host (" status matched expectation : {0}" -f $script:expectedMatch)
@@ -339,23 +281,13 @@ try {
 
         $isBad = (Get-Random -Minimum 0.0 -Maximum 1.0) -lt $ErrorRatio
         if ($isBad) {
-            # Split errors: HazardRatio -> planner error (route into hazard port),
-            # rest -> starport-side error (validation / not-found, planner never reached).
-            $isHazard = (Get-Random -Minimum 0.0 -Maximum 1.0) -lt $HazardRatio
-            if ($isHazard) {
-                $call = New-HazardRouteCall -SlotIdx $slotIdx
-                $slotIdx++                       # holds a bay briefly before compensating; keep it unique
-                $script:hazardSent++
-            } else {
-                $call = New-BadCall
-                $script:shallowSent++
-            }
+            $call   = New-BadCall
             $url    = $call.Url
             $body   = $call.Body
             $expect = $call.Expect
             $label  = $call.Label
         } else {
-            $dest    = $GOOD_STARPORTS | Get-Random
+            $dest    = $STARPORTS | Get-Random
             $origin  = ($STARPORTS | Where-Object { $_ -ne $dest }) | Get-Random
             $custIdx = Get-Random -Minimum 1 -Maximum 201
             $url     = "$API/$dest/reservations"

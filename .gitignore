@@ -42,3 +42,10 @@ logs/
 .DS_Store
 Thumbs.db
 
+
+# Cygwin/git-bash crash dumps
+*.stackdump
+
+# Local study material — never tracked, never pushed
+/knowledge/
+/slides/

@@ -370,7 +370,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(reservations_hold_allocate_seconds_bucket[$__rate_interval])))",
+          "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(reservations_bay_allocate_seconds_bucket[$__rate_interval])))",
           "legendFormat": "Hold Allocate p95",
           "refId": "A"
         },
@@ -450,19 +450,15 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "mappings": [
-            { "options": { "0": { "color": "green", "text": "CLOSED" } }, "type": "value" },
-            { "options": { "1": { "color": "red", "text": "OPEN" } }, "type": "value" },
-            { "options": { "2": { "color": "yellow", "text": "HALF-OPEN" } }, "type": "value" }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 2 }
+              { "color": "red", "value": 1 }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -476,12 +472,12 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Circuit Breaker — trade-route-planner",
+      "title": "Routes refused by the planner (booking → routeplanning)",
       "type": "stat",
       "targets": [
         {
-          "expr": "resilience4j_circuitbreaker_state{name=\"trade-route-planner\"}",
-          "legendFormat": "{{state}}",
+          "expr": "sum(increase(reservations_route_plan_errors_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "failed",
           "refId": "A"
         }
       ]
@@ -513,12 +509,12 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Circuit Breaker — Failed Calls",
+      "title": "Enriched records not published (publication left incomplete)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(resilience4j_circuitbreaker_calls_seconds_count{kind=\"failed\", name=\"trade-route-planner\"}[$__rate_interval]))",
-          "legendFormat": "failed",
+          "expr": "sum(increase(events_enrichment_errors_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "dropped",
           "refId": "A"
         }
       ]
@@ -528,7 +524,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
       "id": 30,
       "panels": [],
-      "title": "Async Event Tracing — Outbox / Inbox / Kafka",
+      "title": "Async Event Tracing — Events after Commit / Kafka",
       "type": "row"
     },
     {
@@ -569,12 +565,12 @@
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Outbox Poll + Publish Duration",
+      "title": "Reservation Transaction Duration (avg)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "1000 * sum by (outcome) (rate(reservations_inbox_poll_duration_seconds_sum[$__rate_interval])) / clamp_min(sum by (outcome) (rate(reservations_inbox_poll_duration_seconds_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "{{outcome}}",
+          "expr": "1000 * sum(rate(reservations_confirm_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_confirm_seconds_count[$__rate_interval])), 1e-9)",
+          "legendFormat": "avg",
           "refId": "A"
         }
       ]
@@ -617,12 +613,12 @@
         "legend": { "calcs": ["mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Outbox Batch Size (events/poll)",
+      "title": "ReservationConfirmed Delivered to Listeners (events/s)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(reservations_inbox_poll_batch_size_events_sum[$__rate_interval])) / clamp_min(sum(rate(reservations_inbox_poll_batch_size_events_count[$__rate_interval])), 1e-9)",
-          "legendFormat": "avg batch size",
+          "expr": "sum(rate(events_reservation_received_total[$__rate_interval]))",
+          "legendFormat": "delivered",
           "refId": "A"
         }
       ]
@@ -654,12 +650,12 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "value_and_name"
       },
-      "title": "Dead Letter Events (permanently failed)",
+      "title": "Enrichment Failures (publication left incomplete)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum by (eventType) (reservations_outbox_dead_letter_total)",
-          "legendFormat": "{{eventType}}",
+          "expr": "sum by (event) (events_enrichment_errors_total) or vector(0)",
+          "legendFormat": "{{event}}",
           "refId": "A"
         }
       ]
@@ -683,7 +679,7 @@
       "targets": [
         {
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"starport-registry|trade-route-planner|telemetry-pipeline\" }",
+          "query": "{ resource.service.name = \"galactic-fleet\" }",
           "limit": 20,
           "tableType": "traces",
           "refId": "A"
@@ -945,7 +941,7 @@
       "type": "logs",
       "targets": [
         {
-          "expr": "{service_name=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"} |~ \"ERROR|WARN\"",
+          "expr": "{service_name=\"galactic-fleet\"} |~ \"ERROR|WARN\"",
           "legendFormat": "",
           "refId": "A"
         }
@@ -970,7 +966,7 @@
       "type": "logs",
       "targets": [
         {
-          "expr": "{service_name=~\"starport-registry.*|trade-route-planner.*|telemetry-pipeline.*\"}",
+          "expr": "{service_name=\"galactic-fleet\"}",
           "legendFormat": "",
           "refId": "A"
         }
@@ -987,7 +983,7 @@
     {
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "title": "Reservation Async E2E Lag [ms] · avg / max",
-      "description": "Time from event produced (starport-registry/OutboxAppender, just before INSERT into event_outbox) to event consumed and enriched in telemetry-pipeline. Captures full async path: outbox poll + Kafka publish + Kafka consume + enrichment. The HTTP request returns 201 long before this lag completes, so http_server_requests_seconds cannot capture it. NOTE: shown as avg/max — events.reservation.lag has no histogram buckets (not in distribution.slo:), so true percentiles need publishPercentileHistogram enabled in telemetry-pipeline.",
+      "description": "Time from ReservationConfirmed published (inside the reservation transaction) to enriched by the listener (after the commit, on another thread; ADR-0046).",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 93 },
       "id": 71,
@@ -1036,7 +1032,7 @@
     {
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "title": "Reservation E2E Throughput (events/s)",
-      "description": "Rate of reservation events flowing all the way through to telemetry-pipeline enrichment. Should track Reservations Enriched panel; if it dips, check outbox dead letters and Kafka consumer lag.",
+      "description": "Rate of reservation events flowing all the way through to the telemetry module's enrichment. Should track Reservations Enriched panel; if it dips, check Enrichment Failures and incomplete rows in event_publication.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 93 },
       "id": 72,
@@ -1063,7 +1059,7 @@
     },
     {
       "datasource": { "type": "tempo", "uid": "tempo" },
-      "title": "TraceQL Metrics — Span rate by route (api-gateway)",
+      "title": "TraceQL Metrics — Span rate by route (HTTP server)",
       "description": "Per-route span rate computed from traces by Tempo's local-blocks processor. Requires metrics_generator.processor.local_blocks enabled in tempo.yml and traceql metrics support in Tempo 2.4+. Note: experimental in Tempo 2.4; feature stabilises in 2.5+. If empty, run a few requests and wait ~1 minute for local blocks to fill.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 101 },
@@ -1083,7 +1079,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{ resource.service.name = \"api-gateway\" && kind = server } | rate() by (name)",
+          "query": "{ resource.service.name = \"galactic-fleet\" && kind = server } | rate() by (name)",
           "refId": "A"
         }
       ]
@@ -1126,7 +1122,7 @@
     {
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "title": "Event Pipeline Throughput (events/s)",
-      "description": "Reservation/route events flowing received→enriched through telemetry-pipeline. If enriched diverges from received, check outbox dead letters and Kafka consumer lag. Moved from the retired 'Microservices Fleet Dashboard'.",
+      "description": "Reservation/route events flowing received→enriched through the telemetry module. If enriched diverges from received, check Enrichment Failures and incomplete rows in event_publication. Moved from the retired 'Microservices Fleet Dashboard'.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 110 },
       "id": 76,
@@ -1208,10 +1204,10 @@
         "label": "Service (job)",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-        "definition": "label_values(up{job=~\"starport-registry|trade-route-planner|telemetry-pipeline|api-gateway|eureka-server\"}, job)",
+        "definition": "label_values(up{job=~\"galactic-fleet\"}, job)",
         "query": {
           "qryType": 1,
-          "query": "label_values(up{job=~\"starport-registry|trade-route-planner|telemetry-pipeline|api-gateway|eureka-server\"}, job)",
+          "query": "label_values(up{job=~\"galactic-fleet\"}, job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },

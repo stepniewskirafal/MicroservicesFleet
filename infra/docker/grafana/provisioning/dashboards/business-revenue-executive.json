@@ -302,7 +302,7 @@
       "id": 6,
       "type": "gauge",
       "title": "Zajętość doków per port — TERAZ (czerwone: <50% pustka / >97% brak miejsca)",
-      "description": "Bieżąca zajętość doków. Niska (<50%) = puste doki = utracony przychód. Bardzo wysoka (>97%) = brak miejsca na nowe rezerwacje = też utracony przychód i ryzyko overbookingu. Optymalne pasmo 50–90% (zielone). Jeśli 'brak danych' — przebuduj/zrestartuj starport-registry (DockOccupancyObserver).",
+      "description": "Bieżąca zajętość doków. Niska (<50%) = puste doki = utracony przychód. Bardzo wysoka (>97%) = brak miejsca na nowe rezerwacje = też utracony przychód i ryzyko overbookingu. Optymalne pasmo 50–90% (zielone). Jeśli 'brak danych' — przebuduj/zrestartuj galactic-fleet (DockOccupancyObserver).",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 0, "y": 39, "w": 24, "h": 12 },
       "targets": [

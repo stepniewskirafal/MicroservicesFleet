@@ -8,7 +8,7 @@
     <version>1.0.0</version>
     <packaging>pom</packaging>
     <name>GT Parent</name>
-    <description>Parent POM for the Sci-Fi Microservices Fleet</description>
+    <description>Parent POM for the Galactic Fleet (one Spring Modulith application, ADR-0043)</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -18,11 +18,7 @@
     </parent>
 
     <modules>
-        <module>eureka-server</module>
-        <module>api-gateway</module>
-        <module>starport-registry</module>
-        <module>trade-route-planner</module>
-        <module>telemetry-pipeline</module>
+        <module>galactic-fleet</module>
     </modules>
 
     <properties>

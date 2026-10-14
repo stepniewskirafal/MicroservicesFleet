@@ -1,0 +1,216 @@
+server:
+  # The single public port of the fleet (ADR-0043: no gateway in front of one process).
+  port: ${PORT:8080}
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 60
+      min-spare: 15
+    accept-count: 200
+    max-connections: 2000
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: galactic-fleet
+
+  # Serialize Instant/dates as ISO-8601 strings, not epoch arrays. Every message on the contract
+  # topics (startAt/endAt/producedAt/plannedAt/processedAt) is ISO-8601 — external consumers parse it.
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  task:
+    scheduling:
+      pool:
+        # Two @Scheduled jobs: the dock-occupancy gauge refresh and the re-delivery of incomplete
+        # event publications (EventPublicationMaintenance, ADR-0048).
+        size: 2
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/starports}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 5000
+      leak-detection-threshold: 10000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none #validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: false
+        use_sql_comments: true
+        hibernate.id.optimizer.pooled.preferred: pooled-lo
+
+  cloud:
+    function:
+      # Only the sensor pipeline is bound to the broker. The reservation and route enrichment
+      # functions are plain beans fed by the ReservationConfirmed application event, after the
+      # reservation's commit (activityfeed/internal/FleetEventListener, ADR-0046).
+      definition: telemetryPipeline
+
+    stream:
+      defaultBinder: kafka
+
+      # Kafka is the edge of the system (ADR-0046): one inbound topic (telemetry.raw) and three
+      # outbound topics, all of them computed telemetry. Modules never talk through the broker.
+      bindings:
+        # ── in: raw sensor readings from external producers ──
+        telemetryPipeline-in-0:
+          destination: telemetry.raw
+          group: telemetry-pipeline
+          content-type: application/json
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+        # ── out: anomaly alerts ──
+        telemetryPipeline-out-0:
+          destination: telemetry.alerts
+          content-type: application/json
+        # ── out: records computed from confirmed reservations ──
+        enrichedReservations-out-0:
+          destination: telemetry.enriched-reservations
+          content-type: application/json
+        enrichedRoutes-out-0:
+          destination: telemetry.enriched-routes
+          content-type: application/json
+
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          # ADR-0017: Micrometer Observation on the binder's producers and listener containers.
+          # Producers inject `traceparent` into every outgoing record (one trace per reservation
+          # across both enriched topics); the telemetry.raw consumer extracts it.
+          enable-observation: true
+          autoCreateTopics: true
+          configuration:
+            auto.offset.reset: latest
+            key.serializer: org.apache.kafka.common.serialization.StringSerializer
+            value.serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+        bindings:
+          # Dead-letter queue for what the in-pipeline try/catch CANNOT reach — payloads that fail
+          # message conversion before the function runs. (Filter exceptions inside the pipeline are
+          # handled by PipelineBuilder — logged, counted, and dropped there.)
+          telemetryPipeline-in-0:
+            consumer:
+              enableDlq: true
+              dlqName: telemetry.raw.dlq
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V2 (test data) was modified after first apply on long-lived databases.
+    validate-on-migrate: false
+
+  modulith:
+    events:
+      # A completed publication is deleted, so event_publication holds only what still has to be
+      # delivered and never grows with history (ADR-0048).
+      completion-mode: delete
+
+# Re-delivery of application events whose listener did not finish (EventPublicationMaintenance).
+events:
+  redelivery:
+    # How often the job runs.
+    interval-ms: 60000
+    initial-delay-ms: 60000
+    # Only publications older than this are re-submitted — younger ones may still be in flight.
+    older-than-ms: 60000
+    # The oldest incomplete publication being older than this is logged as a warning.
+    warn-after-ms: 900000
+
+# Sensor threshold defaults — override per environment
+telemetry:
+  thresholds:
+    sensors:
+      TEMPERATURE:
+        lower: -50.0
+        upper: 300.0
+      RADIATION:
+        lower: 0.0
+        upper: 1000.0
+      FUEL_LEVEL:
+        lower: 5.0
+        upper: 100.0
+      ENGINE_VIBRATION:
+        lower: 0.0
+        upper: 80.0
+      HULL_INTEGRITY:
+        lower: 20.0
+        upper: 100.0
+      OXYGEN_LEVEL:
+        lower: 18.0
+        upper: 100.0
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+    logging:
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://localhost:4318/v1/logs}
+      transport: http
+  metrics:
+    enable:
+      kafka: true
+    distribution:
+      # Histogram is activated by the presence of `slo:` alone — no need for percentiles-histogram.
+      # Client-side `percentiles:` (Summary) intentionally omitted; use histogram_quantile() over
+      # _bucket in PromQL instead.
+      slo:
+        http.server.requests:             50ms,100ms,250ms,500ms,1s,2500ms,5s,10s
+        # reservations
+        reservations.bay.allocate:       5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s
+        reservations.fees.calculate:      1ms,5ms,10ms,50ms,100ms
+        reservations.route.plan:          50ms,100ms,200ms,500ms,1s,2s,5s
+        reservations.confirm:             5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s,2s
+        # routeplanning
+        routes.plan:                      10ms,50ms,100ms,200ms,500ms,1s,2s,5s
+        # telemetry
+        telemetry.filter.validation:      100us,500us,1ms,5ms,10ms,50ms,100ms
+        telemetry.filter.enrichment:      100us,500us,1ms,5ms,10ms,50ms,100ms
+        telemetry.filter.aggregation:     100us,500us,1ms,5ms,10ms,50ms,100ms
+        telemetry.filter.anomaly:         100us,500us,1ms,5ms,10ms,50ms,100ms
+        events.reservation.lag:           100ms,500ms,1s,5s,10s,30s,60s,300s
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,liveness,readiness
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLING:1.0}
+    baggage:
+      remote-fields:
+        - reservationId
+        - routeId
+      correlation:
+        fields:
+          - reservationId
+          - routeId
+
+logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
+  level:
+    com.galactic.fleet: INFO
+    org.springframework.cloud.stream: INFO
+    org.springframework.kafka: INFO

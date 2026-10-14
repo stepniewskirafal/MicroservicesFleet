@@ -33,49 +33,62 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
-38 records: `0000` (template) + **37 decisions** `0001`–`0037`. Three are superseded
-(0034 → 0035 → 0037; 0036 → 0037); ADR-0037 is the current trace/log-pipeline authority.
+45 records: `0000` (template) + **44 decisions** `0001`–`0037`, `0041` and `0043`–`0048`. ADR-0043 (amended
+by ADR-0044: named interfaces + `allowedDependencies`, and by **ADR-0046: new module cut `booking` /
+`routeplanning` / `shipmonitoring` / `activityfeed`, events after commit, Kafka only for computed
+telemetry**, hardened by ADR-0048: re-delivery of incomplete publications) is the current architecture authority: the fleet is one Spring Modulith application, which supersedes the
+distributed-system ADRs 0002, 0003, 0008, 0014, 0028 and 0031 and the "one style per service" part of
+ADR-0001. Earlier supersessions: 0034 → 0035 → 0037; 0036 → 0037 (ADR-0037 is the trace/log-pipeline
+authority); 0021 → 0041. Numbers `0038`–`0040` and `0042` are taken by resilience ADRs that live on the
+`demo` branch, hence the gaps.
 
 | #    | Title                                                                        | Status                   | Date       |
 |---|---|---|---|
 | [0000](0000-template.md) | ADR Template                                                     | —                        | —          |
 | [0001](0001-architecture-styles.md) | Architecture Styles per Service (Layered / Hexagonal / Pipes & Filters) | Accepted       | 2025-09-29 |
-| [0002](0002-service-discovery-choice.md) | Service Discovery Mechanism (Eureka)                      | Accepted                 | 2025-09-29 |
-| [0003](0003-http-load-balancing.md) | HTTP Load Balancing (Spring Cloud LoadBalancer)               | Accepted                 | 2026-02-28 |
+| [0002](0002-service-discovery-choice.md) | Service Discovery Mechanism (Eureka)                      | Superseded by 0043       | 2025-09-29 |
+| [0003](0003-http-load-balancing.md) | HTTP Load Balancing (Spring Cloud LoadBalancer)               | Superseded by 0043       | 2026-02-28 |
 | [0004](0004-messaging-vs-http.md)   | Messaging vs HTTP (hybrid: HTTP sync, Kafka async)            | Accepted                 | 2026-02-28 |
 | [0005](0005-observability-stack.md) | Observability Stack (Prometheus + Grafana + Tempo + Loki)     | Accepted                 | 2026-02-28 |
 | [0006](0006-testing-strategy.md)    | Testing Strategy (unit + contract + integration + ArchUnit + PIT) | Accepted             | 2026-02-28 |
 | [0007](0007-database-choice.md)     | Database Choice (PostgreSQL 16 + JPA + Flyway)                | Accepted                 | 2026-02-28 |
-| [0008](0008-deployment-topology.md) | Deployment Topology (Docker Compose + scaling)                | Accepted                 | 2026-02-28 |
+| [0008](0008-deployment-topology.md) | Deployment Topology (Docker Compose + scaling)                | Superseded by 0043       | 2026-02-28 |
 | [0009](0009-configuration-management.md) | Configuration Management (env-var overrides + Spring profiles) | Accepted            | 2026-02-28 |
-| [0010](0010-resilience-patterns.md) | Resilience Patterns (Transactional Outbox)                    | Accepted                 | 2026-02-28 |
+| [0010](0010-resilience-patterns.md) | Resilience Patterns (Transactional Outbox)                    | Superseded by 0046       | 2026-02-28 |
 | [0011](0011-arch-rules-guardrails.md) | Architecture Rules & Guardrails (ArchUnit + Spotless + PIT) | Accepted                 | 2026-02-28 |
 | [0012](0012-virtual-threads.md)     | Java 21 Virtual Threads (Project Loom)                        | Accepted                 | 2026-04-16 |
 | [0013](0013-open-in-view-false.md)  | Disabling Open Session in View (OSIV)                         | Accepted                 | 2026-04-16 |
-| [0014](0014-http-resilience.md)     | HTTP Resilience: Timeouts, Circuit Breaker, Fail-Fast Fallback | Accepted                | 2026-04-17 |
+| [0014](0014-http-resilience.md)     | HTTP Resilience: Timeouts, Circuit Breaker, Fail-Fast Fallback | Superseded by 0043      | 2026-04-17 |
 | [0015](0015-api-error-model.md)     | API Error Response Model & Versioning Policy                  | Accepted                 | 2026-04-17 |
-| [0016](0016-kafka-topology.md)      | Kafka Topic Topology, Consumer Retry, DLQ Strategy            | Accepted                 | 2026-04-17 |
-| [0017](0017-tracing-propagation.md) | Distributed Tracing Propagation (W3C + OTel Baggage + Outbox) | Accepted                 | 2026-04-17 |
+| [0016](0016-kafka-topology.md)      | Kafka Topic Topology, Consumer Retry, DLQ Strategy            | Accepted (topic list amended by 0046) | 2026-04-17 |
+| [0017](0017-tracing-propagation.md) | Distributed Tracing Propagation (W3C + OTel Baggage + Outbox) | Accepted (outbox part amended by 0046) | 2026-04-17 |
 | [0018](0018-flyway-migration-policy.md) | Flyway Migration Policy & No-Foreign-Keys-by-Design       | Accepted                 | 2026-04-17 |
 | [0019](0019-kafka-programming-model.md) | StreamBridge for Producers, Functional Beans for Consumers | Accepted                | 2026-04-17 |
 | [0020](0020-concurrent-reservation-safety.md) | Concurrent Reservation Safety (Pessimistic Lock + SKIP LOCKED) | Accepted          | 2026-04-17 |
-| [0021](0021-hexagonal-conventions.md)    | Hexagonal (Ports & Adapters) Implementation Conventions      | Accepted                 | 2026-04-17 |
+| [0021](0021-hexagonal-conventions.md)    | Hexagonal (Ports & Adapters) Implementation Conventions      | Superseded by 0041       | 2026-04-17 |
 | [0022](0022-pipes-and-filters-conventions.md) | Pipes & Filters Implementation Conventions              | Accepted                 | 2026-04-17 |
 | [0023](0023-validation-strategy.md)      | Validation Strategy (Jakarta + Chain of Responsibility)      | Accepted                 | 2026-04-17 |
 | [0024](0024-dto-domain-entity-mapping.md) | DTO / Domain / Entity Separation with Manual Mapping        | Accepted                 | 2026-04-17 |
 | [0025](0025-maven-build-topology.md)     | Maven Build Topology, BOM Pinning, Static Analysis           | Accepted                 | 2026-04-17 |
 | [0026](0026-container-build-strategy.md) | Container Build Strategy (multi-stage Dockerfile + JVM tuning) | Accepted              | 2026-04-17 |
 | [0027](0027-actuator-exposure.md)        | Spring Boot Actuator Exposure & Security Posture             | Accepted (dev)           | 2026-04-17 |
-| [0028](0028-eureka-operational-tuning.md) | Eureka Operational Tuning (standalone, self-preservation off) | Accepted (dev)          | 2026-04-17 |
+| [0028](0028-eureka-operational-tuning.md) | Eureka Operational Tuning (standalone, self-preservation off) | Superseded by 0043      | 2026-04-17 |
 | [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
-| [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted                 | 2026-04-17 |
-| [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Accepted          | 2026-04-17 |
+| [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted (one name amended by 0048) | 2026-04-17 |
+| [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Superseded by 0043| 2026-04-17 |
 | [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (now infra-stdout scraping only)      | Accepted          | 2026-05-17 |
 | [0033](0033-exemplars.md)                | Exemplars: Metrics → Traces correlation (Prometheus → Tempo)       | Accepted          | 2026-05-17 |
 | [0034](0034-log-sampling.md)             | Log Sampling at the Collector (Alloy: 100% errors, 10% INFO/DEBUG) | Superseded by ADR-0035 | 2026-05-25 |
 | [0035](0035-otlp-logs-deterministic-sampling.md) | Logs via OTLP Push + Deterministic Trace-Keyed Sampling   | Superseded by ADR-0037 | 2026-05-27 |
 | [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Superseded by ADR-0037 | 2026-06-07 |
 | [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | **Accepted (current authority)** | 2026-06-13 |
+| [0041](0041-trade-route-planner-hexagonal-to-spring-modulith.md) | trade-route-planner: hexagonal → Spring Modulith (modules `planning`/`web`/`publishing`/`observability`, sync event seam, frozen black-box acceptance suite) | Accepted | 2026-10-14 |
+| [0043](0043-fleet-as-one-spring-modulith.md) | The whole fleet as one Spring Modulith application `galactic-fleet` (modules `reservations`/`routeplanning`/`telemetry`/`observability`; module call + application events instead of HTTP + Kafka between services; Kafka only at the edge) | **Accepted (current)** | 2026-11-16 |
+| [0044](0044-named-interfaces-and-allowed-dependencies.md) | Named interfaces (`@NamedInterface` in `api`/`events` subpackages) and explicit `allowedDependencies` in every module's `package-info.java`; amends 0043 | Accepted | 2026-11-20 |
+| [0045](0045-domain-events-as-published-interface.md) | Cross-module events carry jMolecules `@DomainEvent` (Spring Modulith then lists them as published events) and every module states `type = Type.CLOSED` explicitly; complements 0044 | Accepted | 2026-11-20 |
+| [0046](0046-disjoint-domains-and-events-after-commit.md) | Disjoint domains (`booking`/`routeplanning`/`shipmonitoring`/`activityfeed`), cross-module events after commit via the Event Publication Registry, reservation in one transaction (no HOLD), Kafka only for computed telemetry; amends 0043–0045, supersedes 0010 | **Accepted (current)** | 2026-11-23 |
+| [0047](0047-prometheus-without-thanos.md) | Prometheus without Thanos and MinIO (15-day local retention, Grafana reads Prometheus directly); complements 0005 | Accepted | 2026-11-23 |
+| [0048](0048-event-delivery-hardening.md) | Re-delivery of incomplete event publications (scheduled job + Postgres advisory lock for several instances), completed publications deleted, Kafka keys on `telemetry.enriched-*`, `traceparent` carried in `ReservationConfirmed`, `reservations.hold.allocate` → `reservations.bay.allocate`, customer/ship checked in validation, guards for the pure-computation and key-by-`shipId` assumptions; complements 0046, amends 0030 | Accepted | 2026-11-23 |
 
 ---
 
@@ -199,9 +212,8 @@ here so they are not forgotten:
 - **jqwik property-based tests not yet written.** Dependency declared in ADR-0006;
   `*Properties.java` suffix reserved in the surefire include list but empty in practice.
   `@ParameterizedTest` + `@MethodSource` covers most cases today.
-- **Long-term metrics retention (Thanos) has no ADR.** `docker-compose.observability.yml`
-  wires Thanos sidecar/store/query/compactor + MinIO, but no ADR owns the decision; compose
-  comments reference a non-existent "ADR-0037 §B3" (0037 covers traces/logs, not metrics).
+- **Long-term metrics retention.** Closed by ADR-0047: Thanos and MinIO are removed; Prometheus
+  keeps 15 days locally. A second Prometheus or longer retention needs a new ADR.
 - **Tail-sampling collector HA.** ADR-0037 notes that production needs a load-balancing layer so
   all spans of one trace reach a single Collector; no ADR owns that prod topology.
 - **`telemetry.adapter` (stream|kafka) switch.** Documented in ADR-0009 but absent from every
@@ -216,5 +228,5 @@ here so they are not forgotten:
 - `../README.md` — repository overview.
 - `../plany/plan-obsluga-setek-requestow.md` — concurrency / throughput plan that feeds
   ADR-0012 and ADR-0013.
-- `../starport-registry/inbox_outbox_pattern_15_minute_spring_boot_talk.md` — supplementary
+- `../galactic-fleet/docs/inbox_outbox_pattern_15_minute_spring_boot_talk.md` — supplementary
   learning notes on the outbox (ADR-0010).

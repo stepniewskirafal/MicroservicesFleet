@@ -1,0 +1,78 @@
+package com.galactic.fleet.routeplanning.internal;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.galactic.fleet.routeplanning.api.PlannedRoute;
+import com.galactic.fleet.routeplanning.api.RouteRejectionException;
+import com.galactic.fleet.routeplanning.api.RouteRequest;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
+import java.util.Map;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+/**
+ * Parameterized unit tests for ETA computation and validation rules in PlanRouteService.
+ * Covers all ship classes and boundary conditions — important for mutation testing coverage.
+ */
+@Execution(ExecutionMode.CONCURRENT)
+class EtaComputationParameterizedTest {
+
+    private final PlanRouteService service = serviceWith(new ShipFuelRanges());
+
+    @ParameterizedTest(name = "[{index}] shipClass={0} → ETA in [{1}, {2}]")
+    @CsvSource({
+        "SCOUT,          8.0, 18.0",
+        "scout,          8.0, 18.0", // case-insensitive
+        "FREIGHTER,     18.0, 28.0",
+        "FREIGHTER_MK2, 18.0, 28.0",
+        "CRUISER,       12.0, 22.0",
+        "DESTROYER,     20.0, 30.0", // unknown class
+        "DREADNOUGHT,   20.0, 30.0", // another unknown class
+    })
+    void should_compute_eta_within_expected_bounds(String shipClass, double minEta, double maxEta) {
+        PlannedRoute route = service.planRoute(aRequest(shipClass));
+
+        assertThat(route.etaHours())
+                .as("ETA for %s should be between %.1f and %.1f", shipClass, minEta, maxEta)
+                .isBetween(minEta, maxEta);
+    }
+
+    @ParameterizedTest(name = "[{index}] a class that flies {0} LY is rejected")
+    @ValueSource(doubles = {0.0, 0.5, 0.99, -1.0, -100.0})
+    void should_reject_when_fuel_range_below_minimum(double fuelRangeLY) {
+        PlanRouteService shortRange = serviceWith(new ShipFuelRanges(Map.of(), fuelRangeLY));
+
+        assertThatThrownBy(() -> shortRange.planRoute(aRequest("SCOUT")))
+                .isInstanceOf(RouteRejectionException.class)
+                .hasMessageContaining("INSUFFICIENT_RANGE");
+    }
+
+    @ParameterizedTest(name = "[{index}] a class that flies {0} LY is accepted")
+    @ValueSource(doubles = {1.0, 1.001, 5.0, 25.0, 1000.0})
+    void should_accept_when_fuel_range_meets_minimum(double fuelRangeLY) {
+        PlanRouteService enoughRange = serviceWith(new ShipFuelRanges(Map.of(), fuelRangeLY));
+
+        PlannedRoute route = enoughRange.planRoute(aRequest("SCOUT"));
+
+        assertThat(route).isNotNull();
+        assertThat(route.routeId()).startsWith("ROUTE-");
+    }
+
+    private static PlanRouteService serviceWith(ShipFuelRanges fuelRanges) {
+        return new PlanRouteService(
+                new MicrometerRouteMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP), fuelRanges);
+    }
+
+    private static RouteRequest aRequest(String shipClass) {
+        return RouteRequest.builder()
+                .originPortId("SP-A")
+                .destinationPortId("SP-B")
+                .shipClass(shipClass)
+                .build();
+    }
+}
