@@ -235,9 +235,9 @@
                 </dependencies>
                 <configuration>
                     <targetClasses>
-                        <param>com.galactic.traderoute.application.*</param>
-                        <param>com.galactic.traderoute.domain.*</param>
-                        <param>com.galactic.traderoute.adapter.*</param>
+                        <param>com.galactic.traderoute.planning.*</param>
+                        <param>com.galactic.traderoute.web.*</param>
+                        <param>com.galactic.traderoute.publishing.*</param>
                     </targetClasses>
                     <targetTests>
                         <param>com.galactic.traderoute.*</param>
