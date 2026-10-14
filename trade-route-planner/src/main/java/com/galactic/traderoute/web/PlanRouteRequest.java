@@ -1,4 +1,4 @@
-package com.galactic.traderoute.adapter.in.rest;
+package com.galactic.traderoute.web;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;

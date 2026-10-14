@@ -1,4 +1,4 @@
-package com.galactic.traderoute.adapter.in.rest;
+package com.galactic.traderoute.web;
 
 import com.galactic.traderoute.adapter.out.kafka.EventPublishingException;
 import com.galactic.traderoute.planning.RouteRejectionException;
