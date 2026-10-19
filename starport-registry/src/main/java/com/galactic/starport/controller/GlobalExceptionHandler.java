@@ -5,6 +5,7 @@ import com.galactic.starport.service.InvalidReservationTimeException;
 import com.galactic.starport.service.NoDockingBaysAvailableException;
 import com.galactic.starport.service.ShipNotFoundException;
 import com.galactic.starport.service.StarportNotFoundException;
+import com.galactic.starport.service.routeplanner.PlannerContractException;
 import com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException;
 import com.galactic.starport.service.routeplanner.RouteUnavailableException;
 import java.util.HashMap;
@@ -92,6 +93,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, "10")
                 .body(Map.of("error", "ROUTE_PLANNER_UNAVAILABLE", ERROR_DETAILS, ex.getMessage()));
+    }
+
+    // The planner answered a 4xx outside its contract (400 from our serializer, 404 from a wrong
+    // URL, 422 rejecting our DTO): neither the customer's fault (no 409) nor a planner outage (no
+    // 503 + Retry-After). 502 = "the upstream gave an invalid response" — which is what happened,
+    // and a Retry-After would be a lie: coming back later cannot fix our code. ADR-0040.
+    @ExceptionHandler(PlannerContractException.class)
+    ResponseEntity<Map<String, String>> handle(PlannerContractException ex) {
+        log.error("Route planner contract violation", ex);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of(
+                        "error",
+                        "ROUTE_PLANNER_CONTRACT",
+                        ERROR_DETAILS,
+                        "The route planner answered outside its contract (HTTP " + ex.getStatusCode() + ")"));
     }
 
     // Domain rejection (RoutePlanningRejectedException) and any legacy RouteUnavailableException:

@@ -9,6 +9,8 @@ import com.galactic.starport.service.ReserveBayCommand;
 import com.galactic.starport.service.Route;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class ResilienceAspectOrderTest extends BaseAcceptanceTest {
 
     @Autowired
     CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @Autowired
+    MeterRegistry meterRegistry;
 
     private CircuitBreaker circuitBreaker;
 
@@ -115,7 +120,13 @@ class ResilienceAspectOrderTest extends BaseAcceptanceTest {
 
     @Test
     void domainRejectionIsNeitherRetriedNorRecordedByBreaker() {
-        wireMock.stubFor(post(urlEqualTo(PLAN_URL)).willReturn(aResponse().withStatus(422)));
+        // The planner's deliberate "no": 422 WITH its error code. Status alone is not a rejection.
+        wireMock.stubFor(post(urlEqualTo(PLAN_URL))
+                .willReturn(aResponse()
+                        .withStatus(422)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(
+                                "{\"error\":\"ROUTE_REJECTED\",\"reason\":\"INSUFFICIENT_RANGE\",\"details\":\"x\"}")));
 
         assertThrows(RoutePlanningRejectedException.class, () -> routePlanner.calculateRoute(command("ORDER-422")));
 
@@ -125,6 +136,60 @@ class ResilienceAspectOrderTest extends BaseAcceptanceTest {
         // against a healthy planner.
         assertEquals(0, circuitBreaker.getMetrics().getNumberOfFailedCalls());
         assertEquals(0, circuitBreaker.getMetrics().getNumberOfSuccessfulCalls());
+    }
+
+    // ADR-0040: a 4xx that is NOT the planner's deliberate rejection is OUR bug wearing the
+    // planner's uniform — a 404 from a wrong URL, a 400 from our serializer. It must be neither
+    // retried (asking again cannot fix our code), nor blamed on the planner (it answered), nor sold
+    // to the customer as "change your request" (409). It lights up the one counter a healthy system
+    // keeps at zero: outcome="misrouted".
+    @Test
+    void fourXxOutsideTheContractIsOurBugNotARejectionAndNotAPlannerFailure() {
+        wireMock.stubFor(post(urlEqualTo(PLAN_URL))
+                .willReturn(aResponse().withStatus(404).withBody("<html>Not Found</html>")));
+        double misroutedBefore = outcome(TradeRoutePlannerClient.OUTCOME_MISROUTED);
+        double domainBefore = outcome(TradeRoutePlannerClient.OUTCOME_DOMAIN);
+
+        PlannerContractException ex =
+                assertThrows(PlannerContractException.class, () -> routePlanner.calculateRoute(command("WRONG-URL")));
+        assertEquals(404, ex.getStatusCode());
+
+        // Not retried.
+        wireMock.verify(1, postRequestedFor(urlEqualTo(PLAN_URL)));
+        // Not a planner failure: it answered, so the breaker saw one honest success and stayed closed.
+        assertEquals(CircuitBreaker.State.CLOSED, circuitBreaker.getState());
+        assertEquals(0, circuitBreaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(1, circuitBreaker.getMetrics().getNumberOfSuccessfulCalls());
+        // Counted where a rare, certain bug becomes visible — not diluted into "domain".
+        assertEquals(1.0, outcome(TradeRoutePlannerClient.OUTCOME_MISROUTED) - misroutedBefore);
+        assertEquals(0.0, outcome(TradeRoutePlannerClient.OUTCOME_DOMAIN) - domainBefore);
+    }
+
+    // The planner's own bean validation answers 422 as well — with a field map, not ROUTE_REJECTED.
+    // That is the shape of OUR request being wrong, i.e. our contract bug, not a route rejection.
+    @Test
+    void a422WithoutTheRejectionErrorCodeIsAContractViolationNotARejection() {
+        wireMock.stubFor(post(urlEqualTo(PLAN_URL))
+                .willReturn(aResponse()
+                        .withStatus(422)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"shipProfile.fuelRangeLY\":\"must be positive\"}")));
+        double misroutedBefore = outcome(TradeRoutePlannerClient.OUTCOME_MISROUTED);
+
+        assertThrows(PlannerContractException.class, () -> routePlanner.calculateRoute(command("BAD-DTO")));
+
+        wireMock.verify(1, postRequestedFor(urlEqualTo(PLAN_URL)));
+        assertEquals(CircuitBreaker.State.CLOSED, circuitBreaker.getState());
+        assertEquals(0, circuitBreaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(1.0, outcome(TradeRoutePlannerClient.OUTCOME_MISROUTED) - misroutedBefore);
+    }
+
+    private double outcome(String outcome) {
+        Counter counter = meterRegistry
+                .find(TradeRoutePlannerClient.METRIC_OUTCOME)
+                .tag("outcome", outcome)
+                .counter();
+        return counter == null ? 0.0 : counter.count();
     }
 
     // The breaker measures the DEPENDENCY, not us. A bug on our side of the wire (here: a null

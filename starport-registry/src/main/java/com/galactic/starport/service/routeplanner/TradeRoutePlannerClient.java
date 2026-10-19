@@ -1,15 +1,21 @@
 package com.galactic.starport.service.routeplanner;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -33,6 +39,13 @@ import org.springframework.web.client.RestClientException;
  * without a stack trace. Five such bugs would open the circuit against a perfectly healthy
  * planner.
  *
+ * <p>A 4xx is a domain rejection ONLY when it is the planner's deliberate one: 422 with error code
+ * {@code ROUTE_REJECTED} in the body. Any other 4xx (400 from our broken serializer, 404 from a
+ * wrong URL, 422 rejecting our DTO's shape) is OUR contract bug, not the planner saying "no" —
+ * it leaves as {@link PlannerContractException}: on no resilience4j list, counted as
+ * {@code misrouted}, answered with 502. Matching by status alone is not enough: the planner's
+ * bean validation answers 422 too (ADR-0040).
+ *
  * <p>The class is package-private (not API) but the method is public on purpose: Spring's CGLIB
  * proxy reliably advises public methods only.
  */
@@ -41,6 +54,11 @@ import org.springframework.web.client.RestClientException;
 class TradeRoutePlannerClient {
 
     private static final String ROUTE_PLAN_URI = "/api/v1/routes/plan";
+
+    /** The planner's error code for "this route cannot be planned" (RouteRejectedResponse.error). */
+    static final String ROUTE_REJECTED_ERROR_CODE = "ROUTE_REJECTED";
+
+    private static final int BODY_SNIPPET_MAX_CHARS = 200;
 
     /**
      * One meter, one tag, every outcome — so a success ratio is a single PromQL expression instead
@@ -55,14 +73,19 @@ class TradeRoutePlannerClient {
     static final String OUTCOME_INFRASTRUCTURE = "infrastructure";
     static final String OUTCOME_EMPTY_RESPONSE = "empty_response";
     static final String OUTCOME_CIRCUIT_OPEN = "circuit_open";
+    /** A 4xx outside the planner's contract — ours, not theirs. A healthy system keeps this at zero. */
+    static final String OUTCOME_MISROUTED = "misrouted";
 
     private final RestClient restClient;
     private final MeterRegistry meterRegistry;
+    private final ObjectMapper objectMapper;
     private final Map<String, Counter> outcomeCounters = new ConcurrentHashMap<>();
 
-    TradeRoutePlannerClient(RestClient tradeRoutePlannerRestClient, MeterRegistry meterRegistry) {
+    TradeRoutePlannerClient(
+            RestClient tradeRoutePlannerRestClient, MeterRegistry meterRegistry, ObjectMapper objectMapper) {
         this.restClient = tradeRoutePlannerRestClient;
         this.meterRegistry = meterRegistry;
+        this.objectMapper = objectMapper;
     }
 
     @Retry(name = "trade-route-planner")
@@ -76,11 +99,24 @@ class TradeRoutePlannerClient {
                     .body(request)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        // 4xx = domain rejection ("this route cannot be planned") — deterministic,
-                        // so it must be neither retried nor recorded by the circuit breaker.
-                        count(OUTCOME_DOMAIN);
-                        throw new RoutePlanningRejectedException(
-                                origin, destination, res.getStatusCode().value());
+                        int status = res.getStatusCode().value();
+                        String body = readBody(res);
+                        if (isDeliberateRejection(status, body)) {
+                            // 422 ROUTE_REJECTED = domain rejection ("this route cannot be planned")
+                            // — deterministic, so neither retried nor recorded by the breaker.
+                            count(OUTCOME_DOMAIN);
+                            throw new RoutePlanningRejectedException(origin, destination, status);
+                        }
+                        // Any other 4xx is OUR bug or misconfiguration wearing the planner's
+                        // uniform. Not retried, not a planner failure, not a customer conflict.
+                        count(OUTCOME_MISROUTED);
+                        log.error(
+                                "Planner answered HTTP {} outside its contract for {} -> {}: {}",
+                                status,
+                                origin,
+                                destination,
+                                body);
+                        throw new PlannerContractException(origin, destination, status, body);
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         // 5xx = infrastructure failure (planner is down) — transient, retryable.
@@ -120,6 +156,29 @@ class TradeRoutePlannerClient {
         count(OUTCOME_CIRCUIT_OPEN);
         log.warn("Circuit open for trade-route-planner, failing fast: {} -> {}", origin, destination);
         throw new RoutePlannerUnavailableException(origin, destination, e);
+    }
+
+    /** The planner's deliberate "no": 422 whose body carries {@code error: ROUTE_REJECTED}. */
+    private boolean isDeliberateRejection(int status, String body) {
+        if (status != HttpStatus.UNPROCESSABLE_ENTITY.value()) {
+            return false;
+        }
+        try {
+            return ROUTE_REJECTED_ERROR_CODE.equals(
+                    objectMapper.readTree(body).path("error").asText());
+        } catch (IOException | RuntimeException e) {
+            // Not JSON, or not the shape we agreed on — that is a contract problem, not a rejection.
+            return false;
+        }
+    }
+
+    private static String readBody(ClientHttpResponse res) {
+        try {
+            String body = StreamUtils.copyToString(res.getBody(), StandardCharsets.UTF_8);
+            return body.length() > BODY_SNIPPET_MAX_CHARS ? body.substring(0, BODY_SNIPPET_MAX_CHARS) + "…" : body;
+        } catch (IOException e) {
+            return "<unreadable body: " + e.getClass().getSimpleName() + ">";
+        }
     }
 
     private void count(String outcome) {

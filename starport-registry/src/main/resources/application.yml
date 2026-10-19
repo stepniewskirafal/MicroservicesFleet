@@ -246,14 +246,21 @@ resilience4j:
         # 503 "come back later" for a deterministic bug, and the on-call went to inspect a service
         # that was in perfect health.
         #
-        # CircuitBreakerStateMachine#handleThrowable has three branches, in this order:
+        # The circuit-breaker state machine (CircuitBreakerStateMachine#onError, delegating to a
+        # private helper in 2.x) has three branches, in this order:
         #   1. matches ignore-exceptions  -> releasePermission(), call is not counted at all
         #   2. matches record-exceptions  -> recorded as FAILURE
         #   3. neither                    -> recorded as SUCCESS
         # Our own bugs land in branch 3. That is imperfect (they inflate the success count) but
         # semantically defensible: as far as this breaker can tell, the dependency did not fail.
-        # The structural fix is to narrow the breaker's scope to the remote call only, so bugs
-        # never enter the window — see backlog in ADR-0039.
+        # The breaker's scope is narrowed to the remote call only (TradeRoutePlannerClient), so
+        # bugs outside the wire never enter the window at all (ADR-0039).
+        #
+        # PlannerContractException (a 4xx that is NOT the planner's deliberate 422 ROUTE_REJECTED:
+        # our serializer, a wrong URL, our DTO's shape) is deliberately on NO list here and on NO
+        # retry list: it is our problem, so it must be neither retried nor blamed on the planner.
+        # It takes branch 3 (the planner did answer) and lights up outcome="misrouted" — a counter a
+        # healthy system keeps at zero, watched by the TradeRoutePlannerUnexpectedOutcome alert (ADR-0040).
         record-exceptions:
           - com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException
         # Branch 1: a domain rejection (planner answered 4xx: "this route cannot be planned") is

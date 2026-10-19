@@ -33,9 +33,11 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
-40 records: `0000` (template) + **39 decisions** `0001`–`0039`. Three are superseded
-(0034 → 0035 → 0037; 0036 → 0037); ADR-0037 is the current trace/log-pipeline authority;
-ADR-0014 is amended by ADR-0039 (selective resilience).
+42 records: `0000` (template) + **41 decisions** `0001`–`0041`. Four are superseded
+(0034 → 0035 → 0037; 0036 → 0037; 0021 → 0041); ADR-0037 is the current trace/log-pipeline
+authority; ADR-0014 is amended by ADR-0039 (selective resilience), which is amended by ADR-0040
+(planner contract violation ≠ rejection); ADR-0041 replaces ADR-0021 for trade-route-planner
+(hexagonal → Spring Modulith).
 
 | #    | Title                                                                        | Status                   | Date       |
 |---|---|---|---|
@@ -60,7 +62,7 @@ ADR-0014 is amended by ADR-0039 (selective resilience).
 | [0018](0018-flyway-migration-policy.md) | Flyway Migration Policy & No-Foreign-Keys-by-Design       | Accepted                 | 2026-04-17 |
 | [0019](0019-kafka-programming-model.md) | StreamBridge for Producers, Functional Beans for Consumers | Accepted                | 2026-04-17 |
 | [0020](0020-concurrent-reservation-safety.md) | Concurrent Reservation Safety (Pessimistic Lock + SKIP LOCKED) | Accepted          | 2026-04-17 |
-| [0021](0021-hexagonal-conventions.md)    | Hexagonal (Ports & Adapters) Implementation Conventions      | Accepted                 | 2026-04-17 |
+| [0021](0021-hexagonal-conventions.md)    | Hexagonal (Ports & Adapters) Implementation Conventions      | Superseded by 0041       | 2026-04-17 |
 | [0022](0022-pipes-and-filters-conventions.md) | Pipes & Filters Implementation Conventions              | Accepted                 | 2026-04-17 |
 | [0023](0023-validation-strategy.md)      | Validation Strategy (Jakarta + Chain of Responsibility)      | Accepted                 | 2026-04-17 |
 | [0024](0024-dto-domain-entity-mapping.md) | DTO / Domain / Entity Separation with Manual Mapping        | Accepted                 | 2026-04-17 |
@@ -79,6 +81,8 @@ ADR-0014 is amended by ADR-0039 (selective resilience).
 | [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | **Accepted (current authority)** | 2026-06-13 |
 | [0038](0038-resilience-observability.md) | Resilience4j Observability: Dashboard + Alerts (making resilience visible) | Accepted | 2026-06-23 |
 | [0039](0039-selective-resilience-rejection-vs-unavailability.md) | Selective Resilience: rejection vs unavailability, breaker outside retry | Accepted | 2026-07-31 |
+| [0040](0040-planner-contract-violation-is-not-a-rejection.md) | A 4xx outside the planner's contract is our bug, not a rejection (502, `misrouted`, alert on > 0) | Accepted | 2026-09-29 |
+| [0041](0041-trade-route-planner-hexagonal-to-spring-modulith.md) | trade-route-planner: hexagonal → Spring Modulith (modules `planning`/`web`/`publishing`/`observability`, sync event seam, frozen black-box acceptance suite) | Accepted | 2026-10-14 |
 
 ---
 

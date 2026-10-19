@@ -21,8 +21,11 @@ groups:
       # ── Circuit OTWARTY — zależność realnie odcięta ──────────────────────
       # state{state="open"} == 1 oznacza, że breaker przestał przepuszczać ruch
       # i leci fallback. To jest "awaria widoczna w 1 minutę", nie po 3 miesiącach.
+      # `half_open` też: bez max-wait-duration-in-half-open-state breaker po 10 s przechodzi
+      # w HALF_OPEN przy pierwszym wywołaniu i może tam zostać bez końca, gdy ruch ustanie —
+      # sam stan "open" spadłby wtedy do 0 i alert rozwiązałby się, choć zależność nadal leży.
       - alert: TradeRoutePlannerCircuitOpen
-        expr: max(resilience4j_circuitbreaker_state{job="starport-registry", name="trade-route-planner", state="open"}) == 1
+        expr: max(resilience4j_circuitbreaker_state{job="starport-registry", name="trade-route-planner", state=~"open|half_open"}) == 1
         for: 20s
         labels:
           severity: critical
@@ -45,3 +48,33 @@ groups:
         annotations:
           summary: "Podwyższony failure rate trade-route-planner ({{ $value | printf \"%.0f\" }}%)"
           description: "Failure rate circuita przekroczył 25% (próg otwarcia: 50%). Zależność zaczyna się sypać."
+
+      # ── Wolne sukcesy — szara strefa (500 ms < t < 800 ms) ─────────────────
+      # Pointa talku: awaria, która zdąża. Bez tej reguły slow_call_rate 40% jest widoczny
+      # tylko temu, kto akurat patrzy na dashboard; próg otwarcia (50%) to za późno na alert.
+      - alert: TradeRoutePlannerSlowCalls
+        expr: max(resilience4j_circuitbreaker_slow_call_rate{job="starport-registry", name="trade-route-planner"}) >= 25
+        for: 2m
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Wolne wywołania trade-route-planner ({{ $value | printf \"%.0f\" }}% > 500 ms)"
+          description: "Co najmniej 25% wywołań plannera trwa dłużej niż slow-call-duration-threshold (500 ms). Planner odpowiada poprawnie, ale wolno — próg otwarcia obwodu to 50%."
+
+      # ── Licznik, który ma zostać na zerze ───────────────────────────────────
+      # Odsetek nie widzi dwóch błędów dziennie w tysiącach sukcesów; licznik bezwzględny tak.
+      # `empty_response` = planner odpowiedział 2xx bez ciała; `misrouted` = 4xx inne niż
+      # świadoma odmowa 422 ROUTE_REJECTED — nasz serializer, zły URL, kształt naszego DTO (ADR-0040).
+      # Zgłoszenie (warning), nie budzik: increase() z godziny, żeby jedno mrugnięcie nie strzelało co 15 s.
+      - alert: TradeRoutePlannerUnexpectedOutcome
+        expr: sum(increase(reservations_route_plan_outcome_total{job="starport-registry", outcome=~"misrouted|empty_response"}[1h])) > 0
+        for: 0s
+        labels:
+          severity: warning
+          service: starport-registry
+          dependency: trade-route-planner
+        annotations:
+          summary: "Nieoczekiwany wynik planowania trasy ({{ $value | printf \"%.0f\" }} w ciągu godziny)"
+          description: "Wystąpił wynik, którego zdrowy system nie produkuje wcale (misrouted / empty_response). Rzadki, pewny błąd — żaden próg procentowy tego nie zobaczy."
