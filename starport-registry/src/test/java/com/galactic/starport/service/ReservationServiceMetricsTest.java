@@ -6,7 +6,6 @@ import com.galactic.starport.service.confirmreservation.ConfirmReservationFacade
 import com.galactic.starport.service.holdreservation.HoldReservationFacade;
 import com.galactic.starport.service.reservationcalculation.ReservationCalculationFacade;
 import com.galactic.starport.service.validation.ReserveBayValidator;
-import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.Observation;
@@ -57,7 +56,7 @@ class ReservationServiceMetricsTest {
                 starport -> starport);
     }
 
-    static class LogingEvent implements Observation.Event      {
+    static class LogingEvent implements Observation.Event {
         private final String name;
         private final Class<?> source;
 
@@ -79,8 +78,8 @@ class ReservationServiceMetricsTest {
     static class LoggingObservationHandler implements ObservationHandler<Observation.Context> {
         @Override
         public void onEvent(Observation.Event event, Observation.Context context) {
-            if(event instanceof LogingEvent logEvent) {
-                LoggerFactory.getLogger( logEvent.getSource() ).info(logEvent.getName());
+            if (event instanceof LogingEvent logEvent) {
+                LoggerFactory.getLogger(logEvent.getSource()).info(logEvent.getName());
             }
         }
 
@@ -89,9 +88,6 @@ class ReservationServiceMetricsTest {
             return true;
         }
     }
-
-
-
 
     /*
      * @Test

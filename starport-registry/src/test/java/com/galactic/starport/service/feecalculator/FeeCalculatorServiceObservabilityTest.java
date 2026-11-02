@@ -75,8 +75,7 @@ class FeeCalculatorServiceObservabilityTest {
 
         BigDecimal fee = feeCalculatorService.calculateFee(cmd);
 
-        MeterRegistryAssert.assertThat(meterRegistry)
-                .hasMeterWithName("reservations.fees.calculated.amount");
+        MeterRegistryAssert.assertThat(meterRegistry).hasMeterWithName("reservations.fees.calculated.amount");
 
         DistributionSummary feeSummary = meterRegistry
                 .get("reservations.fees.calculated.amount")

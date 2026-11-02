@@ -26,7 +26,9 @@ class RestClientConfig {
             RestClientBuilderConfigurer configurer,
             @Value("${downstream.http.connect-timeout-ms:200}") int connectTimeoutMs,
             @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
-        return configurer.configure(RestClient.builder()).requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
+        return configurer
+                .configure(RestClient.builder())
+                .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
     }
 
     /** Plain builder used when discovery is disabled (tests, local dev without Eureka). */
@@ -36,7 +38,9 @@ class RestClientConfig {
             RestClientBuilderConfigurer configurer,
             @Value("${downstream.http.connect-timeout-ms:200}") int connectTimeoutMs,
             @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
-        return configurer.configure(RestClient.builder()).requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
+        return configurer
+                .configure(RestClient.builder())
+                .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
     }
 
     // The planner client normally rides the @LoadBalanced builder, resolving lb://trade-route-planner
@@ -55,7 +59,8 @@ class RestClientConfig {
             @Value("${downstream.http.read-timeout-ms:800}") int readTimeoutMs) {
         RestClient.Builder builder = loadBalanced
                 ? loadBalancedRestClientBuilder
-                : configurer.configure(RestClient.builder())
+                : configurer
+                        .configure(RestClient.builder())
                         .requestFactory(requestFactory(connectTimeoutMs, readTimeoutMs));
         return builder.baseUrl(baseUrl).build();
     }
