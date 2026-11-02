@@ -261,6 +261,11 @@ resilience4j:
         # retry list: it is our problem, so it must be neither retried nor blamed on the planner.
         # It takes branch 3 (the planner did answer) and lights up outcome="misrouted" — a counter a
         # healthy system keeps at zero, watched by the TradeRoutePlannerUnexpectedOutcome alert (ADR-0040).
+        #
+        # "No instances available" from the @LoadBalanced client (registry knows no planner: typo in
+        # base-url, or every replica evicted) is relabelled RoutePlannerUnavailableException by the
+        # client — branch 2, a real failure, so a half-open probe can never close the circuit on it —
+        # under its own outcome="no_instances", also watched by that alert (ADR-0042).
         record-exceptions:
           - com.galactic.starport.service.routeplanner.RoutePlannerUnavailableException
         # Branch 1: a domain rejection (planner answered 4xx: "this route cannot be planned") is

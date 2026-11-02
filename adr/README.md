@@ -33,11 +33,11 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
-42 records: `0000` (template) + **41 decisions** `0001`–`0041`. Four are superseded
+43 records: `0000` (template) + **42 decisions** `0001`–`0042`. Four are superseded
 (0034 → 0035 → 0037; 0036 → 0037; 0021 → 0041); ADR-0037 is the current trace/log-pipeline
 authority; ADR-0014 is amended by ADR-0039 (selective resilience), which is amended by ADR-0040
-(planner contract violation ≠ rejection); ADR-0041 replaces ADR-0021 for trade-route-planner
-(hexagonal → Spring Modulith).
+(planner contract violation ≠ rejection), which is amended by ADR-0042 (no planner instance in
+the registry); ADR-0041 replaces ADR-0021 for trade-route-planner (hexagonal → Spring Modulith).
 
 | #    | Title                                                                        | Status                   | Date       |
 |---|---|---|---|
@@ -83,6 +83,7 @@ authority; ADR-0014 is amended by ADR-0039 (selective resilience), which is amen
 | [0039](0039-selective-resilience-rejection-vs-unavailability.md) | Selective Resilience: rejection vs unavailability, breaker outside retry | Accepted | 2026-07-31 |
 | [0040](0040-planner-contract-violation-is-not-a-rejection.md) | A 4xx outside the planner's contract is our bug, not a rejection (502, `misrouted`, alert on > 0) | Accepted | 2026-09-29 |
 | [0041](0041-trade-route-planner-hexagonal-to-spring-modulith.md) | trade-route-planner: hexagonal → Spring Modulith (modules `planning`/`web`/`publishing`/`observability`, sync event seam, frozen black-box acceptance suite) | Accepted | 2026-10-14 |
+| [0042](0042-no-planner-instance-in-registry-is-unavailability.md) | No planner instance in the registry (LoadBalancer `IllegalStateException`) is unavailability (503 + Retry-After, breaker failure) under its own outcome `no_instances`, alert on > 0 — not an uncounted 500 | Accepted | 2026-11-02 |
 
 ---
 

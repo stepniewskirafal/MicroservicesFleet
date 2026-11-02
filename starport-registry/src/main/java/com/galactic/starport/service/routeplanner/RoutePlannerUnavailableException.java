@@ -1,10 +1,11 @@
 package com.galactic.starport.service.routeplanner;
 
 /**
- * The planner did not answer usefully: HTTP 5xx, timeout, connection failure, empty body or an
- * open circuit. This is a transient infrastructure failure — the only thing retry retries and
- * the only thing the circuit breaker records as failure (see the {@code resilience4j} section
- * in application.yml). Mapped to HTTP 503 + {@code Retry-After} so callers know to come back.
+ * The planner did not answer usefully: HTTP 5xx, timeout, connection failure, empty body, an
+ * open circuit, or no instance registered at all (ADR-0042). This is a transient infrastructure
+ * failure — the only thing retry retries and the only thing the circuit breaker records as
+ * failure (see the {@code resilience4j} section in application.yml). Mapped to HTTP 503 +
+ * {@code Retry-After} so callers know to come back.
  */
 public class RoutePlannerUnavailableException extends RouteUnavailableException {
 
@@ -21,7 +22,17 @@ public class RoutePlannerUnavailableException extends RouteUnavailableException 
     }
 
     public RoutePlannerUnavailableException(String originPortId, String destinationPortId, Throwable cause) {
-        super(describe(originPortId, destinationPortId, cause.getClass().getSimpleName()), cause);
+        this(originPortId, destinationPortId, cause.getClass().getSimpleName(), cause);
+    }
+
+    /**
+     * For a cause whose class name says nothing useful to the caller (a bare {@code
+     * IllegalStateException} from the load balancer): the reason lands in the 503 body's
+     * {@code details}, the cause stays attached for logs and traces.
+     */
+    public RoutePlannerUnavailableException(
+            String originPortId, String destinationPortId, String reason, Throwable cause) {
+        super(describe(originPortId, destinationPortId, reason), cause);
         this.statusCode = NO_RESPONSE;
     }
 

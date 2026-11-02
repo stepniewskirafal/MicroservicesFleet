@@ -46,6 +46,15 @@ import org.springframework.web.client.RestClientException;
  * {@code misrouted}, answered with 502. Matching by status alone is not enough: the planner's
  * bean validation answers 422 too (ADR-0040).
  *
+ * <p>One failure happens BEFORE a single byte leaves the JVM: the {@code @LoadBalanced} client
+ * resolves the host of {@code base-url} as a service id in the registry, and when the registry
+ * knows no instance (a typo in {@code base-url}, or every replica evicted after a long outage)
+ * Spring Cloud LoadBalancer throws a bare JDK exception ({@code IllegalArgumentException} or
+ * {@code IllegalStateException}, see the prefix constants) — not a {@link RestClientException},
+ * so until ADR-0042 it escaped this class uncounted and reached the client as 500. It is now relabelled {@link RoutePlannerUnavailableException} (503 + Retry-After,
+ * retried, recorded by the breaker — the planner really is unreachable) under its own outcome
+ * {@code no_instances}, which a healthy system keeps at zero (ADR-0042).
+ *
  * <p>The class is package-private (not API) but the method is public on purpose: Spring's CGLIB
  * proxy reliably advises public methods only.
  */
@@ -75,6 +84,27 @@ class TradeRoutePlannerClient {
     static final String OUTCOME_CIRCUIT_OPEN = "circuit_open";
     /** A 4xx outside the planner's contract — ours, not theirs. A healthy system keeps this at zero. */
     static final String OUTCOME_MISROUTED = "misrouted";
+    /**
+     * The service registry knows no planner instance, so no request was sent: a typo in {@code
+     * base-url} or every replica evicted. A healthy system keeps this at zero (ADR-0042).
+     */
+    static final String OUTCOME_NO_INSTANCES = "no_instances";
+
+    /**
+     * Spring Cloud LoadBalancer has no dedicated exception type for "no instance to pick", only
+     * two bare JDK exceptions from {@code BlockingLoadBalancerClient}, and WHICH one depends on the
+     * classpath: with spring-retry present (our case — spring-kafka pulls it in) the
+     * {@code RetryLoadBalancerInterceptor} chooses the instance itself and calls the
+     * three-argument {@code execute}, which throws {@code IllegalArgumentException("Service
+     * Instance cannot be null, serviceId: …")}; without it the plain {@code LoadBalancerInterceptor}
+     * calls the two-argument {@code execute}, which throws {@code IllegalStateException("No
+     * instances available for …")}. Both are matched by type + message prefix — the only handle we
+     * have. {@code NoPlannerInstanceInRegistryTest} runs the real load balancer so a library bump
+     * that rewords either message fails a test instead of silently reopening the gap.
+     */
+    static final String NO_INSTANCE_CHOSEN_MESSAGE_PREFIX = "Service Instance cannot be null";
+
+    static final String NO_INSTANCES_AVAILABLE_MESSAGE_PREFIX = "No instances available for ";
 
     private final RestClient restClient;
     private final MeterRegistry meterRegistry;
@@ -133,9 +163,26 @@ class TradeRoutePlannerClient {
             // inside the exception for anyone who needs it. Deliberately NOT catch (Exception):
             // anything that is not a RestClientException did not come from the wire and must leave
             // this method as what it is — our own bug, with its own type and its own stack trace.
+            // The single exception to that rule is the load balancer's own verdict, below.
             count(OUTCOME_INFRASTRUCTURE);
             log.warn("Failed to plan route from {} to {}: {}", origin, destination, e.toString());
             throw new RoutePlannerUnavailableException(origin, destination, e);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            if (!isNoInstanceInRegistry(e)) {
+                // Not the load balancer's verdict — some other JDK exception, i.e. our own bug.
+                // It leaves exactly as it is: own type, own stack trace, no outcome, no relabel.
+                throw e;
+            }
+            // The registry knows no instance of the planner, so nothing was sent. Either base-url
+            // names a service the registry has never heard of (our config, deterministic) or every
+            // replica was evicted after a long outage (transient). The adapter cannot tell them
+            // apart, so it chooses the mapping that never hides an outage: unavailable (503 +
+            // Retry-After, retried, breaker failure) — the typo is caught by the outcome's own
+            // "must be zero" alert instead. ADR-0042.
+            count(OUTCOME_NO_INSTANCES);
+            log.warn("No planner instance in the registry for {} -> {}: {}", origin, destination, e.getMessage());
+            throw new RoutePlannerUnavailableException(
+                    origin, destination, "no planner instance registered in the service registry", e);
         }
 
         if (response == null) {
@@ -170,6 +217,22 @@ class TradeRoutePlannerClient {
             // Not JSON, or not the shape we agreed on — that is a contract problem, not a rejection.
             return false;
         }
+    }
+
+    /**
+     * True only for Spring Cloud LoadBalancer's own "no instance" verdicts (see the prefix
+     * constants). Type AND prefix must match: any other {@link IllegalArgumentException} or {@link
+     * IllegalStateException} is ours and must not be relabelled.
+     */
+    private static boolean isNoInstanceInRegistry(RuntimeException e) {
+        String message = e.getMessage();
+        if (message == null) {
+            return false;
+        }
+        if (e instanceof IllegalArgumentException) {
+            return message.startsWith(NO_INSTANCE_CHOSEN_MESSAGE_PREFIX);
+        }
+        return e instanceof IllegalStateException && message.startsWith(NO_INSTANCES_AVAILABLE_MESSAGE_PREFIX);
     }
 
     private static String readBody(ClientHttpResponse res) {

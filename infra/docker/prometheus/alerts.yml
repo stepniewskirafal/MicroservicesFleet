@@ -66,10 +66,12 @@ groups:
       # ── Licznik, który ma zostać na zerze ───────────────────────────────────
       # Odsetek nie widzi dwóch błędów dziennie w tysiącach sukcesów; licznik bezwzględny tak.
       # `empty_response` = planner odpowiedział 2xx bez ciała; `misrouted` = 4xx inne niż
-      # świadoma odmowa 422 ROUTE_REJECTED — nasz serializer, zły URL, kształt naszego DTO (ADR-0040).
+      # świadoma odmowa 422 ROUTE_REJECTED — nasz serializer, zły URL, kształt naszego DTO (ADR-0040);
+      # `no_instances` = rejestr nie zna plannera, nic nie wysłano — literówka w base-url albo
+      # wszystkie repliki wyrzucone z Eureki (ADR-0042; przy eviction strzela też CircuitOpen).
       # Zgłoszenie (warning), nie budzik: increase() z godziny, żeby jedno mrugnięcie nie strzelało co 15 s.
       - alert: TradeRoutePlannerUnexpectedOutcome
-        expr: sum(increase(reservations_route_plan_outcome_total{job="starport-registry", outcome=~"misrouted|empty_response"}[1h])) > 0
+        expr: sum(increase(reservations_route_plan_outcome_total{job="starport-registry", outcome=~"misrouted|empty_response|no_instances"}[1h])) > 0
         for: 0s
         labels:
           severity: warning
@@ -77,4 +79,4 @@ groups:
           dependency: trade-route-planner
         annotations:
           summary: "Nieoczekiwany wynik planowania trasy ({{ $value | printf \"%.0f\" }} w ciągu godziny)"
-          description: "Wystąpił wynik, którego zdrowy system nie produkuje wcale (misrouted / empty_response). Rzadki, pewny błąd — żaden próg procentowy tego nie zobaczy."
+          description: "Wystąpił wynik, którego zdrowy system nie produkuje wcale (misrouted / empty_response / no_instances). Rzadki, pewny błąd — żaden próg procentowy tego nie zobaczy."
