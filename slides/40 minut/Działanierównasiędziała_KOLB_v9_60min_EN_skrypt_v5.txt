@@ -1,0 +1,676 @@
+Slide 2
+
+▎ Picture an ordinary Tuesday. You're writing a service. 
+One service needs something from another one, over the network. 
+You send one a plain HTTP request and wait for the answer. 
+It comes back, you save it to the database. 
+It works. The pipeline is green — tests, deployment, all of it 
+— so you go and get your coffee.
+
+Slide 3
+
+▎ And now, a question before I show you anything. 
+This is a simple request. 
+Who has seen code like this in production before? Hands up. 
+And now the second question: who would leave it like this?
+
+Slide 4
+
+What you're looking at is a map of the whole thing.
+Before we read the map, one word about the concept.
+This system parks spaceships. A ship arrives, it needs a docking bay and a route between the stars. 
+I could have built an online shop, but nobody remembers an online shop.
+
+A client comes in through Starport Registry and books a docking bay.
+
+That service runs as two replicas: two identical copies that share the traffic.
+
+A reservation needs a route — from where the ship is now, to the bay it just booked.
+So Starport asks the second service, Trade Route Planner, which also runs as two replicas.
+That call between Starport and Planner is our hero: an ordinary HTTP call between two services.
+It started life as the simple request I hav just showed.
+Today it carries a few lines of code you haven't seen yet.
+By the end of this talk you'll know what they are, and why they're there.
+
+Slide 5 — DEMO ·
+
+Look at this screen. Grafana. We all know it, and we all sometimes pretend we understand every panel.
+
+This is the system from the map.
+These are pictures I took of it — because I only have a couple of minutes,
+and time flies on stage.
+But everything on them is real: real services, synthetic customers, real reservations.
+
+Nine rectangles. Somebody had a productive afternoon. (laughter)
+    (finger — top-left tile)
+This one says: available. Green. Green is good — that much I know for sure.
+The second service, our hero from the map, is alive and answering.
+    (finger — the three tiles next to it)
+Zero. Zero. And 'No data', which is the dashboard's way of saying zero.
+    (finger — the wide green bar)
+This long bar — green from left to right. Nothing is happening yet.
+
+
+=====================================================================
+Photo 2 — 2zdrowyRuch.png · healthy traffic
+=====================================================================
+
+Now the customers arrive.
+    (finger — bottom-left chart, the green hill)
+Here's the traffic. Our reservations: about three a second, non-stop.
+    (finger — the chart next to it, flat line at zero)
+This line: flat at zero.
+    (finger — latency chart)
+And this one — thirteen milliseconds. Faster than you can blink.
+There are a few more words on this screen I'm not translating yet. We'll get to them.
+(pause)
+Green, flat, fast. ⚓ This is what Tuesday looks like.
+
+
+=====================================================================
+Photo 3 — 3zdrowyRuch_300lat.png · 300 ms
+=====================================================================
+
+Something changed. Who can see where?
+A hint: almost everything is still. Almost.
+    (finger — latency chart, the step up to ~350 ms)
+There. Thirteen milliseconds a moment ago. Now three hundred and fifty.
+Everything else? Still green. Still zero.
+(shrug)
+Somebody is downloading something on the Wi-Fi. Let's move on.
+
+
+
+=====================================================================
+Photo 4 — 4zdrowyRuch_440lat.png · 440 ms · (emergency cut: can be skipped)
+=====================================================================
+
+    (finger — latency chart, the line just under the orange one)
+Almost five hundred milliseconds now. And look — it's touching some orange line. 
+I'm not telling you what the line means. Not yet.
+(pause)
+Wi-Fi again? Twice in a row is not Wi-Fi any more.
+    (finger — the tiles at the top, all green)
+And now, pay attention — nothing happened. All four tiles are still green.
+The system noticed. And it did not react.
+
+
+
+=====================================================================
+Photo 5 — 5zdrowyRuch_600lat.png · THE PUNCHLINE · 600 ms
+=====================================================================
+
+One hundred and sixty milliseconds more than a moment ago. That's all I changed.
+And now?
+    (finger — the red tile, top left)
+The first tile. Red. It says: cut off.
+    (finger — the time bar, the red piece on the right)
+The green bar has a red end.
+    (finger — third tile: 18 s)
+And this tile started counting. Eighteen seconds of... something.
+    (finger — failure/slow rate chart, the yellow line going up)
+Here, a yellow line woke up and went straight to the top.
+    (finger — bottom-right chart, the first green bars)
+And down here, bars appeared. Calls that never left the building.
+
+⚓ (slowest moment of the whole demo; finger on the 0% tile)
+Now look at this one tile. The error counter.
+How many errors? 
+	(pause — let somebody say zero)
+Zero. Not a single request returned an error.
+And the system cut something off. By itself.
+(pause)
+Red — with zero errors.
+
+
+=====================================================================
+Photo 6 — 6nieZdrowyRuch_serwisDown.png · service down
+=====================================================================
+
+One more. What's different from the last picture?
+(one voice is enough: 100% / the second tile)
+    (finger — second tile: 100%)
+The error counter. One hundred per cent. All of it red now.
+    (finger — calls chart, the red area at the bottom)
+Real failures, down here, in red. This time the other service is actually gone.
+(pause)
+⚓ The previous picture was red without errors. This one is red because of errors.
+Same colour. Two completely different stories.
+
+
+
+Slide 6
+
+What do you think you just saw?
+There was a red screen with an error counter at zero.
+I'll put it in one sentence, and that sentence is the skeleton of this whole talk:
+
+It works is not the same as it works, and I know it.
+
+Those weren't retry failures, and they weren't network failures.
+That was observability in action.
+And everything I'm about to show you has one job: 
+to let us say it works, and I know it.
+
+
+Slide 7
+
+One more question.
+How did the system even know something was wrong?
+Keep that question in mind. And keep our simple request in mind, too.
+▎ Imagine you're designing this from scratch. How would you go about it? 
+What would you add so you can sleep at night, instead of wondering whether it's still up?
+Any ideas?
+
+Side joke: A manager would say: hire more support people. Let's be a bit more pragmatic than that.
+
+
+Slide 8
+
+In the early '90s at Sun Microsystems,
+someone wrote down a list of false assumptions about distributed systems —
+the things all of us quietly assume while writing a call to another service.
+There are eight. I've put three on the slide —
+the three you'll see in the code today.
+The rest are worth a read — just google fallacies of distributed computing.
+
+The first false assumption is The network is reliable.
+	It isn't. Packets get lost, connections drop.
+
+The second one Latency is zero.
+	You've just seen what that one is worth —
+	especially when someone's downloading something over the Wi-Fi in the background.
+
+The third one  A remote call is the same as a local one.
+	The most expensive fallacy of them all.
+	A local method either works or throws up an exception — either way, you know straight away.
+	A remote one has a third state: it stays silent, and nobody tells you for how long.
+
+There are three answers to these three fallacies.
+Retry: the network blinked, so try again.
+Timeout: you don't know whether it will answer, so don't wait for it forever.
+Circuit breaker: it's down, so cut it off and give it room to breathe.
+
+
+Slide 9: Slow is worse than broken
+
+I said the last fallacy is the most expensive one.
+Why?
+A slow call hurts because the number of things in progress at the same time grows with the response time.
+
+Let's say we get a hundred new requests per second and each one takes fifty milliseconds.
+So at any given moment, about five calls are in progress.
+
+Now a second scenario. Same traffic, still a hundred requests per second,
+but now each request takes six hundred milliseconds.
+That means at any given moment, sixty of them are in progress.
+
+So why would sixty at once be a problem?
+Let's start on their side — the planner. It used to have five requests open. Now it has sixty.
+Think about that for a second: it slowed down because it had too much work — and we've just handed it twelve times more.
+
+And on our side? Where's the problem?
+Threads? Could be — but mine are virtual, so they're cheap.
+Database connections? Could be — but I return the connection to the pool before I call the planner.
+
+So where is the problem?
+
+The client booked a docking bay. 
+So there's a row in the database holding that bay for that time slot — status HOLD.
+Before we can confirm it, we need a route from the planner.
+If the call succeeds — fine, the bay was going to be taken anyway. 
+But if it fails, after two attempts, I've been blocking that bay for a long time. For nothing.
+
+(bottom table)
+So let me show you the first tool I put in place, and the simplest one: a timeout.
+In my demo the timeout is eight hundred milliseconds 
+— that's the longest I'm willing to wait for the planner.
+Now, look at what it does with these calls.
+
+Three hundred? It lets it through.
+Nine hundred? It cuts it off. I get an error — and I know about it.
+Six hundred? It lets it through, and as far as the timeout is concerned, that's a perfectly good success.
+
+Remember: a timeout answers one question, and one only:
+'Did it make it in time or not?'
+So | what do I need | to spot a failure | that DOES make it in time?
+
+
+Slide 10:
+
+That red screen was a circuit breaker.
+It works just like the fuse box at home. It isn't there to cut the power for good. It's there to stop the house from burning down. Our circuit breaker has three states.
+
+CLOSED, OPEN and HALF-OPEN
+
+CLOSED: traffic flows, and the breaker counts the whole time.
+	It looks at the last ten calls.
+	That's its window, and it moves forward with every new call.
+	What exactly does it count? I'll get to that in a moment.
+
+OPEN: it cuts the traffic off and gives the client a fallback, a plan B.
+	In my case it's an honest no: a five-oh-three, with a message — come back in ten seconds.
+	Taking the traffic off protects the other service — and it's usually the only way to let it recover.
+
+HALF-OPEN: after ten seconds open, the breaker gives it another go.
+	It lets three calls through and judges them by the same thresholds.
+	Good and fast? Back to green.
+	Bad or slow? It cuts off again for another ten seconds.
+
+And now the answer to the puzzle I left you with: how many errors were on the counter?
+Zero on the planner's side.
+And yet the screen was red.
+How was that possible?
+
+Because my breaker has one window, but two counters.
+When a call finishes, it gets two separate labels.
+The first: how did it end — error or success?
+The second: how long did it take? Anything over half a second counts as slow.
+
+Let's take the same three calls as before.
+Three hundred milliseconds, two hundred OK: nothing goes on either counter.
+Nine hundred: the timeout cuts it off at eight hundred.
+	That's an error, but it also took more than half a second, so it goes into both counters.
+And six hundred? The timeout says success. The slow counter says plus one.
+
+In the demo, every single call looked like that middle row: six hundred.
+Error counter showed zero per cent.
+Slow counter: a hundred per cent.
+And it only takes one of the two to cross the threshold 
+— fifty per cent in my case — to open the breaker.
+
+
+
+Slide 11:
+
+I promised you three answers. We've done the timeout. We've done the circuit breaker.
+Now the third one: retry.
+
+There's one rule for retry: only retry what could have worked in the first place.
+Error five-hundred — the server got it wrong — or a timeout can be something temporary. 
+The network blinked. A second attempt might just land on a healthy node.
+
+Error four-hundred means the caller got it wrong — and that's deterministic. 
+Your request was bad, and it'll be just as bad next time.
+
+There are two exceptions, and anyone who calls a paid API knows them well:
+429 'too many requests' and 408 'you took too long to send the request'.
+Those are temporary, so you can retry them.
+
+For all the other four-hundreds, if you ask the same thing again, you'll get the same answer.
+As the internet says Einstein said: insanity is doing the same thing over and over and expecting different results.
+
+What is worse every one of those attempts lands in the breaker as a failure.
+You're feeding the breaker your own bugs.
+
+Say you ignore the rejections, but count every other error.
+A window of ten calls.
+Five NPEs in a row, and the fifty per cent threshold is crossed.
+What happens?
+
+The breaker opens. On a service that's in perfect health.
+The client gets a 503, 'come back later', for a bug that will never fix itself.
+An alert goes off.
+And whoever's on call, at three in the morning, gets up and checks the wrong service.
+
+
+Slide 12:
+
+The obvious fix? Ignore more. Ignore all of RuntimeException.
+	Who's buying that? (a few hands)
+
+	If you say yes, you've just blinded the breaker.
+
+You've just ignored the parent of almost every exception in Java.
+
+In the Resilience4j config, exceptions aren't matched by name.
+They're matched by type, together with every type that inherits from it.
+And the 'planner isn't responding' exception
+		inherits from RuntimeException too.
+
+
+🟡 What we've been doing here is a deny-list: a list of what not to count.
+
+You can already see the problem.
+If you ignore too few errors, the breaker cuts traffic off too early.
+If you ignore too many, the breaker never cuts traffic off at all. You've blinded it.
+
+There's no good middle ground, because the list of your own bugs never ends.
+
+The answer is an allow-list. 
+Instead of saying what to ignore, you say what to count.
+
+You name what counts as the dependency failing. 
+Everything else, by definition, isn't a failure.
+
+And that allow-list has an end.
+
+
+
+Slide 13:
+
+In my code, the method with the circuit breaker also has a retry on it.
+
+Now, these two want opposite things.
+Retry says: don't give up, try again.
+The breaker says: stop, you're making things worse.
+Each one on its own is simple.
+It only gets interesting when they sit on the same method, because one of them has to go first.
+
+In Java, you add these mechanisms to a method as annotations: @Retry and @CircuitBreaker.
+For each annotation, Resilience4j — that's the library I'm using 
+— wraps the method in one layer.
+That layer is called an aspect.
+
+By default, retry is on the outside and the breaker is on the inside.
+So what does that actually mean?
+Retry doesn't know the breaker exists. It just calls a second time.
+And the breaker doesn't know it's a retry. It just sees another call, and counts it.
+
+🟡 Let's do an example with round numbers — not my real config.
+The threshold is fifty per cent. Ten operations come in, two of them fail, and retry gets three attempts per failure.
+How many failures does the breaker see? 
+Twenty per cent?
+That's how a person counts: by operations.
+Twenty is less than fifty, so the breaker stays asleep, right?
+
+
+Not necessarily. It stays asleep but,
+the breaker doesn't count operations. It counts attempts.
+
+Two failed operations, three attempts each: that's six failures.
+Eight operations succeeded on the first try: that's eight successes.
+
+The sum is fourteen calls, six of them red. Forty-three per cent.
+
+Just two more failed attempts, and the breaker opens.
+
+That isn't a bug in the library. It's the default configuration.
+
+Because it counts attempts, the breaker reacts faster to a hard failure.
+
+
+Slide 14 — To count or not to count
+
+Now the real thing — code from my demo.
+ Top box: the resilience config from Starport's YAML.
+
+Look how little there is.
+Three entries, three verbs: record, ignore, retry. That's the whole config.
+Each one comes with a list of exception classes.
+Let's read it top to bottom.
+
+The first line, circuitbreaker.instances.trade-route-planner — that's the name I gave my circuit breaker.
+Under it, two lists.
+	Record exceptions: these count as the planner failing — too many of them, and the breaker opens.
+	Ignore exceptions: here the planner is working fine, it just said no to our request — so that's not a failure, and it doesn't count at all.
+Below that, the retry — same name.
+One list: after these, we send the same request once more.
+
+
+Now look at the whole thing and tell me: what repeats here? (someone: PlannerUnavailableException)
+The class PlannerUnavailableException is in the first list and in the third.
+That's not an accident.
+Record asks: is this the dependency failing?
+Retry asks: is it worth another go?
+In practice that's one question:
+if the planner is down, it's the planner's failure AND it's worth another try.
+If your two answers don't match, you either have a very good reason, or a bug.
+
+Now the real question: where's NullPointerException in all this? 
+ Look at the bottom box — the moment the planner's answer comes back.
+ That's where a planner error gets caught and given a name:
+ a four hundred becomes rejected, a five hundred becomes unavailable. 
+ 
+This code only names the planner's errors.
+Our own bugs get no name.
+So what does the breaker do with a nameless exception?
+It checks the lists in the order of the three coloured boxes:
+should I ignore it?
+Should I record it?
+And if it's neither — success.
+Fair enough: the breaker isn't there to review your code.
+
+The breaker answers one question: is the planner healthy?
+So it should only watch my conversation with the planner. Nothing else.
+
+But my old method did more than talk to the planner.
+It also checked the input and mapped the response — my code, my bugs.
+And the breaker, as we just saw, counts a nameless bug as a success.
+A success… in the planner's health score. 
+My bugs were polluting the planner's score.
+
+The fix it's a smaller method.
+
+The method annotated with Retry and Circuit breakeer should do one thing: the network call.
+Checking and mapping moved out, to where the breaker isn't counting.
+Now the only thing the breaker can see… is the planner. My bug stays my bug.
+
+⚓ Configuration enforces the decision. The code makes it.
+
+
+Slide 15 — You added everything, in an order you chose. Bravo. 🎭 HANDS
+
+Who has any of these tools in production? (forest of hands)
+
+Keep your hand up if you know how many times it fired last week. 
+Did the breaker open last night?
+
+If you don't know, it's because there's no metric. 
+Sure, you could dig through logs for hours.
+Or you could drink your coffee in peace.  I'll show you how.
+
+A metric is a counter the system keeps on its own, 
+and you can read it from the outside. 
+That's visibility.
+
+Resilience without visibility is the same problem, hidden one layer deeper.
+
+
+Slide 16 — Micrometer as a facade
+
+Where did all those counters on the dashboard come from,
+if nobody had written them? 
+The answer is Micrometer.
+It does for metrics — and for traces — what SLF4J does for logs:
+your code talks to one API to create metrics, 
+and where the data goes is specified in one dependency. 
+I chose Prometheus.
+Prometheus is the database: every fifteen seconds it asks the application for its counters, and stores them.
+Grafana just draws them.
+
+▎ 🟡 - left card
+This is all it costs to get in.
+Four dependencies — six if you also send traces.
+
+Actuator — it exposes the state of the application under /actuator.
+The Prometheus registry — the format Prometheus knows how to read.
+
+Now the amber ones.
+The Spring Cloud starter for Resilience4j — the annotations and the YAML binding.
+AOP — the thing that actually reads those annotations.
+
+The two small ones are for tracing — they send spans.
+A span is a stopwatch with a label: one small operation, its name, how long it took — for example: route planning, 600 milliseconds.
+A trace is all the spans from one request, glued together across every service it passed through.
+
+
+▎ 🟢 - right card,
+And this is everything we wrote ourselves to get metrics. All of it.
+An Observation is Micrometer's way of saying: measure this block of code.
+You give it a name — reservations.route.plan — and wrap the call in a lambda. That's it.
+
+From that one name, you get two things at once:
+a timer on the dashboard — how long, how often, how many failed —
+and a span in the trace.
+
+🟡 this Observation lives in the adapter — one level above the method
+that carries @Retry and @CircuitBreaker.
+
+▎ ⚓ Notice how simple that was.
+
+
+
+SLAJD 17
+
+Remember the Tuesday request? This is what it looks like today — the real class from the repo,
+only the log lines are cut.
+The two annotations on top are the two mechanisms you already know 
+— retry and the breaker.
+
+These you know from the YAML slide:
+a five hundred is unavailable,
+a four twenty-two is rejected.
+The new one is in the middle: any other four hundred is OUR bug — a wrong URL, a broken serializer.
+A 502, and its own label: misrouted.
+
+Now, if you are sitting there thinking:
+'Hang on. Two slides ago you said the metrics count themselves.
+So why is this method calling count() by hand, six times?'
+— good. That's exactly the right question.
+
+Here's the thing. The library sees the envelope, not the letter.
+It sees that a request went out, how long it took, which exception came back.
+It cannot read what is inside.
+And two very different letters can arrive in the same envelope, marked 422.
+One says no, this route can't be planned .
+The other says your JSON is garbage.
+Same status, opposite meaning.
+
+The only place where anyone opens that envelope is this line.
+One line later the knowledge is gone
+— turned into an exception class, and that class is all the library will ever see.
+So if I want to count by meaning, I count right here, where the meaning exists.
+Not in the controller, not in the exception handler — there it's already too late.
+
+The library's counters answer: is the planner healthy?
+The library will never give you the answer to the question:
+what happened to the reservation, and whose fault was it?
+
+The green line is the fix from the YAML slide: we catch only network errors.
+Everything else is a bug, and it stays a bug — with its own exception class.
+
+Now the second green line — the newest lines in this class. They were not there when I first wrote this talk.
+The host in my config — trade-route-planner — is not a DNS name. It is a name in the service registry.
+So what happens when the registry does not know that name? A typo in the config. Or every replica evicted.
+Nothing goes out. Not one byte. The library throws a plain IllegalArgumentException — a JDK exception, no status, no envelope.
+It is not a network error, so the green line above does not catch it.
+It is on no list, so the breaker counts it as a success.
+Nobody counts it. The customer gets a five hundred. And every tile on the dashboard stays green.
+(pause)
+That is the three-month bug. I will show you in a minute. I found the same hole — in the code of a talk about that hole.
+Now it has a name: no_instances. Unavailable — 503, come back later — because we honestly cannot reach the planner.
+And a test that runs the real load balancer, so the day the library rewords that message, a test goes red — not production.
+
+The fallback at the bottom runs only while the circuit is open
+It counts itself and throws up 503 exception.
+
+
+
+SLAJD 18
+
+So, what do we actually get for all that?
+Two families of metrics.
+They come from two different places, but they arrive on one endpoint: / actuator / prometheus.
+This is the coffee in peace I promised you.
+
+The left side belongs to the library.
+Nobody wrote a single line for these numbers.
+They exist because Resilience4j is on the classpath.
+
+The first one is the state of the breaker
+The second one is the failure rate: how close you are to opening.
+It shows minus one until the first five calls
+— that's not a bug, that's the library refusing to guess.
+
+The third one is the slow-call rate
+— the percentage of calls slower than the limit I set. 
+One slow call is noise but a growing percentage is a problem.
+
+The last two are the retry counters.
+successful_with_retry: the first attempt failed, a later one made it. 
+That's the retry doing its job.
+failed_with_retry: every attempt failed, retry just added time.
+If the first one stays flat for a week, your retry is a decoration.
+
+The right part comes from the Micrometer API.
+
+The Observation gives you a timer
+— how many calls, how long, the worst case
+and how many are in flight right now
+
+And then there's the one counter I wrote myself.
+Seven values. Success. Rejected. Planner down. Empty answer. Circuit open.
+Misrouted — the planner answered something we never agreed on.
+And the newest one — no instances: the registry did not know the planner, so nothing was sent at all.
+Two labels for two shapes of the same mistake: a wrong path, and a wrong name."
+
+
+One more thing.
+You don't have to sit and stare at this dashboard.
+Prometheus can watch the numbers for you:
+you write a rule
+and hen a rule fires it can be turned into an e-mail, a Teams or Slack message,
+Nobody has to watch the dashboard. 
+
+I have four such rules.
+The first one fires when the circuit is open or half-open.
+Why half-open as well? 
+Because when the breaker tries to come back, for that moment it isn't open any more. 
+On open alone the alert would blink off every time — while the dependency is still down. 
+
+The second and the third fire at twenty-five per cent 
+— of failures, or of slow calls 
+— before the breaker opens at fifty. 
+You see the problem growing — before it opens the circuit.
+
+The fourth one isn't a percentage.
+It watches misrouted and no_instances — numbers that must stay at zero.
+One event in an hour is enough. A ticket, not a page.
+I'll come back to it.
+
+
+
+Slajd 19 — „Imagine a company 
+
+⚓ At the start I asked: who would leave it like this?
+Now imagine a company where somebody did.
+No metric. No alert.
+How long can something like that go unnoticed? A day? A week? Say a number.
+
+Slajd 20 — „3 months 💙 
+
+Three months.
+And I didn't make this up for a talk.
+⚓ It was my team. We shipped a service.
+The tests passed. The deployment passed.
+One address in the config was wrong. 
+
+Every call that service made to that dependency went to the wrong place. Every single one.
+But it hardly ever needed it. Once a day. Twice. Some days, not at all.
+
+We found it by accident. I was reading the logs for a completely different reason.
+One or two errors a day, drowned in thousand of lines of logs.
+
+Remember the label from the code — misrouted?
+Three months would have been one morning.
+
+And one more confession, because it belongs here.
+While preparing this talk I tested my own service with a wrong address.
+A wrong path — misrouted, one morning, exactly as promised.
+A wrong service name — nothing. A five hundred, no label, no alert. Every tile green.
+The code of a talk about an invisible wrong address had an invisible wrong address of its own.
+It took one more label — no_instances — and one test against the real load balancer.
+⚓ The lesson is not "I fixed it". The lesson is: you never find this by reading. You find it by trying to break your own code.
+
+
+Slajd 21  — klamra 
+                                                                                                                 The system will break.
+The network will slow down. 
+Someone will deploy the wrong address. 
+
+It's not about stopping things from breaking.
+It's about seeing them break.
+It works — and I know it.
+
+Slajd 22  — „Thank you / Questions? 
