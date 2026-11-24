@@ -54,3 +54,34 @@ bez kodu = kontrakt: 1 request, obwód CLOSED, 1 sukces / 0 porażek, `misrouted
   niesie ją do handlera (502), logów, metryk i testów.
 - Wciągnięcie w `RoutePlannerUnavailableException` (503 + retry) — ponawiałoby nasz bug i otwierało
   obwód przeciw zdrowemu plannerowi.
+
+## Uzupełnienie 2026-11-24 — serie „ma być zero" startują od zera, własny bug ma własny licznik
+
+Przegląd `TradeRoutePlannerClient` pokazał dwie dziury w widoczności, którą ten ADR obiecuje
+(pkt 4 Decyzji). Obie zamknięte bez zmiany mapowania wyjątków i kontraktu HTTP.
+
+1. **Serie `reservations.route.plan.outcome` są rejestrowane w konstruktorze, od zera.** Wcześniej
+   licznik powstawał leniwie, przy pierwszym wystąpieniu danego `outcome`, więc Prometheus widział
+   serię po raz pierwszy od razu z wartością 1. `increase()` liczy różnicę między próbkami w oknie
+   i nie zakłada startu od zera — wynik 0, reguła `TradeRoutePlannerUnexpectedOutcome` milczała
+   przy **pierwszym** `misrouted` / `empty_response` / `no_instances` po każdym restarcie repliki,
+   czyli zwykle tuż po deployu. Teraz wszystkie siedem wartości (`ALL_OUTCOMES`) istnieje od startu
+   z wartością 0. Zostaje okno jednego odczytu po starcie (`scrape_interval`, tu 3 s): zdarzenie,
+   zanim Prometheus raz zobaczy zero, nadal rodzi się z wartością 1.
+   Test: `TradeRoutePlannerClientOutcomeRegistrationTest` (dokładnie siedem serii, każda = 0).
+2. **`reservations{outcome="internal_error"}`.** `ReservationService` łapał trzy typy
+   (`RouteUnavailableException`, `PlannerContractException`, `ReservationConfirmationException`);
+   każdy inny `RuntimeException` — nasz bug — wychodził bez próbki w `reservations`, więc wszystkie
+   ilorazy na tym liczniku go pomijały. Doszła ostatnia gałąź `catch (RuntimeException)`: zlicza i
+   rzuca **ten sam obiekt** dalej. Zasada z tego ADR zostaje: własnego buga nie przemianowujemy
+   (typ, stack trace i 500 z `GlobalExceptionHandler` bez zmian) — liczymy go pod własną nazwą.
+   Zakres: etap po utworzeniu HOLD (kalkulacja + potwierdzenie); wyjątki z walidacji i z TX1 nadal
+   nie trafiają do `reservations`.
+   Test: `ReservationServiceTest#should_count_an_unclassified_failure_as_internal_error_without_relabelling_it`.
+3. **Panel SLO „Lost Reservations 30d (business)"** (`slo-error-budget.json`): licznik ułamka
+   rozszerzony do `outcome=~"no_capacity|route_unavailable|internal_error"`. Rezerwacja utracona
+   przez nasz bug jest utracona tak samo jak przez brak miejsc. `error` i `planner_contract` nadal
+   są poza tym panelem — osobna decyzja o definicji SLI.
+
+Zweryfikowane: testy jednostkowe `starport-registry` (`mvn test -Pfast`). Nie uruchamiano
+`mvn verify` ani reguły alertu na żywym stacku.

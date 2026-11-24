@@ -157,7 +157,7 @@
       "id": 4,
       "type": "stat",
       "title": "Lost Reservations 30d (business)",
-      "description": "Business SLI: percentage of reservations lost (no_capacity | route_unavailable) in 30 days. Independent of $job — a global metric. Red > 1%.",
+      "description": "Business SLI: percentage of reservations lost (no_capacity | route_unavailable | internal_error) in 30 days. Independent of $job — a global metric. Red > 1%.",
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "gridPos": { "x": 18, "y": 4, "w": 6, "h": 6 },
       "targets": [
@@ -165,7 +165,7 @@
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "editorMode": "code",
-          "expr": "100 * sum(increase(reservations_total{outcome=~\"no_capacity|route_unavailable\"}[30d])) / clamp_min(sum(increase(reservations_total[30d])), 1)",
+          "expr": "100 * sum(increase(reservations_total{outcome=~\"no_capacity|route_unavailable|internal_error\"}[30d])) / clamp_min(sum(increase(reservations_total[30d])), 1)",
           "legendFormat": "lost %",
           "instant": true
         }

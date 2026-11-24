@@ -74,6 +74,16 @@ public class ReservationService {
             incrementReservationCounter(starport, shipClass, "error");
             throw ex;
 
+        } catch (RuntimeException ex) {
+            // Everything no branch above claimed: our own bug (a NullPointerException in the route
+            // mapper, an IllegalStateException from a broken invariant) or a failure nobody
+            // classified. It is NOT relabelled — the same exception leaves with its own type and
+            // stack trace and GlobalExceptionHandler still answers 500 — it is only COUNTED, under a
+            // name of its own. Without this branch such a reservation left no `reservations` sample
+            // at all, so every ratio built on that meter silently skipped it.
+            incrementReservationCounter(starport, shipClass, "internal_error");
+            throw ex;
+
         } finally {
             if (!confirmed) {
                 compensateHold(reservationId);

@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +91,16 @@ class TradeRoutePlannerClient {
      */
     static final String OUTCOME_NO_INSTANCES = "no_instances";
 
+    /** Every value the {@code outcome} tag can take — all registered at zero in the constructor. */
+    static final List<String> ALL_OUTCOMES = List.of(
+            OUTCOME_SUCCESS,
+            OUTCOME_DOMAIN,
+            OUTCOME_INFRASTRUCTURE,
+            OUTCOME_EMPTY_RESPONSE,
+            OUTCOME_CIRCUIT_OPEN,
+            OUTCOME_MISROUTED,
+            OUTCOME_NO_INSTANCES);
+
     /**
      * Spring Cloud LoadBalancer has no dedicated exception type for "no instance to pick", only
      * two bare JDK exceptions from {@code BlockingLoadBalancerClient}, and WHICH one depends on the
@@ -116,6 +127,20 @@ class TradeRoutePlannerClient {
         this.restClient = tradeRoutePlannerRestClient;
         this.meterRegistry = meterRegistry;
         this.objectMapper = objectMapper;
+        // Every outcome series is registered HERE, at zero, before the first call — not lazily on
+        // its first occurrence. The reason is PromQL's increase(): it measures the difference between
+        // samples inside its window and does not assume that a series started at zero. A counter
+        // created lazily is first scraped already at 1, with no earlier sample to subtract, so
+        // increase() yields 0 and the TradeRoutePlannerUnexpectedOutcome alert ("must stay at zero":
+        // misrouted / empty_response / no_instances) stays silent for the FIRST event after every
+        // restart — i.e. right after a deploy, exactly when a contract bug is most likely. Scraped
+        // once at 0, the very first event is a visible 0 -> 1 step.
+        //
+        // What this does NOT fix: we are still blind until Prometheus has scraped that zero once,
+        // i.e. for up to one scrape interval after startup (scrape_interval in prometheus.yml —
+        // 3 s in this stack, 15 s in a default Prometheus). An event inside that window is again
+        // born at 1.
+        ALL_OUTCOMES.forEach(outcome -> outcomeCounters.put(outcome, registerOutcomeCounter(outcome)));
     }
 
     @Retry(name = "trade-route-planner")
@@ -245,11 +270,15 @@ class TradeRoutePlannerClient {
     }
 
     private void count(String outcome) {
-        outcomeCounters
-                .computeIfAbsent(outcome, value -> Counter.builder(METRIC_OUTCOME)
-                        .description("Route planning attempts by outcome")
-                        .tag("outcome", value)
-                        .register(meterRegistry))
-                .increment();
+        // Every known outcome is already in the map (see the constructor); computeIfAbsent only
+        // keeps an outcome added without being listed in ALL_OUTCOMES from failing the call.
+        outcomeCounters.computeIfAbsent(outcome, this::registerOutcomeCounter).increment();
+    }
+
+    private Counter registerOutcomeCounter(String outcome) {
+        return Counter.builder(METRIC_OUTCOME)
+                .description("Route planning attempts by outcome")
+                .tag("outcome", outcome)
+                .register(meterRegistry);
     }
 }

@@ -45,16 +45,18 @@ class ReservationServiceTest {
     @Mock
     private ReservationCalculationFacade reservationCalculationFacade;
 
+    private SimpleMeterRegistry meterRegistry;
     private ReservationService reservationService;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         reservationService = new ReservationService(
                 holdReservationFacade,
                 confirmReservationFacade,
                 reservationValidator,
                 reservationCalculationFacade,
-                new SimpleMeterRegistry(),
+                meterRegistry,
                 Tracer.NOOP,
                 starport -> starport);
     }
@@ -142,6 +144,29 @@ class ReservationServiceTest {
         assertThatThrownBy(() -> reservationService.reserveBay(cmd)).isInstanceOf(RouteUnavailableException.class);
 
         // Orphan prevention: the committed HOLD must be released when confirm can't complete.
+        then(holdReservationFacade).should().cancelHold(reservationId);
+    }
+
+    @Test
+    void should_count_an_unclassified_failure_as_internal_error_without_relabelling_it() {
+        ReserveBayCommand cmd = aCommand();
+        Long reservationId = 7L;
+        // Our own bug: nothing in the reservation flow has a typed catch for it.
+        IllegalStateException bug = new IllegalStateException("broken invariant");
+        given(holdReservationFacade.createHoldReservation(cmd)).willReturn(reservationId);
+        given(reservationCalculationFacade.calculate(reservationId, cmd)).willThrow(bug);
+
+        // Not relabelled: the very same instance leaves, so it keeps its type and stack trace.
+        assertThatThrownBy(() -> reservationService.reserveBay(cmd)).isSameAs(bug);
+
+        // Counted under a name of its own — and under no other outcome.
+        assertThat(meterRegistry
+                        .get("reservations")
+                        .tag("outcome", "internal_error")
+                        .counter()
+                        .count())
+                .isEqualTo(1.0);
+        assertThat(meterRegistry.find("reservations").counters()).hasSize(1);
         then(holdReservationFacade).should().cancelHold(reservationId);
     }
 
