@@ -127,19 +127,6 @@ class TradeRoutePlannerClient {
         this.restClient = tradeRoutePlannerRestClient;
         this.meterRegistry = meterRegistry;
         this.objectMapper = objectMapper;
-        // Every outcome series is registered HERE, at zero, before the first call — not lazily on
-        // its first occurrence. The reason is PromQL's increase(): it measures the difference between
-        // samples inside its window and does not assume that a series started at zero. A counter
-        // created lazily is first scraped already at 1, with no earlier sample to subtract, so
-        // increase() yields 0 and the TradeRoutePlannerUnexpectedOutcome alert ("must stay at zero":
-        // misrouted / empty_response / no_instances) stays silent for the FIRST event after every
-        // restart — i.e. right after a deploy, exactly when a contract bug is most likely. Scraped
-        // once at 0, the very first event is a visible 0 -> 1 step.
-        //
-        // What this does NOT fix: we are still blind until Prometheus has scraped that zero once,
-        // i.e. for up to one scrape interval after startup (scrape_interval in prometheus.yml —
-        // 3 s in this stack, 15 s in a default Prometheus). An event inside that window is again
-        // born at 1.
         ALL_OUTCOMES.forEach(outcome -> outcomeCounters.put(outcome, registerOutcomeCounter(outcome)));
     }
 
@@ -160,6 +147,13 @@ class TradeRoutePlannerClient {
                             // 422 ROUTE_REJECTED = domain rejection ("this route cannot be planned")
                             // — deterministic, so neither retried nor recorded by the breaker.
                             count(OUTCOME_DOMAIN);
+                            // INFO, not WARN: a rejection is an expected business answer, not a
+                            // failure. But it is the ONLY place the planner's reason is ever seen
+                            // — the exception carries the status alone and the 409 body must not
+                            // leak the planner's payload — so without this line "why was this
+                            // route refused?" had no answer anywhere in this service.
+                            log.info(
+                                    "Planner rejected route {} -> {} (HTTP {}): {}", origin, destination, status, body);
                             throw new RoutePlanningRejectedException(origin, destination, status);
                         }
                         // Any other 4xx is OUR bug or misconfiguration wearing the planner's
@@ -183,31 +177,17 @@ class TradeRoutePlannerClient {
         } catch (RouteUnavailableException e) {
             throw e;
         } catch (RestClientException e) {
-            // Timeout / connection failure / unreadable body — an EXPECTED dependency failure, not
-            // a bug in this service: one WARN line, no stack trace. The cause still travels up
-            // inside the exception for anyone who needs it. Deliberately NOT catch (Exception):
-            // anything that is not a RestClientException did not come from the wire and must leave
-            // this method as what it is — our own bug, with its own type and its own stack trace.
-            // The single exception to that rule is the load balancer's own verdict, below.
             count(OUTCOME_INFRASTRUCTURE);
             log.warn("Failed to plan route from {} to {}: {}", origin, destination, e.toString());
             throw new RoutePlannerUnavailableException(origin, destination, e);
         } catch (IllegalArgumentException | IllegalStateException e) {
-            if (!isNoInstanceInRegistry(e)) {
-                // Not the load balancer's verdict — some other JDK exception, i.e. our own bug.
-                // It leaves exactly as it is: own type, own stack trace, no outcome, no relabel.
-                throw e;
+            if (isNoInstanceInRegistry(e)) {
+                count(OUTCOME_NO_INSTANCES);
+                log.warn("No planner instance in the registry for {} -> {}: {}", origin, destination, e.getMessage());
+                throw new RoutePlannerUnavailableException(
+                        origin, destination, "no planner instance registered in the service registry", e);
             }
-            // The registry knows no instance of the planner, so nothing was sent. Either base-url
-            // names a service the registry has never heard of (our config, deterministic) or every
-            // replica was evicted after a long outage (transient). The adapter cannot tell them
-            // apart, so it chooses the mapping that never hides an outage: unavailable (503 +
-            // Retry-After, retried, breaker failure) — the typo is caught by the outcome's own
-            // "must be zero" alert instead. ADR-0042.
-            count(OUTCOME_NO_INSTANCES);
-            log.warn("No planner instance in the registry for {} -> {}: {}", origin, destination, e.getMessage());
-            throw new RoutePlannerUnavailableException(
-                    origin, destination, "no planner instance registered in the service registry", e);
+            throw e;
         }
 
         if (response == null) {
@@ -220,9 +200,6 @@ class TradeRoutePlannerClient {
         return response;
     }
 
-    // Fallback matches by exception parameter type, so this fires ONLY when the circuit is open.
-    // Every other failure propagates untouched — a Throwable-typed fallback would swallow our own
-    // bugs and mislabel them as circuit_open in metrics.
     private TradeRoutePlannerResponse circuitOpenFallback(
             TradeRoutePlannerRequest request, String origin, String destination, CallNotPermittedException e) {
         count(OUTCOME_CIRCUIT_OPEN);
@@ -244,11 +221,6 @@ class TradeRoutePlannerClient {
         }
     }
 
-    /**
-     * True only for Spring Cloud LoadBalancer's own "no instance" verdicts (see the prefix
-     * constants). Type AND prefix must match: any other {@link IllegalArgumentException} or {@link
-     * IllegalStateException} is ours and must not be relabelled.
-     */
     private static boolean isNoInstanceInRegistry(RuntimeException e) {
         String message = e.getMessage();
         if (message == null) {
@@ -270,8 +242,6 @@ class TradeRoutePlannerClient {
     }
 
     private void count(String outcome) {
-        // Every known outcome is already in the map (see the constructor); computeIfAbsent only
-        // keeps an outcome added without being listed in ALL_OUTCOMES from failing the call.
         outcomeCounters.computeIfAbsent(outcome, this::registerOutcomeCounter).increment();
     }
 

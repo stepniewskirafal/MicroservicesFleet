@@ -14,11 +14,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * Locks in the SHIPPED resilience contract — i.e. the resilience4j DEFAULT aspect order,
@@ -33,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * <p>The exception-selectivity tests below are order-independent and hold in both worlds: a 4xx
  * domain rejection is neither retried nor recorded, and our own bugs never open the circuit.
  */
+@ExtendWith(OutputCaptureExtension.class)
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = "WIREMOCK", mode = ResourceAccessMode.READ_WRITE)
 class ResilienceAspectOrderTest extends BaseAcceptanceTest {
@@ -119,7 +123,7 @@ class ResilienceAspectOrderTest extends BaseAcceptanceTest {
     // --- order-independent: exception selectivity holds in both worlds ---------------------------
 
     @Test
-    void domainRejectionIsNeitherRetriedNorRecordedByBreaker() {
+    void domainRejectionIsNeitherRetriedNorRecordedByBreaker(CapturedOutput output) {
         // The planner's deliberate "no": 422 WITH its error code. Status alone is not a rejection.
         wireMock.stubFor(post(urlEqualTo(PLAN_URL))
                 .willReturn(aResponse()
@@ -136,6 +140,12 @@ class ResilienceAspectOrderTest extends BaseAcceptanceTest {
         // against a healthy planner.
         assertEquals(0, circuitBreaker.getMetrics().getNumberOfFailedCalls());
         assertEquals(0, circuitBreaker.getMetrics().getNumberOfSuccessfulCalls());
+        // The planner's reason is logged once, here — the exception carries the status alone and
+        // the 409 body does not repeat the planner's payload, so this line is the only trace of WHY.
+        assertTrue(
+                output.getOut().contains("Planner rejected route ORIGIN-ORDER-422 -> DEST-ORDER-422 (HTTP 422)"),
+                "the rejection must leave a log line");
+        assertTrue(output.getOut().contains("INSUFFICIENT_RANGE"), "the log line must carry the planner's reason");
     }
 
     // ADR-0040: a 4xx that is NOT the planner's deliberate rejection is OUR bug wearing the
