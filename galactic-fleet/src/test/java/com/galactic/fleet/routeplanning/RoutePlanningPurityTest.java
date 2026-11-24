@@ -8,7 +8,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 /**
- * Route planning must stay a pure computation (ADR-0046, ADR-0048).
+ * Route planning must stay a pure computation (ADR-0043).
  *
  * <p>{@code booking} calls this module synchronously, on the thread of the HTTP request, before it
  * opens its transaction. That is acceptable only while planning does no I/O: the first broker,
@@ -34,7 +34,7 @@ class RoutePlanningPurityTest {
                     "org.springframework.web.client..",
                     "org.springframework.web.reactive.function.client..",
                     "java.net.http..")
-            .because("booking calls route planning synchronously on the request thread (ADR-0046)");
+            .because("booking calls route planning synchronously on the request thread (ADR-0043)");
 
     @ArchTest
     static final ArchRule publishes_no_events = noClasses()

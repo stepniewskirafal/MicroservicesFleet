@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  *                   └─► telemetry.enriched-routes      (only when a route was requested)
  * </pre>
  *
- * <p>Changed deliberately by ADR-0046: the raw topics {@code starport.reservations} and
+ * <p>Changed deliberately by ADR-0043: the raw topics {@code starport.reservations} and
  * {@code starport.route-planned} no longer exist. They were the wire between the three services of
  * the original fleet; inside one application the modules exchange an application event, and only
  * computed telemetry leaves the system. Everything asserted about the two enriched topics is
@@ -57,7 +57,7 @@ class ReservationEventFlowSystemTest {
             ConsumerRecord<String, String> enrichedReservation = enrichedReservations.await(
                     r -> json(r).path("reservationId").asLong() == reservationId, PATIENCE);
             JsonNode enriched = json(enrichedReservation);
-            // Delivery is at-least-once; the key is what a consumer deduplicates on (ADR-0048).
+            // Delivery is at-least-once; the key is what a consumer deduplicates on (ADR-0043).
             assertThat(enrichedReservation.key()).isEqualTo(String.valueOf(reservationId));
             assertThat(enriched.path("eventType").asText()).isEqualTo("RESERVATION_CONFIRMED");
             assertThat(enriched.path("status").asText()).isEqualTo("CONFIRMED");

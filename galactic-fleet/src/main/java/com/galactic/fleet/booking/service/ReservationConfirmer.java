@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The one transaction of a reservation (ADR-0046): lock a free bay, store the reservation as
+ * The one transaction of a reservation (ADR-0043): lock a free bay, store the reservation as
  * CONFIRMED and publish {@link ReservationConfirmed}.
  *
  * <p>The event is published <em>inside</em> the transaction on purpose. The Event Publication
@@ -130,7 +130,7 @@ class ReservationConfirmer {
     /**
      * The W3C {@code traceparent} of the current span, or {@code null} outside a trace. It travels
      * in the event because the registry persists the event, not the thread's trace context — a
-     * re-delivered event would otherwise start a new, unrelated trace (ADR-0048).
+     * re-delivered event would otherwise start a new, unrelated trace (ADR-0043).
      */
     private String currentTraceparent() {
         TraceContext context = tracer.currentTraceContext().context();

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-/** Fuel range per ship class is route-planning knowledge (ADR-0046) — it used to sit in the caller. */
+/** Fuel range per ship class is route-planning knowledge (ADR-0043) — it used to sit in the caller. */
 @Execution(ExecutionMode.CONCURRENT)
 class ShipFuelRangesTest {
 

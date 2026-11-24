@@ -26,7 +26,7 @@ spring:
     scheduling:
       pool:
         # Two @Scheduled jobs: the dock-occupancy gauge refresh and the re-delivery of incomplete
-        # event publications (EventPublicationMaintenance, ADR-0048).
+        # event publications (EventPublicationMaintenance, ADR-0043).
         size: 2
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/starports}
@@ -52,31 +52,19 @@ spring:
         hibernate.id.optimizer.pooled.preferred: pooled-lo
 
   cloud:
-    function:
-      # Only the sensor pipeline is bound to the broker. The reservation and route enrichment
-      # functions are plain beans fed by the ReservationConfirmed application event, after the
-      # reservation's commit (activityfeed/internal/FleetEventListener, ADR-0046).
-      definition: telemetryPipeline
-
     stream:
       defaultBinder: kafka
+      function:
+        # No function is bound to the broker: the application only produces. The two pipeline
+        # beans of activityfeed (reservationPipeline, routePipeline) are fed by the
+        # ReservationConfirmed application event and their output is sent with StreamBridge
+        # (activityfeed/pipeline/FleetEventListener, ADR-0043). Autodetection is off so
+        # that Spring Cloud Stream never binds a Function bean to a topic by itself.
+        autodetect: false
 
-      # Kafka is the edge of the system (ADR-0046): one inbound topic (telemetry.raw) and three
-      # outbound topics, all of them computed telemetry. Modules never talk through the broker.
+      # Kafka is the edge of the system (ADR-0043): nothing comes in, two topics go out,
+      # both computed from confirmed reservations. Modules never talk through the broker.
       bindings:
-        # ── in: raw sensor readings from external producers ──
-        telemetryPipeline-in-0:
-          destination: telemetry.raw
-          group: telemetry-pipeline
-          content-type: application/json
-          consumer:
-            max-attempts: 3
-            back-off-initial-interval: 1000
-        # ── out: anomaly alerts ──
-        telemetryPipeline-out-0:
-          destination: telemetry.alerts
-          content-type: application/json
-        # ── out: records computed from confirmed reservations ──
         enrichedReservations-out-0:
           destination: telemetry.enriched-reservations
           content-type: application/json
@@ -87,23 +75,13 @@ spring:
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
-          # ADR-0017: Micrometer Observation on the binder's producers and listener containers.
-          # Producers inject `traceparent` into every outgoing record (one trace per reservation
-          # across both enriched topics); the telemetry.raw consumer extracts it.
+          # ADR-0017: Micrometer Observation on the binder's producers. They inject `traceparent`
+          # into every outgoing record (one trace per reservation across both enriched topics).
           enable-observation: true
           autoCreateTopics: true
           configuration:
-            auto.offset.reset: latest
             key.serializer: org.apache.kafka.common.serialization.StringSerializer
             value.serializer: org.apache.kafka.common.serialization.ByteArraySerializer
-        bindings:
-          # Dead-letter queue for what the in-pipeline try/catch CANNOT reach — payloads that fail
-          # message conversion before the function runs. (Filter exceptions inside the pipeline are
-          # handled by PipelineBuilder — logged, counted, and dropped there.)
-          telemetryPipeline-in-0:
-            consumer:
-              enableDlq: true
-              dlqName: telemetry.raw.dlq
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -113,7 +91,7 @@ spring:
   modulith:
     events:
       # A completed publication is deleted, so event_publication holds only what still has to be
-      # delivered and never grows with history (ADR-0048).
+      # delivered and never grows with history (ADR-0043).
       completion-mode: delete
 
 # Re-delivery of application events whose listener did not finish (EventPublicationMaintenance).
@@ -126,29 +104,6 @@ events:
     older-than-ms: 60000
     # The oldest incomplete publication being older than this is logged as a warning.
     warn-after-ms: 900000
-
-# Sensor threshold defaults — override per environment
-telemetry:
-  thresholds:
-    sensors:
-      TEMPERATURE:
-        lower: -50.0
-        upper: 300.0
-      RADIATION:
-        lower: 0.0
-        upper: 1000.0
-      FUEL_LEVEL:
-        lower: 5.0
-        upper: 100.0
-      ENGINE_VIBRATION:
-        lower: 0.0
-        upper: 80.0
-      HULL_INTEGRITY:
-        lower: 20.0
-        upper: 100.0
-      OXYGEN_LEVEL:
-        lower: 18.0
-        upper: 100.0
 
 management:
   endpoint:
@@ -185,11 +140,6 @@ management:
         reservations.confirm:             5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s,2s
         # routeplanning
         routes.plan:                      10ms,50ms,100ms,200ms,500ms,1s,2s,5s
-        # telemetry
-        telemetry.filter.validation:      100us,500us,1ms,5ms,10ms,50ms,100ms
-        telemetry.filter.enrichment:      100us,500us,1ms,5ms,10ms,50ms,100ms
-        telemetry.filter.aggregation:     100us,500us,1ms,5ms,10ms,50ms,100ms
-        telemetry.filter.anomaly:         100us,500us,1ms,5ms,10ms,50ms,100ms
         events.reservation.lag:           100ms,500ms,1s,5s,10s,30s,60s,300s
   endpoints:
     web:

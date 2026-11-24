@@ -5,7 +5,7 @@
 #
 # Host-bound:
 #   galactic-fleet :8080  — the application: POST /api/v1/starports/{code}/reservations
-#   kafka          :9092  — edge topics (telemetry.raw in; telemetry.alerts / telemetry.enriched-* out)
+#   kafka          :9092  — edge topics (nothing in; telemetry.enriched-reservations / -routes out)
 #   postgres       :5432  — external DB access (dev convenience)
 #   kafka-ui       :8085  — topic browser
 #   + the observability UIs from docker-compose.observability.yml (Grafana :3000, Prometheus :9090, …)

@@ -67,7 +67,7 @@ class ReservationEntity {
 
     private Instant updatedAt;
 
-    // Optimistic lock. A reservation is written once today (ADR-0046: no HOLD, no reaper), so nothing
+    // Optimistic lock. A reservation is written once today (ADR-0043: no HOLD, no reaper), so nothing
     // competes for it yet; the column stays for the first feature that updates a reservation.
     @Version
     @Column(nullable = false)
@@ -91,7 +91,7 @@ class ReservationEntity {
         this.startAt = command.startAt();
         this.endAt = command.endAt();
         this.feeCharged = feeCharged;
-        // A reservation is born CONFIRMED: bay, fee and route are all known before the insert (ADR-0046).
+        // A reservation is born CONFIRMED: bay, fee and route are all known before the insert (ADR-0043).
         this.status = ReservationStatus.CONFIRMED;
     }
 

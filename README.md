@@ -1,6 +1,6 @@
 # 🪐 Galactic Fleet — one Spring Modulith application
 
-A galactic trade system built as **one application with four modules** — a learning
+A galactic trade system built as **one application with three modules** — a learning
 project that demonstrates a modular monolith with machine-checked module boundaries, events between
 modules that are delivered after the commit, end-to-end tracing, and a production-shaped
 observability stack, all runnable from a single `docker compose` command.
@@ -8,9 +8,9 @@ observability stack, all runnable from a single `docker compose` command.
 > **Status — implemented & running.** The fleet used to be five processes (three business services
 > with two replicas each, an API gateway and a Eureka registry). On this branch it is **one process**:
 > `galactic-fleet`, a [Spring Modulith](https://spring.io/projects/spring-modulith) application
-> ([ADR-0043](adr/0043-fleet-as-one-spring-modulith.md)). Its modules were then re-cut along the
-> domains instead of along the former services — `booking`, `routeplanning`, `shipmonitoring`,
-> `activityfeed` ([ADR-0046](adr/0046-disjoint-domains-and-events-after-commit.md)): a reservation is
+> ([ADR-0043](adr/0043-fleet-as-one-spring-modulith.md)). Its modules are cut along the
+> domains instead of along the former services — `booking`, `routeplanning`,
+> `activityfeed`: a reservation is
 > one transaction, modules exchange events after the commit, and Kafka carries only computed
 > telemetry. The HTTP API and the metric names are unchanged; the contract is pinned by a black-box
 > test suite ([`system-acceptance/`](system-acceptance)). The microservice variant lives on the
@@ -66,15 +66,15 @@ and Flyway replays the seed.
 |---|---|---|
 | Language / Runtime | **Java 21** + Virtual Threads (Project Loom) | ADR-0012 |
 | Framework | **Spring Boot 3.5.6** | ADR-0025 |
-| Module boundaries | **Spring Modulith 1.4.13** — `ApplicationModules.verify()` in the build; `allowedDependencies` per module | ADR-0043, 0044, 0046 |
-| Module-to-module calls | plain method call through a module's `api` named interface (one such call exists) | ADR-0044, 0046 |
-| Module-to-module events | Spring application events, delivered after the commit (`@ApplicationModuleListener`) | ADR-0046 |
+| Module boundaries | **Spring Modulith 1.4.13** — `ApplicationModules.verify()` in the build; `allowedDependencies` per module | ADR-0043 |
+| Module-to-module calls | plain method call through a module's `api` named interface (one such call exists) | ADR-0043 |
+| Module-to-module events | Spring application events, delivered after the commit (`@ApplicationModuleListener`) | ADR-0043 |
 | Messaging at the edge | **Apache Kafka 3.7 (KRaft)** via Spring Cloud Stream (StreamBridge + one functional bean) | ADR-0016, 0019 |
-| Event delivery | Spring Modulith **Event Publication Registry** (`spring-modulith-starter-jpa`, table `event_publication`) — at-least-once | ADR-0046 |
+| Event delivery | Spring Modulith **Event Publication Registry** (`spring-modulith-starter-jpa`, table `event_publication`) — at-least-once | ADR-0043 |
 | Persistence | **PostgreSQL 16** + Spring Data JPA + **Flyway** | ADR-0007, 0018 |
 | Concurrency safety | `SELECT … FOR UPDATE SKIP LOCKED` + range-overlap query + `@Version` | ADR-0020 |
 | Telemetry hub | **OTel Collector** (tail sampling for traces, 100% logs) | ADR-0037 |
-| Metrics | Micrometer Observation API → **Prometheus** (15 days local retention) | ADR-0005, 0030, 0047 |
+| Metrics | Micrometer Observation API → **Prometheus** (15 days local retention) | ADR-0005, 0030, 0043 |
 | Traces | OTLP → Collector → **Tempo** | ADR-0017, 0037 |
 | Logs | OTLP appender (app) + **Alloy** (infra stdout) → **Loki** | ADR-0035, 0037 |
 | Dashboards | **Grafana** (auto-provisioned) | ADR-0005, 0033 |
@@ -92,7 +92,7 @@ A fictional interstellar logistics network. Each bounded context is a **module**
 application: a direct subpackage of `com.galactic.fleet`. A module's API is its
 **named interfaces** — subpackages `api` and `events` marked with `@NamedInterface`; every other
 subpackage is internal and unreachable from other modules. Each module's `package-info.java` lists
-the only named interfaces it may use (`allowedDependencies`, ADR-0044).
+the only named interfaces it may use (`allowedDependencies`, ADR-0043).
 
 ### `booking` — the system of record
 **Starports, docking bays, customers, ships, reservations and the berth tariff.** The only database
@@ -109,16 +109,12 @@ no database, no Kafka, no events, no I/O. What each ship class can fly lives her
 **API:** the `api` named interface — `PlanRouteUseCase` with `RouteRequest`, `PlannedRoute` and
 `RouteRejectionException`. **Depends on:** nothing.
 
-### `shipmonitoring` — Pipes & Filters
-Ingests real-time starship **sensor readings** from Kafka (`telemetry.raw`) and runs them through a
-chain of filters, raising alerts on anomalies (`telemetry.alerts`). Fully self-contained: it
-publishes no application events and listens to none.
-**API:** none. **Depends on:** nothing.
-
-### `activityfeed` — what leaves the system about a reservation
+### `activityfeed` — what leaves the system about a reservation (Pipes & Filters)
 Listens to `ReservationConfirmed` and turns it into the computed records published on Kafka:
 `telemetry.enriched-reservations` and, when the reservation has a route, `telemetry.enriched-routes`.
-It runs after the publisher's commit, on another thread, in its own transaction.
+It runs after the publisher's commit, on another thread, in its own transaction. Internally it is
+**Pipes & Filters** (ADR-0022, ADR-0043): six single-purpose filters in two chains, composed by
+`PipelineBuilder`; a `null` from a filter ends its chain.
 **API:** none — it is a pure listener. **Depends on:** `booking::events`.
 
 ### Outside the modules
@@ -145,14 +141,14 @@ module: `AsyncTracingConfiguration` (carries the trace context onto the listener
  │            │ stored in event_publication inside the reservation transaction,                 │
  │            │ delivered after the commit, on another thread                                   │
  │            ▼                                                                                 │
- │  ┌───────────────────┐                               ┌──────────────────────┐                │
- │  │   activityfeed    │                               │    shipmonitoring    │                │
- │  │ enriched records  │                               │   Pipes & Filters    │ ◄──────────────┼── telemetry.raw (Kafka,
- │  └─────────┬─────────┘                               └──────────┬───────────┘                │    external producers)
- │            │                                                    │                            │
- └────────────┼────────────────────────────────────────────────────┼────────────────────────────┘
-              ▼ Kafka OUT                                          ▼ Kafka OUT
-     telemetry.enriched-reservations                        telemetry.alerts
+ │  ┌───────────────────┐                                                                        │
+ │  │   activityfeed    │  two Pipes & Filters chains: reservation record, route record          │
+ │  │ enriched records  │                                                                        │
+ │  └─────────┬─────────┘                                                                        │
+ │            │                                                                                  │
+ └────────────┼──────────────────────────────────────────────────────────────────────────────────┘
+              ▼ Kafka OUT
+     telemetry.enriched-reservations
      telemetry.enriched-routes
 
    galactic-fleet ──►  OTel Collector :4318  ──►  tail-sample ──►  Tempo (traces)
@@ -167,23 +163,21 @@ module: `AsyncTracingConfiguration` (carries the trace context onto the listener
 |---|---|---|
 | `booking` | `routeplanning::api` | calls `PlanRouteUseCase` (the route is part of the HTTP response) — synchronous, before the transaction |
 | `routeplanning` | — | — |
-| `shipmonitoring` | — | — |
 | `activityfeed` | `booking::events` | listens to `ReservationConfirmed` after the commit — the event type only |
 
 ```mermaid
 graph LR
     booking -->|"routeplanning::api — method call"| routeplanning
     activityfeed -->|"booking::events — event after commit"| booking
-    shipmonitoring
 ```
 
-Two edges, no cycles (ADR-0046). `ModularityTest` (`ApplicationModules.verify()`) fails the build —
+Two edges, no cycles (ADR-0043). `ModularityTest` (`ApplicationModules.verify()`) fails the build —
 even the fast `-Pfast` loop — on a cycle, on a reference into another module's internal subpackage,
-or on a dependency missing from the module's `allowedDependencies` (ADR-0044). The same test checks
+or on a dependency missing from the module's `allowedDependencies` (ADR-0043). The same test checks
 that `routeplanning` exposes no `events` named interface and that every module is `Type.CLOSED`.
 
 **Kafka is the edge, not the wiring.** No topic is consumed by another module of this application.
-`telemetry.raw` is the inbound edge; the three outbound topics — all of them computed telemetry —
+Nothing comes in; the two outbound topics — both computed from confirmed reservations —
 are the contract with external consumers. Inside the process, modules use one method call and one
 application event.
 
@@ -198,8 +192,8 @@ A single `requestRoute=true` reservation, step by step (verified against the cod
 3. **Fee + route — no transaction.** `ReservationService` computes the fee (`FeeCalculator`), then asks the `routeplanning` module for the route through `RoutePlanner` → `PlanRouteUseCase.planRoute()`. The route is computed **in memory**: fuel-range check for the ship class, corridor risk, ETA. Nothing is published and nothing is written. A rejected route ends the request here with `422 ROUTE_REJECTED` — before anything was stored, so there is nothing to compensate.
 4. **The one transaction.** `ReservationConfirmer.confirm()` (`@Transactional`) calls `StarportPersistenceFacade.createConfirmedReservation()`: `SELECT … FOR UPDATE SKIP LOCKED` grabs a free bay (no bay → `409`), the reservation is `INSERT`ed as `CONFIRMED` with its fee and its `route` row. Still inside the transaction, `ReservationConfirmed` is published; the Event Publication Registry writes it to `event_publication`. Reservation and publication **commit together or not at all**. **No Kafka call happens here**, so the bay lock is held only briefly.
 5. **HTTP out.** `201 Created` returns to the user. It does not wait for the listener and cannot be failed by it.
-6. **After the commit — another thread, another transaction.** `activityfeed`'s `FleetEventListener` (`@ApplicationModuleListener`) receives `ReservationConfirmed`, computes the enriched reservation record and writes it to `telemetry.enriched-reservations`; when the reservation has a route it also writes `telemetry.enriched-routes`. When the listener returns normally the publication is marked complete. If it throws, the failure is counted (`events.enrichment.errors`) and rethrown, and the row stays incomplete in `event_publication` (see Flow C). Delivery is **at-least-once** (ADR-0046).
-7. **Independently — the sensor pipeline.** Every message on `telemetry.raw` goes through the composed filter chain of `shipmonitoring` (`validation → enrichment → aggregation → anomaly`): a `null` from any stage short-circuits the rest (message dropped), each stage is timed (`telemetry.filter.*`), and only `AggregationFilter` holds state (per-`(ship,sensor)` Welford windows). A non-null `AnomalyAlert` is published to `telemetry.alerts`.
+6. **After the commit — another thread, another transaction.** `activityfeed`'s `FleetEventListener` (`@ApplicationModuleListener`) receives `ReservationConfirmed`, computes the enriched reservation record and writes it to `telemetry.enriched-reservations`; when the reservation has a route it also writes `telemetry.enriched-routes`. When the listener returns normally the publication is marked complete. If it throws, the failure is counted (`events.enrichment.errors`) and rethrown, and the row stays incomplete in `event_publication` (see Flow C). Delivery is **at-least-once** (ADR-0043).
+7. **Inside the listener — Pipes & Filters.** Each of the two records is produced by a chain of three filters composed by `PipelineBuilder` (`reservation: intake → stay duration → record`; `route: extraction → risk classification → record`). Each stage is timed (`events.filter.*`). A `null` from a stage ends its chain: `RouteExtractionFilter` returns `null` for a reservation without a route, so no route record is produced. A filter that throws is not caught — the exception leaves the listener and the publication is re-delivered.
 
 > **The two key timing facts:** (a) the route is computed **before** the transaction opens — the two
 > modules share a thread, never a transaction. (b) a reservation is **never announced in the request
@@ -280,14 +274,14 @@ sequenceDiagram
 ```
 
 The reservation is already committed and the user already has the `201` — a Kafka outage no longer
-changes the HTTP response (ADR-0046). `FleetEventListener` never swallows the failure: the Event
+changes the HTTP response (ADR-0043). `FleetEventListener` never swallows the failure: the Event
 Publication Registry marks a publication complete only when the listener returns normally, so the
 incomplete row is the record that this event still has to be delivered. Delivery is therefore
 **at-least-once**: if the reservation record was sent and the route record failed, a re-delivery
 sends the reservation record a second time — consumers of `telemetry.enriched-*` deduplicate on the
 record key (reservation id / route code).
 
-**Re-delivery (ADR-0048).** `EventPublicationMaintenance` runs every minute and re-submits
+**Re-delivery (ADR-0043).** `EventPublicationMaintenance` runs every minute and re-submits
 publications older than one minute; a Postgres advisory lock lets one instance at a time do it. The
 event carries the `traceparent` of the original request, so the re-delivered records land in that
 request's trace. A completed publication is deleted (`completion-mode: delete`), so the table holds
@@ -323,24 +317,38 @@ sequenceDiagram
 The lock lives inside the single reservation transaction, until its commit. Client 2 has written
 nothing, so there is nothing to release.
 
-### Flow E — Sensor pipeline in `shipmonitoring` (Pipes & Filters)
+### Flow E — The two pipelines of `activityfeed` (Pipes & Filters)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant K as telemetry.raw
-    participant V as ValidationFilter
-    participant E as EnrichmentFilter
-    participant Ag as AggregationFilter
-    participant An as AnomalyDetectionFilter
-    participant Out as telemetry.alerts
+    participant L as FleetEventListener
+    participant RI as ReservationIntakeFilter
+    participant SD as StayDurationFilter
+    participant RR as ReservationRecordFilter
+    participant RX as RouteExtractionFilter
+    participant RC as RiskClassificationFilter
+    participant RO as RouteRecordFilter
+    participant K as Kafka
 
-    K->>V: raw telemetry record
-    V->>E: valid payloads (invalid → nulled/dropped)
-    E->>Ag: + shipClass / sector / threshold lookup
-    Ag->>An: rolling window (Welford running stats — the one stateful filter)
-    An->>Out: threshold + 3σ breach → alert (null = no alert)
+    L->>RI: ReservationConfirmed
+    RI->>SD: same event (counted, lag measured)
+    SD->>RR: + durationHours
+    RR-->>L: EnrichedReservationEvent
+    L->>K: telemetry.enriched-reservations (key = reservation id)
+    L->>RX: ReservationConfirmed
+    alt reservation has a route
+        RX->>RC: Route
+        RC->>RO: + riskLevel
+        RO-->>L: EnrichedRouteEvent
+        L->>K: telemetry.enriched-routes (key = route code)
+    else no route
+        RX-->>L: null — the chain ends, nothing is published
+    end
 ```
+
+A filter that throws is **not** caught by `PipelineBuilder`: the exception leaves the listener, so
+the publication stays in `event_publication` and is re-delivered (ADR-0043).
 
 ---
 
@@ -400,7 +408,7 @@ route.
 | 422 `ROUTE_REJECTED` | `routeplanning` deterministically rejected the route (insufficient range) |
 
 There is no `409 ROUTE_UNAVAILABLE` any more: route planning publishes nothing, so it has no
-technical failure to report (ADR-0046).
+technical failure to report (ADR-0043).
 
 Route planning has **no HTTP endpoint**. In the microservice fleet `POST /api/v1/routes/plan` was an
 internal server-to-server call; it is now `PlanRouteUseCase.planRoute()`, a method call between
@@ -414,13 +422,11 @@ modules (ADR-0043).
 
 ## 7. Kafka Topology
 
-Kafka is the **edge** of the system: one inbound topic and three outbound contract topics, all of
-them computed telemetry (ADR-0046). No topic is both produced and consumed by this application.
+Kafka is the **edge** of the system: nothing comes in and two contract topics go out, both computed
+from confirmed reservations (ADR-0043). The application has no Kafka consumer.
 
-| Topic | Direction | Written / read by (binding) | Key | Partitions |
+| Topic | Direction | Written by (binding) | Key | Partitions |
 |---|---|---|---|---|
-| `telemetry.raw` | **in** | `shipmonitoring` (`telemetryPipeline-in-0`, group `telemetry-pipeline`, 3 × 1 s retry, DLQ `telemetry.raw.dlq`) | ship id (required for correct aggregation with several instances; violations are counted in `telemetry.messages.key.mismatch`) | default (2) |
-| `telemetry.alerts` | out | `shipmonitoring` (`telemetryPipeline-out-0`) | — | default (2) |
 | `telemetry.enriched-reservations` | out | `activityfeed` (`enrichedReservations-out-0`) | reservation id | default (2) |
 | `telemetry.enriched-routes` | out | `activityfeed` (`enrichedRoutes-out-0`) | route code | default (2) |
 
@@ -429,7 +435,7 @@ them computed telemetry (ADR-0046). No topic is both produced and consumed by th
 
 The topics `starport.reservations` and `starport.route-planned` **no longer exist**. They were the
 wire between the services of the original fleet; inside one application the modules exchange an
-application event, and the repository holds no consumer for them (ADR-0046). The route data now
+application event, and the repository holds no consumer for them (ADR-0043). The route data now
 travels inside `ReservationConfirmed`. The `processedBy` field of the enriched records is still
 `telemetry-pipeline`.
 
@@ -441,9 +447,7 @@ share the trace id of the HTTP request.
   same DB transaction as the reservation and handed to `FleetEventListener` after the commit. A
   failed enrichment or send is counted in `events.enrichment.errors` and rethrown, which leaves the
   publication in `event_publication` until the re-delivery job succeeds — **at-least-once**, so consumers deduplicate
-  on the record key (ADR-0046, ADR-0048).
-- **`telemetry.raw`** — the consumer retries 3 × 1 s; payloads that fail message conversion go to
-  `telemetry.raw.dlq`. An exception inside a filter is logged, counted and the message dropped.
+  on the record key (ADR-0043).
 
 ---
 
@@ -461,8 +465,8 @@ own `event_publication` table in the same database. DDL lives in
 | `V4__reservation_indexes.sql` | Composite indexes for the `findFreeBay` hot path |
 | `V6__lookup_indexes.sql` | Indexes on `code` columns (starport / customer / ship) |
 | `V7__reservation_optimistic_lock.sql` | Adds `reservation.version` for `@Version` optimistic locking |
-| `V8__event_publication_registry.sql` | `event_publication` (+ partial index on incomplete rows) and `event_publication_archive` for the Event Publication Registry (ADR-0046) |
-| `V9__drop_event_outbox.sql` | Drops `event_outbox` — the hand-written outbox is gone (ADR-0046) |
+| `V8__event_publication_registry.sql` | `event_publication` (+ partial index on incomplete rows) and `event_publication_archive` for the Event Publication Registry (ADR-0043) |
+| `V9__drop_event_outbox.sql` | Drops `event_outbox` — the hand-written outbox is gone (ADR-0043) |
 
 (There is deliberately no `V5`.)
 
@@ -483,7 +487,7 @@ Core tables (IDs are `BIGINT` from per-table sequences; `event_publication` uses
 - **`event_publication`** — `id` (UUID), `listener_id`, `event_type`, `serialized_event`,
   `publication_date`, `completion_date`. Written by the Event Publication Registry in the
   reservation transaction; `completion_date IS NULL` means the listener has not finished — yet, or
-  because it failed (ADR-0046). `event_publication_archive` has the same columns and is used only
+  because it failed (ADR-0043). `event_publication_archive` has the same columns and is used only
   with the registry's archive completion mode, which is not switched on.
 
 The query that makes reservation concurrency safe (`DockingBayRepository.findFreeBay`):
@@ -541,7 +545,7 @@ after the commit is on another thread: `AsyncTracingConfiguration` registers a
 `ContextPropagatingTaskDecorator`, so the listener — and the `traceparent` of the Kafka records it
 produces — continues the trace of the HTTP request that confirmed the reservation (ADR-0017). The
 Event Publication Registry does not store `traceparent`, so a re-delivery after a failure is not
-part of the request's trace (ADR-0046). Business IDs `reservationId` / `routeId` ride in
+part of the request's trace (ADR-0043). Business IDs `reservationId` / `routeId` ride in
 OpenTelemetry baggage and MDC.
 
 ### Metrics
@@ -550,31 +554,29 @@ Micrometer Observation API exposes `/actuator/prometheus`; **Prometheus** scrape
 `galactic-fleet`. Histograms are activated by the presence of `slo:` buckets (no client-side
 percentiles; use `histogram_quantile()` over `_bucket` in PromQL). Prometheus keeps **15 days**
 locally on a named volume; there is no Thanos and no MinIO any more, and Grafana's datasource points
-straight at `prometheus:9090` (ADR-0047).
+straight at `prometheus:9090` (ADR-0043).
 
 Metric **names** are those of the microservice fleet (checked by `ObservabilitySystemTest`), minus
-the outbox metrics; only the `job` label collapsed from three service names into one. The names
-still say `reservations.*` and `telemetry.*` although the modules are now called `booking` and
-`shipmonitoring` — they are a dashboard contract, and renaming them is a separate decision
-(ADR-0046). Representative custom metrics (ADR-0030):
+the outbox metrics and — since ADR-0043 — the sensor-pipeline metrics `telemetry.*`; only the `job`
+label collapsed from three service names into one. The names still say `reservations.*` although
+the module is now called `booking` — they are a dashboard contract, and renaming them is a separate
+decision (ADR-0043). Representative custom metrics (ADR-0030):
 
 | Metric | Type | Module |
 |---|---|---|
 | `reservations` (`reservations_total`) | Counter — `starport`, `shipClass`, `outcome` (`confirmed` / `no_capacity` / `route_rejected`) | booking |
 | `reservations.fees.calculate` / `route.plan` | Timer + histogram | booking |
 | `reservations.confirm` | Timer + histogram — the whole reservation transaction | booking |
-| `reservations.bay.allocate` | Timer + histogram — the bay allocation inside that transaction (renamed from `reservations.hold.allocate` by ADR-0048) | booking |
+| `reservations.bay.allocate` | Timer + histogram — the bay allocation inside that transaction (renamed from `reservations.hold.allocate` by ADR-0043) | booking |
 | `reservations.docks.capacity` / `docks.occupied` / `docks.occupied.ratio` | Gauge (refreshed by a `@Scheduled` job, not per scrape) | booking |
 | `routes.plan`, `routes.planned.count`, `routes.rejected.count`, `routes.risk.score` | Timer / Counter / Counter / Summary | routeplanning |
-| `telemetry.filter.{validation,enrichment,aggregation,anomaly}` | Timer (per stage) | shipmonitoring |
-| `telemetry.anomalies.detected` | Counter — `severity` | shipmonitoring |
+| `events.filter.{reservation.intake,reservation.duration,reservation.record,route.extraction,route.risk,route.record}` | Timer (per filter stage) | activityfeed |
 | `events.reservation.lag` | Summary — event published (inside the transaction) → enriched (after the commit) | activityfeed |
 | `events.enrichment.errors` | Counter — `event` (`reservation` / `route`); the publication stays incomplete until re-delivered | activityfeed |
 | `events.publications.incomplete` / `events.publications.oldest.age` | Gauges (refreshed by the re-delivery job) — rows waiting in `event_publication` and the age of the oldest | platform (root package) |
-| `telemetry.messages.key.mismatch` | Counter — sensor readings whose Kafka key is not the ship id | shipmonitoring |
 
 Gone with the network hop: `resilience4j_*`, `http_client_requests_*` for the planner call, and the
-gateway / Eureka metrics. Gone with the outbox (ADR-0046): `reservations.outbox.*`,
+gateway / Eureka metrics. Gone with the outbox (ADR-0043): `reservations.outbox.*`,
 `reservations.inbox.*` and `routes.publish.failed`.
 
 ### Logs
@@ -617,7 +619,7 @@ Auto-provisioned under `infra/docker/grafana/provisioning/dashboards/`:
 | Kafka bootstrap | `localhost:9092` (TCP) | Host clients (tests / Postman / IDE); containers use `kafka:9093` |
 | PostgreSQL | `localhost:5432` (`starports`, `postgres`/`postgres`) | Dev DB access (ephemeral tmpfs) |
 | **OTel Collector** | `localhost:4318` (HTTP) / `4317` (gRPC) | OTLP traces + logs in (host/IDE runs) |
-| Prometheus | http://localhost:9090 | Metrics scrape (15 days local retention — ADR-0047) |
+| Prometheus | http://localhost:9090 | Metrics scrape (15 days local retention — ADR-0043) |
 | Grafana | http://localhost:3000 (`admin`/`admin`) | Unified Prometheus + Tempo + Loki dashboards |
 | Tempo | http://localhost:3200 | Trace API (OTLP `:4318` is internal-only — ADR-0037) |
 | Loki | http://localhost:3100 | Log aggregation |
@@ -629,7 +631,7 @@ Auto-provisioned under `infra/docker/grafana/provisioning/dashboards/`:
 
 ```
 MicroservicesFleet/
-├── adr/                            # ADRs + template + index (ADR-0043 + ADR-0046 = current architecture)
+├── adr/                            # ADRs + template + index (ADR-0043 = current architecture)
 ├── galactic-fleet/                 # THE application (Spring Modulith)
 │   ├── Dockerfile
 │   └── src/main/java/com/galactic/fleet/
@@ -646,13 +648,10 @@ MicroservicesFleet/
 │       ├── routeplanning/          # module — API: api (PlanRouteUseCase + request/result/rejection)
 │       │   ├── api/                #   named interface "api"
 │       │   └── internal/           #   PlanRouteService, ShipFuelRanges, metrics
-│       ├── shipmonitoring/         # module — no API, no dependencies (telemetry.raw → telemetry.alerts)
-│       │   ├── model/              #   records — one per pipeline stage (ADR-0022)
-│       │   ├── filter/             #   Function<IN,OUT> filters (stateless + 1 stateful)
-│       │   ├── pipeline/           #   function chain (PipelineBuilder, PipelineConfiguration)
-│       │   └── config/             #   threshold @ConfigurationProperties
-│       └── activityfeed/           # module — no API (pure listener); uses booking::events
-│           └── internal/           #   FleetEventListener + enrichment functions + enriched records
+│       └── activityfeed/           # module — no API (pure listener); uses booking::events; Pipes & Filters (ADR-0043)
+│           ├── model/              #   records passed between filters + the two outgoing records
+│           ├── filter/             #   six Function<IN,OUT> filters, one job each
+│           └── pipeline/           #   PipelineBuilder, EventPipelineConfiguration, FleetEventListener
 ├── system-acceptance/              # black-box suite: HTTP + Kafka + Prometheus against a running
 │                                   #   stack; knows no production class (standalone Maven project)
 ├── infra/docker/                   # Compose stack
@@ -679,19 +678,20 @@ mvn -f system-acceptance/pom.xml test   # black-box suite against the running st
 | Layer | What it proves | Where |
 |---|---|---|
 | Module boundaries | no cycles, no access to another module's internals, only dependencies listed in `allowedDependencies`; named interfaces expose exactly the intended types; `routeplanning` has no `events`; every module is `CLOSED` | `ModularityTest` |
-| Pipes & Filters conventions | filters are `Function`s, models are records, no persistence in filters | `PipesAndFiltersArchitectureTest` (ArchUnit, `shipmonitoring`) |
-| Unit / property tests | business rules per module | `*Test`, `*Properties` — e.g. `ReservationServiceTest`, `FeeCalculatorProperties`, `PlanRouteServiceTest`, `ShipFuelRangesTest`, `FleetEventListenerTest`, `AggregationFilterTest` |
-| Module test | the `shipmonitoring` module alone, without a database | `TelemetryPipelineIntegrationTest` (`@ApplicationModuleTest`) |
+| Pipes & Filters conventions | filters are `Function`s, models are records, no persistence and no broker in filters | `PipesAndFiltersArchitectureTest` (ArchUnit, `activityfeed`) |
+| Unit / property tests | business rules per module | `*Test`, `*Properties` — e.g. `ReservationServiceTest`, `FeeCalculatorProperties`, `PlanRouteServiceTest`, `ShipFuelRangesTest`, `FleetEventListenerTest`, `PipelineBuilderTest` |
 | In-process integration (failsafe, Testcontainers Postgres + in-memory binder) | whole application: reservation in one transaction, event after commit, both enriched records | `*E2ETest` (`ReservationLifecycleE2ETest`, `FleetEventFlowE2ETest`), `*RepositoryTest`, `*ContractTest` (`ReservationApiContractTest`) |
-| Black-box system suite | HTTP contract, both `telemetry.enriched-*` topics in one trace, sensor pipeline, metric names | `system-acceptance/` (36 tests in `ReservationApiSystemTest`, `ReservationEventFlowSystemTest`, `TelemetryPipelineSystemTest`, `ObservabilitySystemTest`) |
+| Black-box system suite | HTTP contract, both `telemetry.enriched-*` topics in one trace, metric names | `system-acceptance/` (30 tests in `ReservationApiSystemTest`, `ReservationEventFlowSystemTest`, `ObservabilitySystemTest`) |
 
 The system suite was written and frozen **against the three-service fleet** as the proof that the
-migration to one application preserved behaviour (ADR-0043). ADR-0046 then **changed the contract on
+migration to one application preserved behaviour. The module re-cut then **changed the contract on
 purpose**, and with it two classes: `ReservationEventFlowSystemTest` no longer asserts anything about
 `starport.reservations` / `starport.route-planned` (the assertions on both `telemetry.enriched-*`
 topics and on the shared trace stay), and `ObservabilitySystemTest` no longer lists the outbox
-metrics. `ReservationApiSystemTest` and `TelemetryPipelineSystemTest` are unchanged. From here on the
-suite is the reference for the **new contract**, not for the migration.
+metrics. Removing the sensor pipeline came next: `TelemetryPipelineSystemTest` is gone and
+`ObservabilitySystemTest` no longer lists the `telemetry_*` metrics. `ReservationApiSystemTest` is
+unchanged throughout. From here on the suite is the reference for the **new contract**, not for the
+migration.
 
 ---
 
@@ -711,7 +711,7 @@ The application follows the `${ENV_VAR:default}` pattern (ADR-0009). Compose set
 | `OTEL_BSP_SCHEDULE_DELAY` | `1000` (best-effort BSP flush; may be ignored — see ADR-0037 §B2) |
 | `TRACE_SAMPLING` | `1.0` (all spans to the Collector; the Collector tail-samples; `0.1` in the `prod` profile) |
 
-There are no `outbox.*` properties and no MinIO / Thanos credentials any more (ADR-0046, ADR-0047).
+There are no `outbox.*` properties and no MinIO / Thanos credentials any more (ADR-0043).
 
 > Secrets must be passed only through environment variables — never committed to YAML.
 
@@ -736,23 +736,14 @@ A mismatch count > 0 signals a behaviour regression.
 
 ADRs live in [`adr/`](adr/README.md). Current authorities to note:
 
-- **ADR-0043 — the fleet as one Spring Modulith application** is the current architecture authority.
-  It supersedes the distributed-system decisions (discovery 0002/0028, load balancing 0003, replica
-  topology 0008, HTTP resilience 0014, gateway 0031); those remain as history of the microservice
-  variant.
-- **ADR-0046 — disjoint domains and events after the commit** amends ADR-0043, 0044 and 0045 and is
-  the authority for the module cut (`booking` / `routeplanning` / `shipmonitoring` / `activityfeed`),
-  for the reservation in one transaction, and for how modules communicate: events after the commit
-  through the Event Publication Registry, plus one synchronous call (`booking` → `routeplanning::api`).
-  It **supersedes ADR-0010** (the hand-written outbox) and amends ADR-0016 (topic list) and ADR-0017
-  (trace propagation through the outbox).
-- **ADR-0047 — Prometheus without Thanos and MinIO** complements ADR-0005: one Prometheus with 15
-  days of local retention, Grafana reads it directly.
-- **ADR-0048 — event delivery hardening** complements ADR-0046: a scheduled job re-delivers
-  incomplete event publications (one instance at a time, Postgres advisory lock), completed
-  publications are deleted, the enriched records carry a Kafka key, `ReservationConfirmed` carries
-  the `traceparent` of its request, and two guards watch the assumptions the design rests on
-  (`RoutePlanningPurityTest`, `telemetry.messages.key.mismatch`).
+- **[ADR-0043](adr/0043-fleet-as-one-spring-modulith.md) — the fleet as one Spring Modulith
+  application** is the current architecture authority and the single record for this branch:
+  three modules, named interfaces and `allowedDependencies`, the reservation in one transaction,
+  events after the commit through the Event Publication Registry (with re-delivery), Kafka only on
+  the way out, Pipes & Filters in `activityfeed`, Prometheus without Thanos. It supersedes the
+  distributed-system decisions (discovery 0002/0028, load balancing 0003, replica topology 0008,
+  HTTP resilience 0014, gateway 0031) and the hand-written outbox (0010); those remain as history
+  of the microservice variant.
 - **ADR-0037 — tail sampling in the OTel Collector** is the observability authority (supersedes
   0034/0035/0036). Traces are tail-sampled (errors 100% · latency > 2 s 100% · rest 1%); **logs are
   not sampled** (100% to Loki).

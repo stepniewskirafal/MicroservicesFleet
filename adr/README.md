@@ -33,12 +33,12 @@ when replaced, but their content remains to explain why the older choice existed
 
 ## Index
 
-45 records: `0000` (template) + **44 decisions** `0001`–`0037`, `0041` and `0043`–`0048`. ADR-0043 (amended
-by ADR-0044: named interfaces + `allowedDependencies`, and by **ADR-0046: new module cut `booking` /
-`routeplanning` / `shipmonitoring` / `activityfeed`, events after commit, Kafka only for computed
-telemetry**, hardened by ADR-0048: re-delivery of incomplete publications) is the current architecture authority: the fleet is one Spring Modulith application, which supersedes the
-distributed-system ADRs 0002, 0003, 0008, 0014, 0028 and 0031 and the "one style per service" part of
-ADR-0001. Earlier supersessions: 0034 → 0035 → 0037; 0036 → 0037 (ADR-0037 is the trace/log-pipeline
+40 records: `0000` (template) + **39 decisions** `0001`–`0037`, `0041` and `0043`. **ADR-0043 is the
+current architecture authority**: the fleet is one Spring Modulith application. It is a single
+record for the whole `modulith-migration` line — the seven decisions once numbered 0043–0049 were
+merged into it, so `0044`–`0049` are unused. It supersedes the distributed-system ADRs 0002, 0003,
+0008, 0014, 0028 and 0031, ADR-0010 (outbox) and the "one style per service" part of ADR-0001.
+Earlier supersessions: 0034 → 0035 → 0037; 0036 → 0037 (ADR-0037 is the trace/log-pipeline
 authority); 0021 → 0041. Numbers `0038`–`0040` and `0042` are taken by resilience ADRs that live on the
 `demo` branch, hence the gaps.
 
@@ -54,14 +54,14 @@ authority); 0021 → 0041. Numbers `0038`–`0040` and `0042` are taken by resil
 | [0007](0007-database-choice.md)     | Database Choice (PostgreSQL 16 + JPA + Flyway)                | Accepted                 | 2026-02-28 |
 | [0008](0008-deployment-topology.md) | Deployment Topology (Docker Compose + scaling)                | Superseded by 0043       | 2026-02-28 |
 | [0009](0009-configuration-management.md) | Configuration Management (env-var overrides + Spring profiles) | Accepted            | 2026-02-28 |
-| [0010](0010-resilience-patterns.md) | Resilience Patterns (Transactional Outbox)                    | Superseded by 0046       | 2026-02-28 |
+| [0010](0010-resilience-patterns.md) | Resilience Patterns (Transactional Outbox)                    | Superseded by 0043       | 2026-02-28 |
 | [0011](0011-arch-rules-guardrails.md) | Architecture Rules & Guardrails (ArchUnit + Spotless + PIT) | Accepted                 | 2026-02-28 |
 | [0012](0012-virtual-threads.md)     | Java 21 Virtual Threads (Project Loom)                        | Accepted                 | 2026-04-16 |
 | [0013](0013-open-in-view-false.md)  | Disabling Open Session in View (OSIV)                         | Accepted                 | 2026-04-16 |
 | [0014](0014-http-resilience.md)     | HTTP Resilience: Timeouts, Circuit Breaker, Fail-Fast Fallback | Superseded by 0043      | 2026-04-17 |
 | [0015](0015-api-error-model.md)     | API Error Response Model & Versioning Policy                  | Accepted                 | 2026-04-17 |
-| [0016](0016-kafka-topology.md)      | Kafka Topic Topology, Consumer Retry, DLQ Strategy            | Accepted (topic list amended by 0046) | 2026-04-17 |
-| [0017](0017-tracing-propagation.md) | Distributed Tracing Propagation (W3C + OTel Baggage + Outbox) | Accepted (outbox part amended by 0046) | 2026-04-17 |
+| [0016](0016-kafka-topology.md)      | Kafka Topic Topology, Consumer Retry, DLQ Strategy            | Accepted (topic list amended by 0043) | 2026-04-17 |
+| [0017](0017-tracing-propagation.md) | Distributed Tracing Propagation (W3C + OTel Baggage + Outbox) | Accepted (outbox part amended by 0043) | 2026-04-17 |
 | [0018](0018-flyway-migration-policy.md) | Flyway Migration Policy & No-Foreign-Keys-by-Design       | Accepted                 | 2026-04-17 |
 | [0019](0019-kafka-programming-model.md) | StreamBridge for Producers, Functional Beans for Consumers | Accepted                | 2026-04-17 |
 | [0020](0020-concurrent-reservation-safety.md) | Concurrent Reservation Safety (Pessimistic Lock + SKIP LOCKED) | Accepted          | 2026-04-17 |
@@ -74,7 +74,7 @@ authority); 0021 → 0041. Numbers `0038`–`0040` and `0042` are taken by resil
 | [0027](0027-actuator-exposure.md)        | Spring Boot Actuator Exposure & Security Posture             | Accepted (dev)           | 2026-04-17 |
 | [0028](0028-eureka-operational-tuning.md) | Eureka Operational Tuning (standalone, self-preservation off) | Superseded by 0043      | 2026-04-17 |
 | [0029](0029-acceptance-test-fixtures.md) | Acceptance Test Fixtures (BaseAcceptanceTest + Testcontainers) | Accepted                | 2026-04-17 |
-| [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted (one name amended by 0048) | 2026-04-17 |
+| [0030](0030-metrics-naming-and-cardinality.md) | Metrics Naming & Cardinality Discipline                | Accepted (one name amended by 0043) | 2026-04-17 |
 | [0031](0031-api-gateway.md)              | API Gateway as Single Public Ingress; No Host-Bound Instance Ports | Superseded by 0043| 2026-04-17 |
 | [0032](0032-log-collector-alloy.md)      | Log Collector: Grafana Alloy (now infra-stdout scraping only)      | Accepted          | 2026-05-17 |
 | [0033](0033-exemplars.md)                | Exemplars: Metrics → Traces correlation (Prometheus → Tempo)       | Accepted          | 2026-05-17 |
@@ -83,12 +83,7 @@ authority); 0021 → 0041. Numbers `0038`–`0040` and `0042` are taken by resil
 | [0036](0036-dual-log-sinks-stdout-firehose-loki-sampled.md) | Dual Log Sinks: Full Firehose on stdout, 10% Sampled in Loki | Superseded by ADR-0037 | 2026-06-07 |
 | [0037](0037-tail-sampling-otel-collector.md) | Tail Sampling via OTel Collector (traces sampled, logs 100%; supersedes 0035, 0036) | **Accepted (current authority)** | 2026-06-13 |
 | [0041](0041-trade-route-planner-hexagonal-to-spring-modulith.md) | trade-route-planner: hexagonal → Spring Modulith (modules `planning`/`web`/`publishing`/`observability`, sync event seam, frozen black-box acceptance suite) | Accepted | 2026-10-14 |
-| [0043](0043-fleet-as-one-spring-modulith.md) | The whole fleet as one Spring Modulith application `galactic-fleet` (modules `reservations`/`routeplanning`/`telemetry`/`observability`; module call + application events instead of HTTP + Kafka between services; Kafka only at the edge) | **Accepted (current)** | 2026-11-16 |
-| [0044](0044-named-interfaces-and-allowed-dependencies.md) | Named interfaces (`@NamedInterface` in `api`/`events` subpackages) and explicit `allowedDependencies` in every module's `package-info.java`; amends 0043 | Accepted | 2026-11-20 |
-| [0045](0045-domain-events-as-published-interface.md) | Cross-module events carry jMolecules `@DomainEvent` (Spring Modulith then lists them as published events) and every module states `type = Type.CLOSED` explicitly; complements 0044 | Accepted | 2026-11-20 |
-| [0046](0046-disjoint-domains-and-events-after-commit.md) | Disjoint domains (`booking`/`routeplanning`/`shipmonitoring`/`activityfeed`), cross-module events after commit via the Event Publication Registry, reservation in one transaction (no HOLD), Kafka only for computed telemetry; amends 0043–0045, supersedes 0010 | **Accepted (current)** | 2026-11-23 |
-| [0047](0047-prometheus-without-thanos.md) | Prometheus without Thanos and MinIO (15-day local retention, Grafana reads Prometheus directly); complements 0005 | Accepted | 2026-11-23 |
-| [0048](0048-event-delivery-hardening.md) | Re-delivery of incomplete event publications (scheduled job + Postgres advisory lock for several instances), completed publications deleted, Kafka keys on `telemetry.enriched-*`, `traceparent` carried in `ReservationConfirmed`, `reservations.hold.allocate` → `reservations.bay.allocate`, customer/ship checked in validation, guards for the pure-computation and key-by-`shipId` assumptions; complements 0046, amends 0030 | Accepted | 2026-11-23 |
+| [0043](0043-fleet-as-one-spring-modulith.md) | The whole fleet as one Spring Modulith application `galactic-fleet`: three modules (`booking` / `routeplanning` / `activityfeed`), named interfaces + `allowedDependencies`, reservation in one transaction, events after commit via the Event Publication Registry with re-delivery, Kafka only on the way out, Pipes & Filters in `activityfeed`, Prometheus without Thanos. One record for the whole `modulith-migration` line (former 0043–0049) | **Accepted (current authority)** | 2026-11-24 |
 
 ---
 
@@ -201,7 +196,7 @@ here so they are not forgotten:
   to test deterministically. A `Clock` bean + injection would be the idiomatic fix; not
   done today.
 - **ArchUnit rule classes — partial.** Pipes & Filters rules are authored
-  (`telemetry-pipeline` `PipesAndFiltersArchitectureTest`); the Layered (starport-registry) and
+  (`activityfeed` `PipesAndFiltersArchitectureTest`, ADR-0043); the Layered (starport-registry) and
   Hexagonal (trade-route-planner) rule classes are still pending. See ADR-0011.
 - **Non-root container user and `.dockerignore`.** ADR-0026 documents both gaps; blockers
   for internet-reachable deployment.
@@ -212,7 +207,7 @@ here so they are not forgotten:
 - **jqwik property-based tests not yet written.** Dependency declared in ADR-0006;
   `*Properties.java` suffix reserved in the surefire include list but empty in practice.
   `@ParameterizedTest` + `@MethodSource` covers most cases today.
-- **Long-term metrics retention.** Closed by ADR-0047: Thanos and MinIO are removed; Prometheus
+- **Long-term metrics retention.** Closed by ADR-0043: Thanos and MinIO are removed; Prometheus
   keeps 15 days locally. A second Prometheus or longer retention needs a new ADR.
 - **Tail-sampling collector HA.** ADR-0037 notes that production needs a load-balancing layer so
   all spans of one trace reach a single Collector; no ADR owns that prod topology.

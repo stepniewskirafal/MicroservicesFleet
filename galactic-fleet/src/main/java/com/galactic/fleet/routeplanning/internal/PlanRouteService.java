@@ -12,7 +12,7 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 /**
- * Plans a route: a pure computation over the corridor and the ship class (ADR-0046). It performs no
+ * Plans a route: a pure computation over the corridor and the ship class (ADR-0043). It performs no
  * I/O and publishes nothing — the caller gets the route as the return value and decides what to do
  * with it. That is what makes the synchronous call from {@code booking} acceptable.
  */

@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Re-delivers application events whose listener did not finish, and reports how many are waiting
- * (ADR-0048).
+ * (ADR-0043).
  *
  * <p>The Event Publication Registry keeps a row in {@code event_publication} until the listener
  * returns normally, but nothing in the library re-submits a failed one while the application keeps

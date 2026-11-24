@@ -27,7 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * The order of a reservation (ADR-0046): validate → fee and route (no transaction) → one confirming
+ * The order of a reservation (ADR-0043): validate → fee and route (no transaction) → one confirming
  * transaction. Nothing is written before the last step, so no failure needs compensating.
  */
 @ExtendWith(MockitoExtension.class)

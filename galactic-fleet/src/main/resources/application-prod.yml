@@ -5,7 +5,7 @@ spring:
     stream:
       kafka:
         binder:
-          # Topics (and telemetry.raw.dlq) are provisioned by ops in prod, not auto-created by the app.
+          # Topics are provisioned by ops in prod, not auto-created by the app.
           autoCreateTopics: false
 
 management:

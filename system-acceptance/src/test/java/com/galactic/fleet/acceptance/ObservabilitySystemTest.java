@@ -7,11 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.galactic.fleet.acceptance.support.Fleet;
 import com.galactic.fleet.acceptance.support.Fleet.Reply;
 import com.galactic.fleet.acceptance.support.Fleet.Vessel;
-import com.galactic.fleet.acceptance.support.TopicProbe;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeAll;
@@ -31,17 +29,11 @@ class ObservabilitySystemTest {
 
     @BeforeAll
     static void produceOneOfEverything() {
-        // Most meters appear only after first use: one reservation with a route and one sensor
-        // reading make every business path emit at least once.
+        // Most meters appear only after first use: one reservation with a route makes every
+        // business path emit at least once.
         Reply reply =
                 Fleet.reserve("TATOO", Fleet.reservationBody(Vessel.CRUISER, Fleet.freshSlotAt(20), 1, "ALDER"));
         assertThat(reply.status()).as(reply.rawBody()).isEqualTo(201);
-        TopicProbe.publish(
-                "telemetry.raw",
-                "SHIP-001",
-                """
-                {"shipId":"SHIP-001","sensorType":"TEMPERATURE","value":20.0,"timestamp":"%s","metadata":{}}"""
-                        .formatted(Instant.now()));
     }
 
     @Test
@@ -57,7 +49,7 @@ class ObservabilitySystemTest {
                 "reservations_docks_capacity",
                 "reservations_docks_occupied",
                 "reservations_docks_occupied_ratio",
-                // (ADR-0046: the outbox relay and its three metrics are gone — the Event Publication
+                // (ADR-0043: the outbox relay and its three metrics are gone — the Event Publication
                 // Registry delivers ReservationConfirmed; its lag is events_reservation_lag below.)
                 // route planning
                 "routes_plan_seconds_bucket",
@@ -69,14 +61,10 @@ class ObservabilitySystemTest {
                 "events_reservation_lag_seconds_count",
                 "events_route_received_total",
                 "events_route_enriched_total",
-                // delivery after commit (ADR-0048): what is still waiting in event_publication
+                // delivery after commit (ADR-0043): what is still waiting in event_publication
                 "events_publications_incomplete_events",
-                "events_publications_oldest_age_seconds",
-                // sensor telemetry
-                "telemetry_messages_received_total",
-                "telemetry_messages_invalid_total",
-                "telemetry_anomalies_detected_total",
-                "telemetry_messages_key_mismatch_total");
+                "events_publications_oldest_age_seconds");
+        // (ADR-0043: the sensor pipeline and its telemetry_* metrics are gone.)
 
         await().atMost(SCRAPE_PATIENCE).pollInterval(Duration.ofSeconds(3)).untilAsserted(() -> {
             Set<String> missing = new HashSet<>(required);

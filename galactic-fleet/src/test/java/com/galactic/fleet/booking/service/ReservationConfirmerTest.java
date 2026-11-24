@@ -25,7 +25,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The one transaction of a reservation (ADR-0046): store, then publish {@link ReservationConfirmed}
+ * The one transaction of a reservation (ADR-0043): store, then publish {@link ReservationConfirmed}
  * carrying everything a listener needs. Persistence is mocked here; the real transaction, the bay
  * lock and the delivery after commit are covered by {@code FleetEventFlowE2ETest}.
  */
@@ -140,7 +140,7 @@ class ReservationConfirmerTest {
     @Test
     void the_event_carries_the_trace_context_of_the_request() {
         // The registry persists the event, not the thread's trace context — so the context has to
-        // travel in the event for a re-delivery to rejoin the request's trace (ADR-0048).
+        // travel in the event for a re-delivery to rejoin the request's trace (ADR-0043).
         String traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
         Tracer tracer = mock(Tracer.class);
         CurrentTraceContext currentTraceContext = mock(CurrentTraceContext.class);

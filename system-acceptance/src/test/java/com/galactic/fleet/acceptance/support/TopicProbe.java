@@ -9,13 +9,9 @@ import java.util.function.Predicate;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 
 /**
  * Listens to one topic from "now" onwards. Open the probe BEFORE triggering the behaviour, then ask
@@ -90,21 +86,6 @@ public final class TopicProbe implements AutoCloseable {
             }
         }
         return matches;
-    }
-
-    /** Publishes one JSON message, the way an external producer (a ship's sensor gateway) would. */
-    public static void publish(String topic, String key, String jsonValue) {
-        try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, Fleet.KAFKA,
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName(),
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()))) {
-            producer.send(new ProducerRecord<>(topic, key, jsonValue)).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while publishing to " + topic, e);
-        } catch (java.util.concurrent.ExecutionException e) {
-            throw new AssertionError("Could not publish to '" + topic + "' on " + Fleet.KAFKA + ": " + e.getCause(), e);
-        }
     }
 
     @Override

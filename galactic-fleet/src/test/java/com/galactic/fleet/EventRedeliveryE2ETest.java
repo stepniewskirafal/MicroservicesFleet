@@ -18,7 +18,7 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.Message;
 
 /**
- * An event whose listener did not finish is delivered again (ADR-0048).
+ * An event whose listener did not finish is delivered again (ADR-0043).
  *
  * <p>The starting point is what a crash or a broker outage leaves behind: a row in
  * {@code event_publication} with no completion date, older than the re-delivery threshold. The test
@@ -32,7 +32,7 @@ import org.springframework.messaging.Message;
 class EventRedeliveryE2ETest extends BaseAcceptanceTest {
 
     private static final Duration PATIENCE = Duration.ofSeconds(20);
-    private static final String LISTENER_ID = "com.galactic.fleet.activityfeed.internal.FleetEventListener"
+    private static final String LISTENER_ID = "com.galactic.fleet.activityfeed.pipeline.FleetEventListener"
             + ".on(com.galactic.fleet.booking.events.ReservationConfirmed)";
     private static final String EVENT_TYPE = "com.galactic.fleet.booking.events.ReservationConfirmed";
 
@@ -49,7 +49,7 @@ class EventRedeliveryE2ETest extends BaseAcceptanceTest {
     void an_incomplete_publication_is_redelivered_and_then_removed() throws Exception {
         long reservationId = 900_000_000L + (System.nanoTime() % 1_000_000L);
         UUID publicationId = UUID.randomUUID();
-        // No "traceparent" field: rows written before ADR-0048 look like this and must still load.
+        // No "traceparent" field: rows written before ADR-0043 look like this and must still load.
         String event =
                 """
                 {"reservationId":%d,"status":"CONFIRMED","starportCode":"HOTH","dockingBayLabel":"F-001",\

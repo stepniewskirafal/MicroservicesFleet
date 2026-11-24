@@ -172,7 +172,7 @@ class MutationSensitiveTest {
 
     /**
      * Plans a route for a ship class that flies {@code fuelRangeLY}. The range is the planner's own
-     * knowledge (ADR-0046), so each call builds a planner that knows exactly that range; the meters
+     * knowledge (ADR-0043), so each call builds a planner that knows exactly that range; the meters
      * land in the shared registry of the test.
      */
     private PlannedRoute plan(String shipClass, double fuelRangeLY) {

@@ -30,7 +30,7 @@ public class StarportPersistenceFacade {
 
     /**
      * Picks a free bay ({@code FOR UPDATE SKIP LOCKED}) and stores the reservation as CONFIRMED, with
-     * its fee and — when one was planned — its route (ADR-0020, ADR-0046).
+     * its fee and — when one was planned — its route (ADR-0020, ADR-0043).
      *
      * <p>{@code MANDATORY}: the bay lock must live until the caller's commit, together with the event
      * publication written in that same transaction — so the caller has to bring the transaction.

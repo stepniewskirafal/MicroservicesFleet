@@ -41,7 +41,7 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Jeden Prometheus z lokalną retencją — bez Thanosa i MinIO (ADR-0047).
+  # Jeden Prometheus z lokalną retencją — bez Thanosa i MinIO (ADR-0043).
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: prometheus

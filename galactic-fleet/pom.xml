@@ -12,7 +12,7 @@
     <artifactId>galactic-fleet</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>galactic-fleet</name>
-    <description>The whole fleet as one Spring Modulith application (ADR-0043): reservations, routeplanning, telemetry</description>
+    <description>The whole fleet as one Spring Modulith application (ADR-0043): booking, routeplanning, activityfeed</description>
 
     <properties>
         <java.version>21</java.version>
@@ -57,7 +57,7 @@
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
         </dependency>
-        <!-- Event Publication Registry (ADR-0046): an event published inside a transaction is stored in
+        <!-- Event Publication Registry (ADR-0043): an event published inside a transaction is stored in
              `event_publication` with it, and delivered to @ApplicationModuleListener after the commit,
              on another thread. Replaces the hand-written outbox. -->
         <dependency>
@@ -69,7 +69,7 @@
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- jMolecules @DomainEvent (ADR-0045): marks application events so Spring Modulith lists them
+        <!-- jMolecules @DomainEvent (ADR-0043): marks application events so Spring Modulith lists them
              as "Published events" of a module — its provided interface is beans + events. -->
         <dependency>
             <groupId>org.jmolecules</groupId>
@@ -77,7 +77,7 @@
             <version>${jmolecules-events.version}</version>
         </dependency>
 
-        <!-- Kafka is the EDGE of the system only (telemetry.raw in, contract topics out);
+        <!-- Kafka is the EDGE of the system only (nothing in, two contract topics out; ADR-0043);
              modules talk to each other through application events, never through the broker. -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>

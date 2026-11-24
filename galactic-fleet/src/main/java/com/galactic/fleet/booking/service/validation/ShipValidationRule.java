@@ -9,7 +9,7 @@ import org.springframework.validation.Errors;
 
 /**
  * The ship must be known. Checked here — before the fee and the route are computed — so a request
- * that is going to be refused with 404 never plans a route (ADR-0048).
+ * that is going to be refused with 404 never plans a route (ADR-0043).
  */
 @Component
 @Order(40)

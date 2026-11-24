@@ -12,7 +12,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 /**
  * Verifies the spans of a single plan: the parent {@code routes.plan} and the routing math as its
  * named child ({@code routes.plan.compute}). There is no publish span any more — planning performs
- * no I/O (ADR-0046).
+ * no I/O (ADR-0043).
  */
 @Execution(ExecutionMode.CONCURRENT)
 class PlanRouteServiceObservabilityTest {

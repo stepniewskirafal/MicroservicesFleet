@@ -19,7 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.Message;
 
 /**
- * The modules working together inside one application context (ADR-0046):
+ * The modules working together inside one application context (ADR-0043):
  *
  * <pre>
  * POST reservation ──► booking ──call──► routeplanning               (pure computation, before the transaction)
@@ -101,7 +101,7 @@ class FleetEventFlowE2ETest extends BaseAcceptanceTest {
         assertThat(enrichedRoute.path("processedBy").asText()).isEqualTo("telemetry-pipeline");
 
         // Once the listener has returned, the registry removes the publication (completion-mode:
-        // delete, ADR-0048) — event_publication holds only what still has to be delivered.
+        // delete, ADR-0043) — event_publication holds only what still has to be delivered.
         await().atMost(PATIENCE).untilAsserted(() -> assertThat(jdbc.queryForObject(
                         "select count(*) from event_publication where serialized_event like ?",
                         Long.class,

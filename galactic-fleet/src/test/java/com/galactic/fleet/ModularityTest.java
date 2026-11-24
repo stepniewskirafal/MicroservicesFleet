@@ -15,7 +15,7 @@ import org.springframework.modulith.core.NamedInterface;
 import org.springframework.modulith.docs.Documenter;
 
 /**
- * Machine-enforced module boundaries (ADR-0043, ADR-0046). Runs in the unit phase (plain static
+ * Machine-enforced module boundaries (ADR-0043). Runs in the unit phase (plain static
  * analysis, no Spring context, no Docker), so every build — including {@code -Pfast} — fails on a
  * boundary violation: a dependency cycle between modules, a reference into another module's
  * internals, or a dependency that is not listed in {@code allowedDependencies}.
@@ -30,7 +30,7 @@ class ModularityTest {
     }
 
     /**
-     * ADR-0044: {@code verify()} enforces {@code allowedDependencies}, but it cannot tell whether a
+     * ADR-0043: {@code verify()} enforces {@code allowedDependencies}, but it cannot tell whether a
      * type sits in the right named interface. Dropping {@code @NamedInterface} from an event, or
      * tagging it {@code api}, would otherwise only show up as a confusing violation elsewhere.
      */
@@ -43,7 +43,7 @@ class ModularityTest {
     }
 
     /**
-     * ADR-0046: route planning is a pure computation behind one synchronous call. An {@code events}
+     * ADR-0043: route planning is a pure computation behind one synchronous call. An {@code events}
      * named interface reappearing there would mean the module started announcing things again —
      * and with it the question of who delivers them, on which thread, in whose transaction.
      */
@@ -71,7 +71,7 @@ class ModularityTest {
     }
 
     /**
-     * ADR-0045: a module's provided interface is its public beans <em>and</em> the events it
+     * ADR-0043: a module's provided interface is its public beans <em>and</em> the events it
      * publishes. Spring Modulith only knows an event is "published" when its type is a jMolecules
      * {@code @DomainEvent}; without the annotation everything still works, but the generated module
      * canvases silently lose their "Published events" row.
@@ -80,12 +80,11 @@ class ModularityTest {
     void modules_declare_the_events_they_publish() {
         assertThat(publishedEventsOf("booking")).containsExactly(ReservationConfirmed.class);
         assertThat(publishedEventsOf("routeplanning")).isEmpty();
-        assertThat(publishedEventsOf("shipmonitoring")).isEmpty();
         assertThat(publishedEventsOf("activityfeed")).isEmpty();
     }
 
     /**
-     * ADR-0045: every module is {@code Type.CLOSED}, stated explicitly in its package-info. An
+     * ADR-0043: every module is {@code Type.CLOSED}, stated explicitly in its package-info. An
      * {@code OPEN} module exposes its internal packages — a migration aid, not a design we want.
      */
     @Test

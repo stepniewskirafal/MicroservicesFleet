@@ -10,7 +10,7 @@ import org.jmolecules.event.annotation.DomainEvent;
  * <p>The only type the module exposes (named interface {@code events}); nobody calls into the module.
  * It is published inside the transaction that stores the reservation. The Event Publication Registry
  * writes it to {@code event_publication} in that transaction and hands it to
- * {@code @ApplicationModuleListener}s after the commit, on another thread (ADR-0046). A listener
+ * {@code @ApplicationModuleListener}s after the commit, on another thread (ADR-0043). A listener
  * therefore never sees a reservation that was rolled back, and may see the same event twice
  * (at-least-once).
  *
@@ -22,7 +22,7 @@ import org.jmolecules.event.annotation.DomainEvent;
  * @param traceparent W3C trace context of the request that confirmed the reservation, or {@code
  *     null} when there was none. The registry stores the event but not the thread's trace context,
  *     so a listener handling a <em>re-delivered</em> event can only rejoin the original trace through
- *     this field (ADR-0048).
+ *     this field (ADR-0043).
  */
 @DomainEvent
 public record ReservationConfirmed(

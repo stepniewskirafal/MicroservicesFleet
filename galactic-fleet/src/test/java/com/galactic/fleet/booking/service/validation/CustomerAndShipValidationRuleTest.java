@@ -19,7 +19,7 @@ import org.springframework.validation.Errors;
 
 /**
  * Customer and ship are checked during validation — before the fee and the route are computed — so
- * a request that ends in 404 never plans a route (ADR-0048).
+ * a request that ends in 404 never plans a route (ADR-0043).
  */
 class CustomerAndShipValidationRuleTest {
 

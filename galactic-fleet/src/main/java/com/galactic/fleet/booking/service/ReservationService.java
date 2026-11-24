@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * Reserves a docking bay (ADR-0046).
+ * Reserves a docking bay (ADR-0043).
  *
  * <ol>
  *   <li>validate the command,

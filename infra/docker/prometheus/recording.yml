@@ -144,9 +144,9 @@ groups:
           )
 
       # ── P99 latencji planowania trasy — strażnik wywołania synchronicznego ──
-      # `booking` woła `routeplanning` na wątku żądania HTTP (ADR-0046). Dopóki planowanie
+      # `booking` woła `routeplanning` na wątku żądania HTTP (ADR-0043). Dopóki planowanie
       # jest czystym obliczeniem, p99 leży w najniższym kubełku (10 ms). Próg rewizji
-      # z ADR-0048: p99 > 50 ms — wtedy planowanie przestało być tanie i trzeba wrócić
+      # z ADR-0043: p99 > 50 ms — wtedy planowanie przestało być tanie i trzeba wrócić
       # do decyzji o trybie asynchronicznym.
       - record: job:routes_plan_seconds:p99_5m
         expr: |
@@ -155,36 +155,6 @@ groups:
               rate(routes_plan_seconds_bucket[5m])
             )
           )
-
-  # ---------------------------------------------------------------------------
-  # TELEMETRY PIPELINE — Przetwarzanie wiadomości Kafka
-  # Metryki z: telemetry.messages.received (Counter), telemetry.anomalies.detected
-  # ---------------------------------------------------------------------------
-  - name: telemetry_pipeline_kafka
-    interval: 15s
-    rules:
-
-      # ── Throughput wiadomości Kafka ───────────────────────────────────────
-      - record: job:telemetry_messages_received:rate5m
-        expr: |
-          sum by (job) (
-            rate(telemetry_messages_received_total[5m])
-          )
-
-      # ── Wskaźnik nieprawidłowych wiadomości ──────────────────────────────
-      - record: job:telemetry_messages:invalid_ratio5m
-        expr: |
-          sum by (job) (rate(telemetry_messages_invalid_total[5m]))
-          /
-          sum by (job) (rate(telemetry_messages_received_total[5m]))
-
-      # ── Wskaźnik wykrytych anomalii ───────────────────────────────────────
-      - record: job:telemetry_anomalies_detected:rate5m
-        expr: |
-          sum by (job, severity) (
-            rate(telemetry_anomalies_detected_total[5m])
-          )
-          # severity label: WARNING lub CRITICAL (low-cardinality — ADR-0030)
 
   # ---------------------------------------------------------------------------
   # CROSS-SERVICE — agregaty całej floty dla głównego dashboardu

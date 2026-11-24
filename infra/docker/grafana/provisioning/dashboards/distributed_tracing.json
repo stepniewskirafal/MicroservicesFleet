@@ -983,7 +983,7 @@
     {
       "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "title": "Reservation Async E2E Lag [ms] · avg / max",
-      "description": "Time from ReservationConfirmed published (inside the reservation transaction) to enriched by the listener (after the commit, on another thread; ADR-0046).",
+      "description": "Time from ReservationConfirmed published (inside the reservation transaction) to enriched by the listener (after the commit, on another thread; ADR-0043).",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 93 },
       "id": 71,
@@ -1142,55 +1142,6 @@
         { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum(rate(events_reservation_enriched_total[$__rate_interval]))", "legendFormat": "Reservations Enriched", "range": true, "refId": "B" },
         { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum(rate(events_route_received_total[$__rate_interval]))", "legendFormat": "Routes Received", "range": true, "refId": "C" },
         { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum(rate(events_route_enriched_total[$__rate_interval]))", "legendFormat": "Routes Enriched", "range": true, "refId": "D" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "title": "Anomalies Detected by Severity (rate/s)",
-      "description": "Telemetry-pipeline domain signal: anomaly detections split by severity. Moved from the retired 'Microservices Fleet Dashboard'.",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 118 },
-      "id": 77,
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 0, "showPoints": "auto" },
-          "unit": "reqps"
-        },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "WARNING" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#EAB839" } }] },
-          { "matcher": { "id": "byName", "options": "CRITICAL" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
-        ]
-      },
-      "options": {
-        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "sum by (severity) (rate(telemetry_anomalies_detected_total[$__rate_interval]))", "legendFormat": "{{severity}}", "range": true, "refId": "A" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-      "title": "Message Validation Rejection Rate (%)",
-      "description": "Share of telemetry messages rejected as invalid — the 'E' (errors) of the telemetry pipeline. Moved from the retired 'Microservices Fleet Dashboard'.",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 118 },
-      "id": 78,
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0, "showPoints": "auto" },
-          "unit": "percent",
-          "min": 0
-        }
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
-        "tooltip": { "mode": "single", "sort": "none" }
-      },
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" }, "editorMode": "code", "expr": "100 * rate(telemetry_messages_invalid_total[$__rate_interval]) / clamp_min(rate(telemetry_messages_received_total[$__rate_interval]), 1e-9)", "legendFormat": "Invalid %", "range": true, "refId": "A" }
       ]
     }
   ],

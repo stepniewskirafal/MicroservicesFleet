@@ -85,7 +85,7 @@ class RoutePlanningModuleAdapterTest {
     @Test
     void request_carries_only_ports_and_ship_class() {
         // What a ship class can fly (fuel range) is the planner's knowledge — the request names the
-        // class and nothing more (ADR-0046).
+        // class and nothing more (ADR-0043).
         given(planRouteUseCase.planRoute(any()))
                 .willReturn(PlannedRoute.builder()
                         .routeId("ROUTE-1")

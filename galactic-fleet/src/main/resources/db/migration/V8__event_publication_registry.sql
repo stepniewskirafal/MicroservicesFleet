@@ -1,4 +1,4 @@
--- Spring Modulith Event Publication Registry (ADR-0046).
+-- Spring Modulith Event Publication Registry (ADR-0043).
 --
 -- An event published inside a transaction is stored here in that same transaction and delivered to
 -- its @ApplicationModuleListener after the commit, on another thread. A row with completion_date

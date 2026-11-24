@@ -8,7 +8,7 @@ import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 /**
  * Carries the trace context onto the threads that run {@code @ApplicationModuleListener}s.
  *
- * <p>Those listeners run after the publisher's commit on Spring's async executor (ADR-0046). Without
+ * <p>Those listeners run after the publisher's commit on Spring's async executor (ADR-0043). Without
  * this decorator the new thread starts with an empty context, so everything a listener emits —
  * including the {@code traceparent} of the Kafka records it produces — would begin a new trace
  * instead of continuing the trace of the HTTP request that confirmed the reservation (ADR-0017).

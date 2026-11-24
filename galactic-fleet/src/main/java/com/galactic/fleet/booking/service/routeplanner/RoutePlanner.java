@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
  * The one synchronous dependency between modules: this module asks {@code routeplanning} for a route
  * through its {@code api} named interface, because the route is part of the HTTP response.
  *
- * <p>It is the single exception to "modules do not share a thread" (ADR-0046). The call is a pure
+ * <p>It is the single exception to "modules do not share a thread" (ADR-0043). The call is a pure
  * computation — no I/O, no events — and the caller makes it <em>before</em> opening its transaction,
  * so the two modules never share a transaction.
  *
